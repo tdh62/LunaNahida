@@ -14,4 +14,7 @@ export const lyricSets = [
  ['月亮也失眠，在夜的边缘', '海浪翻过，昨天的书页', '星光陪着我，走得很远', '想念藏在，安静的时间', '等一声晚安，等一个晴天', '把梦轻轻，放在你身边'],
  ['等一场雨停，等一片天晴', '屋檐下的风铃，叮叮地回应', '街角的花，又开得透明', '有些美好，需要耐心', '让雨水洗去，昨日的心情', '然后微笑着，继续前行'],
 ];
+export type LyricWord = { text: string; start: number; end: number };
+const words = (text: string, start: number, step = .28): LyricWord[] => [...text].map((char, index) => ({ text: char, start: start + index * step, end: start + (index + 1) * step }));
+export const wordLyricSets: LyricWord[][][] = lyricSets.map((lines, trackIndex) => lines.map((line, lineIndex) => words(line, lineIndex * (tracks[trackIndex].duration / (lines.length + 1)))));
 export const formatTime = (seconds: number) => `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${Math.floor(seconds % 60).toString().padStart(2, '0')}`;

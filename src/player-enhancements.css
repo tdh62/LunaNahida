@@ -1,0 +1,65 @@
+/* Interaction refinements */
+html, body, #root { min-height: 100%; overflow-x: hidden; }
+body { overflow-y: hidden; }
+.music-app { height: 100dvh; min-height: 0; overflow: hidden; }
+.sidebar, .workspace { min-height: 0; }
+.workspace { height: calc(100dvh - 88px); overflow: hidden; }
+.main-columns { min-height: 0; overflow: hidden; }
+.queue-list, .library-list { scrollbar-width: none; }
+.queue-list::-webkit-scrollbar, .library-list::-webkit-scrollbar { display: none; }
+.spectrum-canvas { display: block; width: 100%; height: 100%; color: var(--accent); }
+.eq-popover { width: 300px; }
+.eq-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.eq-heading h3 { margin: 0; }
+.eq-heading button { border: 0; background: transparent; color: var(--accent); font-size: 10px; }
+.eq-sliders { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; height: 154px; }
+.eq-sliders label { display: flex; flex-direction: column; align-items: center; gap: 7px; color: #aaa; font-size: 9px; }
+.eq-sliders label > span { color: var(--accent); font: 9px 'DM Mono', monospace; }
+.eq-sliders input { width: 120px; height: 3px; margin: 54px -54px 46px; transform: rotate(-90deg); accent-color: var(--accent); }
+.eq-sliders small { white-space: nowrap; color: #8c8b90; font-size: 9px; }
+.lyric-word { color: #d9d7d4; transition: color .18s, text-shadow .18s; }
+.lyric-word.spoken, .lyric-word.speaking { color: var(--accent); }
+.lyric-word.speaking { text-shadow: 0 0 12px color-mix(in srgb, var(--accent) 65%, transparent); }
+.immersive-overlay { position: fixed; z-index: 100; inset: 0; display: flex; flex-direction: column; overflow: hidden; background: #101113; }
+.immersive-backdrop { position: absolute; inset: -5%; width: 110%; height: 110%; object-fit: cover; opacity: .3; filter: blur(34px) saturate(.8); transform: scale(1.05); }
+.immersive-shade { position: absolute; inset: 0; background: rgba(12, 13, 15, .77); }
+.immersive-overlay > *:not(.immersive-backdrop):not(.immersive-shade) { position: relative; z-index: 1; }
+.immersive-overlay > header { display: flex; align-items: center; justify-content: space-between; height: 68px; padding: 0 5vw; border-bottom: 1px solid rgba(255,255,255,.1); color: #eee; font-size: 13px; }
+.immersive-overlay > header > span:not(.brand-icon) { flex: 1; margin-left: 10px; }
+.immersive-overlay > header small { margin-left: 9px; color: var(--accent); font: 8px 'DM Mono', monospace; }
+.immersive-main { display: grid; grid-template-columns: minmax(260px, 410px) minmax(300px, 570px); align-items: center; justify-content: center; gap: clamp(40px, 8vw, 150px); min-height: 0; flex: 1; padding: 30px 5vw; }
+.immersive-art { position: relative; width: min(35vw, 410px); aspect-ratio: 1; }
+.immersive-art > img { width: 100%; height: 100%; object-fit: cover; box-shadow: 0 25px 70px rgba(0,0,0,.45); }
+.immersive-art > .spectrum-canvas { position: absolute; right: 10%; bottom: 5%; left: 10%; height: 25%; }
+.immersive-lyrics { min-width: 0; max-height: 62vh; overflow: hidden; }
+.immersive-lyrics h1 { margin: 12px 0 27px; color: #f4f1ec; font-size: clamp(24px, 3vw, 42px); font-weight: 500; }
+.immersive-lyrics > div { mask-image: linear-gradient(transparent, #000 15%, #000 85%, transparent); }
+.immersive-lyrics p { margin: 0; padding: 9px 0; color: #88898e; font-size: clamp(14px, 1.45vw, 19px); transition: color .35s, transform .35s; }
+.immersive-lyrics p.current { color: var(--accent); transform: translateX(12px); }
+.immersive-lyrics p.current span { transition: color .16s; }
+.immersive-lyrics p.current span.spoken, .immersive-lyrics p.current span.speaking { color: #fff; }
+.immersive-controls { display: grid; grid-template-columns: 1fr minmax(300px, 470px) 1fr; align-items: center; gap: 35px; padding: 16px 5vw 22px; border-top: 1px solid rgba(255,255,255,.1); }
+.immersive-meta, .immersive-extra { display: flex; align-items: center; gap: 11px; }
+.immersive-meta > img { width: 42px; height: 42px; object-fit: cover; }
+.immersive-meta > span { min-width: 0; color: #eee; font-size: 11px; }
+.immersive-meta small { display: block; margin-top: 4px; color: #96969a; font-size: 9px; }
+.immersive-transport > div { display: flex; justify-content: center; gap: 12px; margin-bottom: 10px; }
+.immersive-transport label { display: flex; align-items: center; gap: 9px; color: #99999c; font: 9px 'DM Mono', monospace; }
+.immersive-transport input { min-width: 0; flex: 1; }
+.immersive-extra { justify-content: flex-end; }
+.is-fullscreen .immersive-overlay { position: absolute; }
+@media(max-width:760px) {
+  body { overflow-y: auto; }
+  .music-app { height: auto; min-height: 100dvh; overflow: visible; }
+  .workspace { height: auto; overflow: visible; }
+  .immersive-main { grid-template-columns: minmax(0, 1fr); gap: 22px; padding: 25px 25px 10px; }
+  .immersive-art { width: min(67vw, 290px); justify-self: center; }
+  .immersive-lyrics { max-height: 35vh; }
+  .immersive-lyrics h1 { margin: 7px 0 11px; font-size: 24px; }
+  .immersive-lyrics p { padding: 5px 0; font-size: 13px; }
+  .immersive-controls { grid-template-columns: 1fr auto; gap: 8px; padding: 10px 18px 14px; }
+  .immersive-transport { grid-column: 1 / -1; grid-row: 2; }
+  .immersive-meta { grid-column: 1; }
+  .immersive-extra { grid-column: 2; }
+  .eq-popover { width: 270px; }
+}
