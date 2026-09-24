@@ -25,17 +25,34 @@ function Spectrum({ analyser, active }: { analyser: AnalyserNode | null; active:
   useEffect(() => {
     const element = canvas.current; if (!element) return;
     const context = element.getContext('2d'); if (!context) return;
+    const data = new Uint8Array(analyser?.frequencyBinCount ?? 64);
     let frame = 0;
     const draw = () => {
-      const width = element.width = element.clientWidth * 2, height = element.height = element.clientHeight * 2;
-      context.clearRect(0, 0, width, height);
-      const data = new Uint8Array(analyser?.frequencyBinCount ?? 64);
-      if (analyser && active) analyser.getByteFrequencyData(data);
-      const bars = 34, gap = 5, barWidth = Math.max(2, (width - gap * bars) / bars);
-      for (let i = 0; i < bars; i++) { const value = active ? data[Math.floor(i * data.length / bars)] / 255 : .1; const barHeight = Math.max(3, value * height * .9); context.fillStyle = getComputedStyle(element).color; context.globalAlpha = .38 + value * .62; context.fillRect(i * (barWidth + gap), height - barHeight, barWidth, barHeight); }
-      frame = requestAnimationFrame(draw);
+      const { width, height } = element.getBoundingClientRect();
+      if (width > 0 && height > 0) {
+        const scale = window.devicePixelRatio || 1;
+        const pixelWidth = Math.round(width * scale), pixelHeight = Math.round(height * scale);
+        if (element.width !== pixelWidth || element.height !== pixelHeight) {
+          element.width = pixelWidth; element.height = pixelHeight;
+        }
+        context.clearRect(0, 0, pixelWidth, pixelHeight);
+        if (analyser && active) analyser.getByteFrequencyData(data);
+        const bars = 34, gap = Math.min(5 * scale, pixelWidth / (bars * 3));
+        const barWidth = (pixelWidth - gap * (bars - 1)) / bars;
+        context.fillStyle = getComputedStyle(element).color;
+        for (let i = 0; i < bars; i++) {
+          const value = analyser && active ? data[Math.floor(i * data.length / bars)] / 255 : .1;
+          const barHeight = Math.max(3 * scale, value * pixelHeight * .9);
+          context.globalAlpha = .38 + value * .62;
+          context.fillRect(i * (barWidth + gap), pixelHeight - barHeight, barWidth, barHeight);
+        }
+      }
+      if (active) frame = requestAnimationFrame(draw);
     };
-    draw(); return () => cancelAnimationFrame(frame);
+    const observer = new ResizeObserver(() => { if (!active) draw(); });
+    observer.observe(element);
+    draw();
+    return () => { cancelAnimationFrame(frame); observer.disconnect(); };
   }, [analyser, active]);
   return <canvas ref={canvas} className="spectrum-canvas" aria-label="实时频谱" />;
 }
@@ -114,7 +131,7 @@ export default function Index() {
       <header className="topbar flex items-center justify-between gap-4"><div className="flex items-center gap-3"><Link to="/" className="breadcrumb">音乐空间</Link><ChevronRight size={13} className="muted" /><span>{isSettings ? '设置' : view}</span></div><div className="flex items-center gap-5"><IconButton label="搜索曲目" onClick={() => navigate('/music')}><Search size={18} /></IconButton><span className="header-separator" /><IconButton label={fullscreen ? '退出全屏' : '进入全屏沉浸模式'} active={fullscreen} onClick={toggleFullscreen}>{fullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}</IconButton></div></header>
       {isSettings ? <PlayerSettings theme={theme} setTheme={setTheme} visual={visual} setVisual={setVisual} lyricEffect={lyricEffect} setLyricEffect={setLyricEffect} lyricScroll={lyricScroll} setLyricScroll={setLyricScroll} showTranslation={showTranslation} setShowTranslation={setShowTranslation} sleep={sleep} setSleep={setSleep} effect={p.effect} setEffect={p.setEffect} equalizer={p.equalizer} setBand={p.setBand} resetEqualizer={p.resetEqualizer} /> : view !== '正在播放' ? <LibraryView key={view} title={view} tracks={visibleTracks} currentId={p.trackId} liked={liked} onToggleLike={toggleTrackLike} onPlay={id => { p.select(id); navigate('/'); }} /> : <>
       <div className="main-columns"><section className="listening-stage"><div className="stage-top flex items-center justify-between"><span>{p.playing ? '正在播放' : p.hasTrack ? '已暂停' : '队列为空'}</span></div>
-        {p.hasTrack ? <div className={`listening-content ${!hasLyrics ? 'without-lyrics' : ''}`}><div className="album-column"><div className={`album-art ${visual === '唱片' ? 'vinyl' : ''}`}><img src={p.track.cover} alt={`${p.track.album}专辑封面`} />{!p.track.source && <><span className="album-print">{p.track.english}</span><span className="cover-corner">VOL. 0{(p.trackId ?? 0) + 1}</span></>}</div><div className="album-title flex items-center justify-between"><h2>{p.track.title}</h2>{!p.track.source && <IconButton label={favorite ? '取消喜欢' : '喜欢这首歌'} active={favorite} onClick={toggleLike}><Heart size={21} fill={favorite ? 'currentColor' : 'none'} /></IconButton>}</div><p className="artist-name">{p.track.artist}<span> · </span>{p.track.album}</p><div className="track-tags"><span>{p.track.source ? '本地文件' : '演示曲目'}</span><span>{p.track.genre.split(' / ')[0]}</span></div><div className={`visualizer ${p.playing ? 'animated' : ''} ${visual === '呼吸' ? 'breathing' : ''}`} aria-label="音乐频谱"><Spectrum analyser={p.analyser} active={p.playing && visual === '频谱'} />{visual !== '频谱' && Array.from({ length: 48 }, (_, i) => <i key={i} style={{ height: `${8 + Math.sin(i * .65) ** 2 * 23 + Math.sin(i * .2) ** 2 * 13}px`, animationDelay: `${i * -.13}s`, animationDuration: `${.65 + i % 5 * .2}s` }} />)}</div></div>
+        {p.hasTrack ? <div className={`listening-content ${!hasLyrics ? 'without-lyrics' : ''}`}><div className="album-column"><div className={`album-art ${visual === '唱片' ? 'vinyl' : ''}`}><img src={p.track.cover} alt={`${p.track.album}专辑封面`} />{!p.track.source && <><span className="album-print">{p.track.english}</span><span className="cover-corner">VOL. 0{(p.trackId ?? 0) + 1}</span></>}</div><div className="album-title flex items-center justify-between"><h2>{p.track.title}</h2>{!p.track.source && <IconButton label={favorite ? '取消喜欢' : '喜欢这首歌'} active={favorite} onClick={toggleLike}><Heart size={21} fill={favorite ? 'currentColor' : 'none'} /></IconButton>}</div><p className="artist-name">{p.track.artist}<span> · </span>{p.track.album}</p><div className="track-tags"><span>{p.track.source ? '本地文件' : '演示曲目'}</span><span>{p.track.genre.split(' / ')[0]}</span></div><div className={`visualizer ${p.playing ? 'animated' : ''} ${visual === '呼吸' ? 'breathing' : ''}`} aria-label="音乐频谱">{visual === '频谱' ? <Spectrum analyser={p.analyser} active={p.playing} /> : Array.from({ length: 48 }, (_, i) => <i key={i} style={{ height: `${8 + Math.sin(i * .65) ** 2 * 23 + Math.sin(i * .2) ** 2 * 13}px`, animationDelay: `${i * -.13}s`, animationDuration: `${.65 + i % 5 * .2}s` }} />)}</div></div>
           {hasLyrics && <div className={`lyrics-column lyric-${lyricEffect} ${lyricScroll === '即时' ? 'lyric-scroll-instant' : ''}`}><div className="lyrics-header"><span>歌词 <small>LYRICS</small></span>{!p.track.source && <button title="切换歌词显示" onClick={() => setShowTranslation(!showTranslation)} className={showTranslation ? 'is-active' : ''}>文</button>}</div><div className="lyrics-window"><div className="lyrics-track" style={{ transform: `translateY(${112 - activeLine * 66}px)` }}>{lines.map((line, i) => <button key={`${p.trackId}-${i}`} className={`lyric-line ${i === activeLine ? 'current' : ''} ${Math.abs(i - activeLine) > 2 ? 'distant' : ''}`} onClick={() => p.seek(i * lineLength)}><span>{lyricEffect === '逐字' && i === activeLine ? wordLines[i].map((word, wi) => <span key={wi} className={`lyric-word ${wi < activeWord ? 'spoken' : ''} ${wi === activeWord ? 'speaking' : ''}`} style={{ animationDuration: `${Math.max(.1, word.end - word.start)}s` }}>{word.text}</span>) : line}</span>{i === activeLine && showTranslation && !p.track.source && <small>{i === 0 ? 'The wind carries our thoughts away.' : 'Take a breath. Let the world slow down.'}</small>}</button>)}</div></div></div>}
         </div> : <div className="listening-empty"><img src="/covers/local.svg" alt="" /><h2>播放队列为空</h2></div>}
         <div className="stage-toolbar flex items-center justify-between"><Popover><PopoverTrigger asChild><button className="toolbar-button"><SlidersHorizontal size={14} /> 音效 <span>{p.effect}</span><ChevronDown size={12} /></button></PopoverTrigger><PopoverContent className="player-popover w-56">{['原声', '低音增强', '空间回响', '温暖 Lo-fi'].map(e => <button className="popover-item" key={e} onClick={() => p.setEffect(e)}>{e}{p.effect === e && <Check size={14} />}</button>)}</PopoverContent></Popover><Link to="/settings" className="toolbar-button"><Settings2 size={14} /> 播放器样式</Link><Popover><PopoverTrigger asChild><button className="toolbar-button eq-trigger"><Waves size={15} /> 均衡器</button></PopoverTrigger><PopoverContent className="player-popover eq-popover"><div className="eq-heading"><h3>五段均衡器</h3><button onClick={p.resetEqualizer}>重置</button></div><div className="eq-sliders">{eqNames.map((name, i) => <label key={name}><span>{p.equalizer[i] > 0 ? '+' : ''}{p.equalizer[i]}</span><input type="range" min="-12" max="12" value={p.equalizer[i]} onChange={e => p.setBand(i, Number(e.target.value))} aria-label={`${name}频段`} /><small>{name}</small></label>)}</div></PopoverContent></Popover></div>
