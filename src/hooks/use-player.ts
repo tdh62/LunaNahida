@@ -26,6 +26,8 @@ const playable = /\.(mp3|m4a|aac|wav|ogg|oga|opus|flac|webm)$/i;
 export const isAudioFile = (file: File) => playable.test(file.name);
 type Graph = { context: AudioContext; filter: BiquadFilterNode; delay: DelayNode; wet: GainNode; bands: BiquadFilterNode[]; analyser: AnalyserNode };
 
+let activePlayback: { element: HTMLAudioElement; stop: () => void } | null = null;
+
 function loadFile(file: File, id: number): Promise<Track | null> {
   return new Promise(resolve => {
     const source = URL.createObjectURL(file), probe = new Audio();
@@ -55,9 +57,26 @@ export function usePlayer() {
 
   useEffect(() => {
     const element = new Audio(); audio.current = element;
+    const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('lumatune-playback') : null;
+    const stop = () => { shouldPlay.current = false; element.pause(); };
+    channel?.addEventListener('message', event => { if (event.data === 'play') stop(); });
     element.ontimeupdate = () => setTime(element.currentTime); element.onended = () => nextRef.current();
-    element.onplay = () => { setPlaying(true); if (currentId.current !== null) setRecent(prev => [currentId.current!, ...prev.filter(id => id !== currentId.current)].slice(0, 50)); }; element.onpause = () => setPlaying(false);
-    return () => { element.pause(); element.removeAttribute('src'); demos.current.forEach(URL.revokeObjectURL); queueRef.current.forEach(t => { if (t.source) URL.revokeObjectURL(t.source); }); void graph.current?.context.close(); };
+    element.onplay = () => {
+      if (activePlayback?.element !== element) activePlayback?.stop();
+      activePlayback = { element, stop };
+      channel?.postMessage('play');
+      setPlaying(true);
+      if (currentId.current !== null) setRecent(prev => [currentId.current!, ...prev.filter(id => id !== currentId.current)].slice(0, 50));
+    };
+    element.onpause = () => { if (activePlayback?.element === element) activePlayback = null; setPlaying(false); };
+    return () => {
+      stop(); channel?.close();
+      if (activePlayback?.element === element) activePlayback = null;
+      element.onplay = element.onpause = element.onended = element.ontimeupdate = null;
+      element.removeAttribute('src'); element.load(); audio.current = null;
+      demos.current.forEach(URL.revokeObjectURL); demos.current.clear(); queueRef.current.forEach(t => { if (t.source) URL.revokeObjectURL(t.source); });
+      void graph.current?.context.close(); graph.current = null;
+    };
   }, []);
   const ensureGraph = () => {
     if (!graph.current && audio.current) {
@@ -76,10 +95,11 @@ export function usePlayer() {
   };
   useEffect(() => {
     const el = audio.current; if (!el) return;
-    if (trackId === null || !track) { el.pause(); el.removeAttribute('src'); el.load(); setTime(0); return; }
+    el.pause(); el.removeAttribute('src'); el.load();
+    if (trackId === null || !track) { setTime(0); return; }
     if (!track.source && !demos.current.has(track.id)) demos.current.set(track.id, renderDemo(track.id, track.duration));
     el.src = track.source ?? demos.current.get(track.id)!; setTime(0);
-    if (shouldPlay.current) void el.play().catch(() => setPlaying(false));
+    if (shouldPlay.current) void el.play().catch(() => { if (el.paused) setPlaying(false); });
   }, [trackId]);
   useEffect(() => { if (audio.current) audio.current.volume = volume / 100; }, [volume]);
   useEffect(() => {
@@ -98,8 +118,8 @@ export function usePlayer() {
     }
     ensureGraph(); shouldPlay.current = true;
     currentId.current = id;
-    if (id === trackId) { if (audio.current) { audio.current.currentTime = 0; void audio.current.play().catch(() => setPlaying(false)); } }
-    else setTrackId(id);
+    if (id === trackId) { if (audio.current) { audio.current.currentTime = 0; void audio.current.play().catch(() => { if (audio.current?.paused) setPlaying(false); }); } }
+    else { audio.current?.pause(); setTrackId(id); }
   };
   const next = () => {
     const list = queueRef.current; if (!list.length) return;
