@@ -116,3 +116,41 @@
   .player-heading { align-items: flex-start; flex-direction: column; }
   .heading-actions { justify-content: flex-start; }
 }
+
+/* Let the playback workspace fill the area beside the sidebar. */
+.music-app:not(.focus-mode) .workspace:not(.settings-workspace) { max-width: none; margin: 0; padding: 0; }
+.music-app:not(.focus-mode) .workspace:not(.settings-workspace) .topbar { padding: 0 24px; }
+.music-app:not(.focus-mode) .workspace:not(.settings-workspace) .main-columns { background: var(--surface); }
+.music-app:not(.focus-mode) .workspace:not(.settings-workspace) .listening-stage { padding: 0; background: none; }
+.music-app:not(.focus-mode) .workspace:not(.settings-workspace) .stage-top,
+.music-app:not(.focus-mode) .workspace:not(.settings-workspace) .stage-toolbar { padding: 0 24px; }
+.music-app:not(.focus-mode) .workspace:not(.settings-workspace) .listening-content { padding: 18px 24px; }
+.music-app:not(.focus-mode) .workspace:not(.settings-workspace) .album-column { width: min(100%, 350px); justify-self: center; }
+.music-app:not(.focus-mode) .workspace:not(.settings-workspace) .queue-panel { padding-right: 24px; }
+
+@media (min-width: 761px) and (max-width: 900px) {
+  .music-app:not(.focus-mode) .workspace:not(.settings-workspace) .listening-content {
+    grid-template-columns: minmax(0, .88fr) minmax(0, 1fr);
+    gap: 14px;
+    padding: 18px 16px;
+  }
+  .music-app:not(.focus-mode) .workspace:not(.settings-workspace) .stage-top,
+  .music-app:not(.focus-mode) .workspace:not(.settings-workspace) .stage-toolbar { padding-right: 16px; padding-left: 16px; }
+  .music-app:not(.focus-mode) .workspace:not(.settings-workspace) .queue-panel { padding-right: 16px; }
+}
+
+@media (max-width: 760px) {
+  .music-app:not(.focus-mode) .workspace:not(.settings-workspace) .topbar,
+  .music-app:not(.focus-mode) .workspace:not(.settings-workspace) .stage-top,
+  .music-app:not(.focus-mode) .workspace:not(.settings-workspace) .stage-toolbar { padding-right: 16px; padding-left: 16px; }
+  .music-app:not(.focus-mode) .workspace:not(.settings-workspace) .listening-content { padding: 17px 16px; }
+  .music-app:not(.focus-mode) .workspace:not(.settings-workspace) .queue-panel { padding: 0 16px; }
+}
+
+@media (max-width: 410px) {
+  .music-app:not(.focus-mode) .workspace:not(.settings-workspace) .topbar,
+  .music-app:not(.focus-mode) .workspace:not(.settings-workspace) .stage-top,
+  .music-app:not(.focus-mode) .workspace:not(.settings-workspace) .stage-toolbar { padding-right: 12px; padding-left: 12px; }
+  .music-app:not(.focus-mode) .workspace:not(.settings-workspace) .listening-content { padding-right: 12px; padding-left: 12px; }
+  .music-app:not(.focus-mode) .workspace:not(.settings-workspace) .queue-panel { padding-right: 12px; padding-left: 12px; }
+}
