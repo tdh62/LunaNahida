@@ -47,7 +47,7 @@ export function usePlayer() {
   const [queue, setQueue] = useState<Track[]>(tracks), [trackId, setTrackId] = useState<number | null>(0);
   const [recent, setRecent] = useState<number[]>([]);
   const [playing, setPlaying] = useState(false), [time, setTime] = useState(0);
-  const [volume, setVolume] = useState(65), [mode, setMode] = useState<'list' | 'repeat' | 'shuffle'>('list');
+  const [volume, setVolume] = useState(65), [mode, setMode] = useState<'list' | 'repeat' | 'shuffle' | 'stop-track' | 'stop-list'>('list');
   const [effect, setEffect] = useState('原声'), [equalizer, setEqualizer] = useState<number[]>(emptyBands), [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
   const audio = useRef<HTMLAudioElement | null>(null), graph = useRef<Graph | null>(null);
   const demos = useRef(new Map<number, string>()), queueRef = useRef(queue), currentId = useRef(trackId), shouldPlay = useRef(false), nextRef = useRef<() => void>(() => {}), nextId = useRef(100);
@@ -127,7 +127,17 @@ export function usePlayer() {
     const target = mode === 'shuffle' && list.length > 1 ? list[(index + 1 + Math.floor(Math.random() * (list.length - 1))) % list.length] : list[(index + 1) % list.length];
     select(target.id);
   };
-  nextRef.current = () => { if (mode === 'repeat' && trackId !== null) select(trackId); else next(); };
+  nextRef.current = () => {
+    const list = queueRef.current;
+    const atEnd = list.findIndex(t => t.id === trackId) === list.length - 1;
+    if (mode === 'stop-track' || (mode === 'stop-list' && atEnd)) {
+      shouldPlay.current = false;
+      setPlaying(false);
+      if (audio.current) audio.current.currentTime = 0;
+      setTime(0);
+    } else if (mode === 'repeat' && trackId !== null) select(trackId);
+    else next();
+  };
   const previous = () => { const list = queueRef.current; if (!list.length) return; const index = list.findIndex(t => t.id === trackId); select(list[(index - 1 + list.length) % list.length].id); };
   const toggle = () => { if (!audio.current || !track) return; ensureGraph(); if (playing) { audio.current.pause(); shouldPlay.current = false; } else { shouldPlay.current = true; void audio.current.play().catch(() => setPlaying(false)); } };
   const seek = (value: number) => { if (audio.current && track) audio.current.currentTime = value; setTime(value); };
