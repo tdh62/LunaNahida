@@ -138,16 +138,20 @@ export function usePlayer() {
     const old = queueRef.current; updateQueue([]);
     old.forEach(t => { if (t.source) URL.revokeObjectURL(t.source); });
   };
-  const removeTrack = (id: number) => {
-    const list = queueRef.current, index = list.findIndex(t => t.id === id);
-    if (index < 0) return;
-    const remaining = list.filter(t => t.id !== id);
-    if (trackId === id) {
-      if (remaining.length) setTrackId(remaining[Math.min(index, remaining.length - 1)].id);
-      else { audio.current?.pause(); shouldPlay.current = false; setTrackId(null); setTime(0); }
+  const removeTracks = (ids: number[]) => {
+    const removedIds = new Set(ids);
+    const list = queueRef.current, removed = list.filter(t => removedIds.has(t.id));
+    if (!removed.length) return;
+    const remaining = list.filter(t => !removedIds.has(t.id));
+    if (trackId !== null && removedIds.has(trackId)) {
+      audio.current?.pause();
+      const index = list.findIndex(t => t.id === trackId);
+      const next = list.slice(index + 1).find(t => !removedIds.has(t.id)) ?? remaining[remaining.length - 1];
+      if (next) setTrackId(next.id);
+      else { shouldPlay.current = false; setTrackId(null); setTime(0); }
     }
     updateQueue(remaining);
-    if (list[index].source) URL.revokeObjectURL(list[index].source);
+    removed.forEach(t => { if (t.source) URL.revokeObjectURL(t.source); });
   };
   const move = (from: number, to: number) => {
     const list = [...queueRef.current], start = list.findIndex(t => t.id === from), end = list.findIndex(t => t.id === to);
@@ -188,5 +192,5 @@ export function usePlayer() {
     }
     return loaded.length;
   };
-  return { track: track ?? emptyTrack, hasTrack: Boolean(track), trackId, queue, recent, playing, time, volume, setVolume, mode, setMode, effect, setEffect, equalizer, setBand, resetEqualizer, analyser, select, next, previous, toggle, seek, clearQueue, removeTrack, move, addFiles };
+  return { track: track ?? emptyTrack, hasTrack: Boolean(track), trackId, queue, recent, playing, time, volume, setVolume, mode, setMode, effect, setEffect, equalizer, setBand, resetEqualizer, analyser, select, next, previous, toggle, seek, clearQueue, removeTracks, move, addFiles };
 }
