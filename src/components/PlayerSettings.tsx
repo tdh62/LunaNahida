@@ -16,6 +16,8 @@ type SettingsProps = {
   setVisual: (value: string) => void;
   lyricEffect: string;
   setLyricEffect: (value: string) => void;
+  lyricScroll: string;
+  setLyricScroll: (value: string) => void;
   showTranslation: boolean;
   setShowTranslation: (value: boolean) => void;
   sleep: number;
@@ -27,7 +29,7 @@ type SettingsProps = {
   resetEqualizer: () => void;
 };
 
-export default function PlayerSettings({ theme, setTheme, visual, setVisual, lyricEffect, setLyricEffect, showTranslation, setShowTranslation, sleep, setSleep, effect, setEffect, equalizer, setBand, resetEqualizer }: SettingsProps) {
+export default function PlayerSettings({ theme, setTheme, visual, setVisual, lyricEffect, setLyricEffect, lyricScroll, setLyricScroll, showTranslation, setShowTranslation, sleep, setSleep, effect, setEffect, equalizer, setBand, resetEqualizer }: SettingsProps) {
   return <div className="settings-page">
     <header className="settings-heading"><h1>设置</h1></header>
     <section className="settings-group"><div className="settings-group-title"><Palette size={19} /><div><h2>界面主题</h2><p>颜色只影响界面，不会改变正在播放的音乐。</p></div></div>
@@ -36,6 +38,7 @@ export default function PlayerSettings({ theme, setTheme, visual, setVisual, lyr
     <section className="settings-group"><div className="settings-group-title"><Headphones size={19} /><div><h2>播放器样式</h2><p>选择封面动画和歌词呈现方式。</p></div></div>
       <div className="settings-row"><div><strong>播放氛围</strong><small>切换封面与频谱显示</small></div><div className="settings-options">{['频谱', '唱片', '呼吸'].map(v => <button key={v} aria-pressed={visual === v} className={visual === v ? 'active' : ''} onClick={() => setVisual(v)}>{v}</button>)}</div></div>
       <div className="settings-row"><div><strong>歌词效果</strong><small>调整正在播放的歌词样式</small></div><div className="settings-options">{['流动', '聚焦', '逐字'].map(v => <button key={v} aria-pressed={lyricEffect === v} className={lyricEffect === v ? 'active' : ''} onClick={() => setLyricEffect(v)}>{v}</button>)}</div></div>
+      <div className="settings-row"><div><strong>歌词滚动</strong><small>切换歌词跟随播放的过渡方式</small></div><div className="settings-options">{['平滑', '即时'].map(v => <button key={v} aria-pressed={lyricScroll === v} className={lyricScroll === v ? 'active' : ''} onClick={() => setLyricScroll(v)}>{v}</button>)}</div></div>
       <div className="settings-row"><div><strong>显示翻译</strong><small>在当前歌词下显示译文</small></div><button type="button" role="switch" aria-checked={showTranslation} aria-label="显示翻译" onClick={() => setShowTranslation(!showTranslation)} className={`settings-switch ${showTranslation ? 'on' : ''}`}><span /></button></div>
     </section>
     <section className="settings-group"><div className="settings-group-title"><SlidersHorizontal size={19} /><div><h2>声音</h2><p>调整音效和均衡器。</p></div></div>
