@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { tracks } from '@/lib/music';
+import { tracks, type Track } from '@/lib/music';
 
 function renderDemo(id: number, duration: number) {
   const rate = 12000, length = duration * rate;
@@ -21,20 +21,41 @@ function renderDemo(id: number, duration: number) {
 
 const frequencies = [60, 230, 910, 3600, 12000];
 const emptyBands = [0, 0, 0, 0, 0];
+const emptyTrack: Track = { id: -1, title: '暂无歌曲', english: '', artist: '打开歌曲或文件夹', album: '本地音乐', duration: 0, cover: '/covers/local.svg', genre: '本地音频', year: '—', color: '#a5b5ff' };
+const playable = /\.(mp3|m4a|aac|wav|ogg|oga|opus|flac|webm)$/i;
+export const isAudioFile = (file: File) => playable.test(file.name);
 type Graph = { context: AudioContext; filter: BiquadFilterNode; delay: DelayNode; wet: GainNode; bands: BiquadFilterNode[]; analyser: AnalyserNode };
 
+function loadFile(file: File, id: number): Promise<Track | null> {
+  return new Promise(resolve => {
+    const source = URL.createObjectURL(file), probe = new Audio();
+    const done = (duration: number | null) => {
+      probe.onloadedmetadata = null; probe.onerror = null;
+      probe.removeAttribute('src'); probe.load();
+      if (duration === null) { URL.revokeObjectURL(source); resolve(null); return; }
+      resolve({ id, title: file.name.replace(/\.[^.]+$/, ''), english: 'LOCAL AUDIO', artist: '本地文件', album: '本地音乐', duration, cover: '/covers/local.svg', genre: '本地音频', year: '—', color: '#a5b5ff', source });
+    };
+    probe.onloadedmetadata = () => done(Number.isFinite(probe.duration) ? probe.duration : 0);
+    probe.onerror = () => done(null);
+    probe.preload = 'metadata'; probe.src = source;
+  });
+}
+
 export function usePlayer() {
-  const [trackId, setTrackId] = useState(0), [playing, setPlaying] = useState(false), [time, setTime] = useState(0);
+  const [queue, setQueue] = useState<Track[]>(tracks), [trackId, setTrackId] = useState<number | null>(0);
+  const [playing, setPlaying] = useState(false), [time, setTime] = useState(0);
   const [volume, setVolume] = useState(65), [mode, setMode] = useState<'list' | 'repeat' | 'shuffle'>('list');
   const [effect, setEffect] = useState('原声'), [equalizer, setEqualizer] = useState<number[]>(emptyBands), [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
   const audio = useRef<HTMLAudioElement | null>(null), graph = useRef<Graph | null>(null);
-  const urls = useRef(new Map<number, string>()), shouldPlay = useRef(false), nextRef = useRef<() => void>(() => {});
-  const track = tracks[trackId];
+  const demos = useRef(new Map<number, string>()), queueRef = useRef(queue), shouldPlay = useRef(false), nextRef = useRef<() => void>(() => {}), nextId = useRef(100);
+  const track = queue.find(t => t.id === trackId) ?? null;
+  const updateQueue = (value: Track[]) => { queueRef.current = value; setQueue(value); };
+
   useEffect(() => {
     const element = new Audio(); audio.current = element;
     element.ontimeupdate = () => setTime(element.currentTime); element.onended = () => nextRef.current();
     element.onplay = () => setPlaying(true); element.onpause = () => setPlaying(false);
-    return () => { element.pause(); element.src = ''; urls.current.forEach(URL.revokeObjectURL); graph.current?.context.close(); };
+    return () => { element.pause(); element.removeAttribute('src'); demos.current.forEach(URL.revokeObjectURL); queueRef.current.forEach(t => { if (t.source) URL.revokeObjectURL(t.source); }); void graph.current?.context.close(); };
   }, []);
   const ensureGraph = () => {
     if (!graph.current && audio.current) {
@@ -53,10 +74,11 @@ export function usePlayer() {
   };
   useEffect(() => {
     const el = audio.current; if (!el) return;
-    if (!urls.current.has(trackId)) urls.current.set(trackId, renderDemo(trackId, track.duration));
-    el.src = urls.current.get(trackId)!; setTime(0);
+    if (trackId === null || !track) { el.pause(); el.removeAttribute('src'); el.load(); setTime(0); return; }
+    if (!track.source && !demos.current.has(track.id)) demos.current.set(track.id, renderDemo(track.id, track.duration));
+    el.src = track.source ?? demos.current.get(track.id)!; setTime(0);
     if (shouldPlay.current) void el.play().catch(() => setPlaying(false));
-  }, [trackId, track.duration]);
+  }, [trackId]);
   useEffect(() => { if (audio.current) audio.current.volume = volume / 100; }, [volume]);
   useEffect(() => {
     const g = graph.current; if (!g) return;
@@ -64,12 +86,53 @@ export function usePlayer() {
     g.filter.gain.value = effect === '低音增强' ? 10 : 0; g.wet.gain.value = effect === '空间回响' ? .45 : 0;
   }, [effect, playing]);
   useEffect(() => { graph.current?.bands.forEach((band, index) => { band.gain.setTargetAtTime(equalizer[index], graph.current!.context.currentTime, .04); }); }, [equalizer]);
-  const select = (id: number) => { ensureGraph(); shouldPlay.current = true; if (id === trackId) { if (audio.current) { audio.current.currentTime = 0; void audio.current.play(); } } else setTrackId(id); };
-  const next = () => select(mode === 'shuffle' ? (trackId + 1 + Math.floor(Math.random() * (tracks.length - 1))) % tracks.length : (trackId + 1) % tracks.length);
-  nextRef.current = () => { if (mode === 'repeat') select(trackId); else next(); };
-  const toggle = () => { if (!audio.current) return; ensureGraph(); if (playing) { audio.current.pause(); shouldPlay.current = false; } else { shouldPlay.current = true; void audio.current.play().catch(() => setPlaying(false)); } };
-  const seek = (value: number) => { if (audio.current) audio.current.currentTime = value; setTime(value); };
+
+  const select = (id: number) => {
+    let list = queueRef.current;
+    if (!list.some(t => t.id === id)) {
+      const demo = tracks.find(t => t.id === id);
+      if (!demo) return;
+      list = [...list, demo]; updateQueue(list);
+    }
+    ensureGraph(); shouldPlay.current = true;
+    if (id === trackId) { if (audio.current) { audio.current.currentTime = 0; void audio.current.play().catch(() => setPlaying(false)); } }
+    else setTrackId(id);
+  };
+  const next = () => {
+    const list = queueRef.current; if (!list.length) return;
+    const index = list.findIndex(t => t.id === trackId);
+    const target = mode === 'shuffle' && list.length > 1 ? list[(index + 1 + Math.floor(Math.random() * (list.length - 1))) % list.length] : list[(index + 1) % list.length];
+    select(target.id);
+  };
+  nextRef.current = () => { if (mode === 'repeat' && trackId !== null) select(trackId); else next(); };
+  const previous = () => { const list = queueRef.current; if (!list.length) return; const index = list.findIndex(t => t.id === trackId); select(list[(index - 1 + list.length) % list.length].id); };
+  const toggle = () => { if (!audio.current || !track) return; ensureGraph(); if (playing) { audio.current.pause(); shouldPlay.current = false; } else { shouldPlay.current = true; void audio.current.play().catch(() => setPlaying(false)); } };
+  const seek = (value: number) => { if (audio.current && track) audio.current.currentTime = value; setTime(value); };
   const setBand = (index: number, value: number) => setEqualizer(prev => prev.map((band, i) => i === index ? value : band));
   const resetEqualizer = () => setEqualizer([...emptyBands]);
-  return { track, trackId, playing, time, volume, setVolume, mode, setMode, effect, setEffect, equalizer, setBand, resetEqualizer, analyser, select, next, previous: () => select((trackId + tracks.length - 1) % tracks.length), toggle, seek };
+  const clearQueue = () => {
+    audio.current?.pause(); shouldPlay.current = false; setTrackId(null); setTime(0);
+    const old = queueRef.current; updateQueue([]);
+    old.forEach(t => { if (t.source) URL.revokeObjectURL(t.source); });
+  };
+  const move = (from: number, to: number) => {
+    const list = [...queueRef.current], start = list.findIndex(t => t.id === from), end = list.findIndex(t => t.id === to);
+    if (start < 0 || end < 0 || start === end) return;
+    list.splice(end, 0, list.splice(start, 1)[0]); updateQueue(list);
+  };
+  const addFiles = async (files: File[], replace = false) => {
+    const loaded = (await Promise.all(files.filter(isAudioFile).map(file => loadFile(file, nextId.current++)))).filter((item): item is Track => item !== null);
+    if (!loaded.length) return 0;
+    if (replace) {
+      audio.current?.pause(); shouldPlay.current = false;
+      const old = queueRef.current; updateQueue(loaded); setTrackId(loaded[0].id);
+      old.forEach(t => { if (t.source) URL.revokeObjectURL(t.source); });
+    } else {
+      const empty = queueRef.current.length === 0;
+      updateQueue([...queueRef.current, ...loaded]);
+      if (empty) setTrackId(loaded[0].id);
+    }
+    return loaded.length;
+  };
+  return { track: track ?? emptyTrack, hasTrack: Boolean(track), trackId, queue, playing, time, volume, setVolume, mode, setMode, effect, setEffect, equalizer, setBand, resetEqualizer, analyser, select, next, previous, toggle, seek, clearQueue, move, addFiles };
 }

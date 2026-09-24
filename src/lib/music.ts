@@ -1,4 +1,6 @@
-export const tracks = [
+export type Track = { id: number; title: string; english: string; artist: string; album: string; duration: number; cover: string; genre: string; year: string; color: string; source?: string };
+
+export const tracks: Track[] = [
   { id: 0, title: '风经过的地方', english: 'WHERE THE WIND GOES', artist: '青木 · Aoki', album: '山海之间', duration: 216, cover: '/covers/mountain.svg', genre: '氛围流行 / Ambient', year: '2025', color: '#9caeff' },
   { id: 1, title: '最后一班星际列车', english: 'THE LAST NIGHT TRAIN', artist: '星野遥 · Haruka', album: '午夜放映室', duration: 198, cover: 'https://images.unsplash.com/photo-1519608487953-e999c86e7455?w=800&auto=format&fit=crop&q=85', genre: '电子 / Chillwave', year: '2025', color: '#d4a7db' },
   { id: 2, title: '森林来信', english: 'LETTERS FROM THE FOREST', artist: '森屿 · Forest Isle', album: '自然发生', duration: 243, cover: 'https://images.unsplash.com/photo-1448375240586-882707db888b?w=800&auto=format&fit=crop&q=85', genre: '自然 / New Age', year: '2024', color: '#a4c8b1' },
