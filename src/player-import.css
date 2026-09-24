@@ -57,21 +57,36 @@
 .without-lyrics .album-art { width: min(100%, 42vh, 360px); }
 .without-lyrics .visualizer { height: clamp(80px, 17vh, 165px); margin-top: 20px; }
 .mini-track > .mini-cover { width: 50px; height: 50px; flex: none; object-fit: cover; }
-@media (min-width: 1100px) {
+@media (min-width: 761px) {
+  .music-app { position: relative; }
   .sidebar-brand-row { display: flex; align-items: flex-start; justify-content: space-between; }
   .sidebar-brand-row .brand { margin-bottom: 48px; }
+  .sidebar-controls { display: flex; align-items: center; }
   .sidebar-toggle { display: grid; place-items: center; width: 30px; height: 32px; flex: none; border: 0; border-radius: 5px; background: transparent; color: #a6a6aa; }
-  .sidebar-toggle:hover { color: var(--accent); background: var(--tint); }
+  .sidebar-toggle:hover, .sidebar-restore:hover { color: var(--accent); background: var(--tint); }
   .music-app.sidebar-collapsed { grid-template-columns: 64px minmax(0, 1fr); }
   .sidebar-collapsed .sidebar { padding-right: 9px; padding-left: 9px; }
   .sidebar-collapsed .sidebar-brand-row { flex-direction: column; align-items: center; gap: 10px; margin-bottom: 35px; }
+  .sidebar-collapsed .sidebar-controls { flex-direction: column; }
   .sidebar-collapsed .sidebar-brand-row .brand { height: 30px; margin: 0; }
   .sidebar-collapsed .brand-name, .sidebar-collapsed .nav-label, .sidebar-collapsed .tiny-bars, .sidebar-collapsed .nav-item small { display: none; }
   .sidebar-collapsed .sidebar .nav-item { justify-content: center; gap: 0; padding: 0; font-size: 0; }
   .sidebar-collapsed .sidebar .nav-item svg { flex: none; }
   .sidebar-collapsed .settings-nav { margin-top: 4px; }
+  .music-app.sidebar-hidden { grid-template-columns: minmax(0, 1fr); }
+  .sidebar-hidden .sidebar { display: none; }
+  .sidebar-restore { position: absolute; z-index: 40; top: 17px; left: 10px; display: grid; place-items: center; width: 30px; height: 32px; border: 0; border-radius: 5px; background: #252628; color: #c8c8cb; }
+  .focus-mode .sidebar-restore { display: none; }
 }
-@media (max-width: 1099px) { .sidebar-toggle { display: none; } }
+@media (min-width: 761px) and (max-width: 1099px) {
+  .sidebar-brand-row { flex-direction: column; margin-bottom: 19px; }
+  .sidebar-brand-row .brand { margin-bottom: 4px; }
+  .sidebar-controls { align-self: flex-end; }
+  .sidebar-collapsed .sidebar-brand-row { margin-bottom: 35px; }
+  .sidebar-collapsed .sidebar-controls { align-self: center; }
+  .sidebar-hidden .workspace { padding-left: 52px; }
+}
+@media (max-width: 760px) { .sidebar-toggle, .sidebar-restore { display: none; } }
 @media (max-width: 1060px) and (min-width: 761px) {
   .workspace:not(.settings-workspace) .main-columns { grid-template-columns: minmax(0, 1fr) 240px; }
 }
