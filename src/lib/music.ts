@@ -16,6 +16,22 @@ export const lyricSets = [
  ['月亮也失眠，在夜的边缘', '海浪翻过，昨天的书页', '星光陪着我，走得很远', '想念藏在，安静的时间', '等一声晚安，等一个晴天', '把梦轻轻，放在你身边'],
  ['等一场雨停，等一片天晴', '屋檐下的风铃，叮叮地回应', '街角的花，又开得透明', '有些美好，需要耐心', '让雨水洗去，昨日的心情', '然后微笑着，继续前行'],
 ];
+export const lyricTranslations: Record<number, string[]> = {
+  0: [
+    'Clouds drift gently past the outline of the mountains',
+    'The evening breeze scatters the colors of the noise',
+    'Along the river, we walk through the sunset',
+    'You say the world is vast; take your time',
+    'Where the wind goes, your kindness remains',
+    'Give all your worries to the river of stars',
+    'There is no need to ask where tomorrow will lead',
+    'For now, let time stand still for us',
+    'Beyond the mountains lies another sea',
+    'I wait in the wind for a future to come',
+    'May every star light the way for us both',
+    'And let us live freely in this gentle place',
+  ],
+};
 export type LyricWord = { text: string; start: number; end: number };
 const words = (text: string, start: number, step = .28): LyricWord[] => [...text].map((char, index) => ({ text: char, start: start + index * step, end: start + (index + 1) * step }));
 export const wordLyricSets: LyricWord[][][] = lyricSets.map((lines, trackIndex) => lines.map((line, lineIndex) => words(line, lineIndex * (tracks[trackIndex].duration / (lines.length + 1)))));
