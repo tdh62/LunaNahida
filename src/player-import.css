@@ -26,7 +26,11 @@
 .listening-content { flex: 1; min-height: 0; align-items: center; padding: 18px 0; }
 .album-art { width: min(100%, 34vh, 350px); }
 .lyrics-column { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-.lyrics-window { flex: 1; min-height: 190px; height: auto; }
+.lyrics-window { flex: 1; min-height: 190px; height: auto; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--accent) transparent; cursor: grab; }
+.lyrics-window:active { cursor: grabbing; }
+.lyrics-track { position: relative; top: auto; padding: 90px 0; transform: none; transition: none; }
+.lyric-line { user-select: none; }
+.lyrics-column.is-browsing .lyric-line.distant { opacity: .72; }
 .translation-toggle { position: absolute; z-index: 2; right: 8px; bottom: 10px; display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid #61636a; border-radius: 6px; background: rgba(28, 30, 33, .82); color: #efeeeb; font-size: 12px; opacity: .6; transition: opacity .2s, border-color .2s; }
 .translation-toggle.is-active { border-color: var(--accent); color: var(--accent); }
 .translation-toggle:hover, .translation-toggle:focus-visible { opacity: 1; }

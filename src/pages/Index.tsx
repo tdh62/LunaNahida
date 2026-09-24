@@ -1,4 +1,4 @@
-import { type ChangeEvent, type DragEvent, type ReactNode, useEffect, useRef, useState } from 'react';
+import { type ChangeEvent, type DragEvent, type PointerEvent, type ReactNode, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import PlayerSettings from '@/components/PlayerSettings';
 import QueuePanel from '@/components/QueuePanel';
@@ -67,6 +67,11 @@ export default function Index() {
   const [detailTrack, setDetailTrack] = useState<Track | null>(null), [focus, setFocus] = useState(false), [fullscreen, setFullscreen] = useState(false);
   const [sidebarMode, setSidebarMode] = useState<'expanded' | 'collapsed' | 'hidden'>('expanded');
   const [sleep, setSleep] = useState(0), [showTranslation, setShowTranslation] = useState(true);
+  const [browsingLyrics, setBrowsingLyrics] = useState(false);
+  const lyricsWindow = useRef<HTMLDivElement>(null);
+  const lyricDrag = useRef<{ pointerId: number; y: number; scrollTop: number; moved: boolean } | null>(null);
+  const suppressLyricClick = useRef(false);
+  const followTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const appRef = useRef<HTMLDivElement>(null);
   const fileInput = useRef<HTMLInputElement>(null), folderInput = useRef<HTMLInputElement>(null), dragDepth = useRef(0);
   const [pendingFolder, setPendingFolder] = useState<File[]>([]), [folderOpen, setFolderOpen] = useState(false), [dropActive, setDropActive] = useState(false);
@@ -107,6 +112,49 @@ export default function Index() {
   const lineLength = hasLyrics ? p.track.duration / (lines.length + 1) || 1 : 1;
   const activeLine = hasLyrics ? Math.min(lines.length - 1, Math.floor(p.time / lineLength)) : 0;
   const activeWord = hasLyrics ? wordLines[activeLine].findIndex((word, i) => p.time >= word.start && (p.time < word.end || i === wordLines[activeLine].length - 1)) : -1;
+  const pauseLyricFollow = () => {
+    setBrowsingLyrics(true);
+    if (followTimer.current) clearTimeout(followTimer.current);
+    followTimer.current = setTimeout(() => setBrowsingLyrics(false), 5000);
+  };
+  useEffect(() => {
+    setBrowsingLyrics(false);
+    if (followTimer.current) clearTimeout(followTimer.current);
+  }, [p.trackId]);
+  useEffect(() => () => { if (followTimer.current) clearTimeout(followTimer.current); }, []);
+  useEffect(() => {
+    const windowElement = lyricsWindow.current;
+    if (!windowElement || browsingLyrics) return;
+    const line = windowElement.querySelectorAll<HTMLButtonElement>('.lyric-line')[activeLine];
+    if (line) windowElement.scrollTo({ top: line.offsetTop + line.offsetHeight / 2 - windowElement.clientHeight / 2, behavior: lyricScroll === '即时' ? 'instant' : 'smooth' });
+  }, [activeLine, browsingLyrics, lyricScroll, p.trackId, view]);
+  const onLyricWheel = () => pauseLyricFollow();
+  const onLyricPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === 'touch') { pauseLyricFollow(); return; }
+    if (event.pointerType !== 'mouse' || event.button !== 0) return;
+    lyricDrag.current = { pointerId: event.pointerId, y: event.clientY, scrollTop: event.currentTarget.scrollTop, moved: false };
+  };
+  const onLyricPointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === 'touch') { pauseLyricFollow(); return; }
+    const drag = lyricDrag.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    if (!drag.moved && Math.abs(event.clientY - drag.y) > 5) {
+      drag.moved = true;
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
+    if (drag.moved) {
+      event.currentTarget.scrollTop = drag.scrollTop + drag.y - event.clientY;
+      pauseLyricFollow();
+    }
+  };
+  const onLyricPointerUp = (event: PointerEvent<HTMLDivElement>) => {
+    if (lyricDrag.current?.pointerId !== event.pointerId) return;
+    if (lyricDrag.current.moved) {
+      suppressLyricClick.current = true;
+      window.setTimeout(() => { suppressLyricClick.current = false; }, 0);
+    }
+    lyricDrag.current = null;
+  };
   const favorite = liked.includes(p.trackId ?? -1);
   const toggleTrackLike = (id: number) => setLiked(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]);
   const toggleLike = () => { if (p.trackId !== null) toggleTrackLike(p.trackId); };
@@ -133,7 +181,44 @@ export default function Index() {
       {isSettings ? <PlayerSettings theme={theme} setTheme={setTheme} visual={visual} setVisual={setVisual} lyricEffect={lyricEffect} setLyricEffect={setLyricEffect} lyricScroll={lyricScroll} setLyricScroll={setLyricScroll} showTranslation={showTranslation} setShowTranslation={setShowTranslation} sleep={sleep} setSleep={setSleep} effect={p.effect} setEffect={p.setEffect} equalizer={p.equalizer} setBand={p.setBand} resetEqualizer={p.resetEqualizer} /> : view !== '正在播放' ? <LibraryView key={view} title={view} tracks={visibleTracks} currentId={p.trackId} liked={liked} onToggleLike={toggleTrackLike} onPlay={id => { p.select(id); navigate('/'); }} /> : <>
       <div className="main-columns"><section className="listening-stage"><div className="stage-top flex items-center justify-between"><span>{p.playing ? '正在播放' : p.hasTrack ? '已暂停' : '队列为空'}</span></div>
         {p.hasTrack ? <div className={`listening-content ${!hasLyrics ? 'without-lyrics' : ''}`}><div className="album-column"><div className={`album-art ${visual === '唱片' ? 'vinyl' : ''}`}><img src={p.track.cover} alt={`${p.track.album}专辑封面`} />{!p.track.source && <><span className="album-print">{p.track.english}</span><span className="cover-corner">VOL. 0{(p.trackId ?? 0) + 1}</span></>}</div><div className="album-title flex items-center justify-between"><h2>{p.track.title}</h2>{!p.track.source && <IconButton label={favorite ? '取消喜欢' : '喜欢这首歌'} active={favorite} onClick={toggleLike}><Heart size={21} fill={favorite ? 'currentColor' : 'none'} /></IconButton>}</div><p className="artist-name">{p.track.artist}<span> · </span>{p.track.album}</p><div className="track-tags"><span>{p.track.source ? '本地文件' : '演示曲目'}</span><span>{p.track.genre.split(' / ')[0]}</span></div><div className={`visualizer ${p.playing ? 'animated' : ''} ${visual === '呼吸' ? 'breathing' : ''}`} aria-label="音乐频谱">{visual === '频谱' ? <Spectrum analyser={p.analyser} active={p.playing} /> : Array.from({ length: 48 }, (_, i) => <i key={i} style={{ height: `${8 + Math.sin(i * .65) ** 2 * 23 + Math.sin(i * .2) ** 2 * 13}px`, animationDelay: `${i * -.13}s`, animationDuration: `${.65 + i % 5 * .2}s` }} />)}</div></div>
-          {hasLyrics && <div className={`lyrics-column lyric-${lyricEffect} ${lyricScroll === '即时' ? 'lyric-scroll-instant' : ''}`}><div className="lyrics-window"><div className="lyrics-track" style={{ transform: `translateY(${112 - activeLine * 66}px)` }}>{lines.map((line, i) => <button key={`${p.trackId}-${i}`} className={`lyric-line ${i === activeLine ? 'current' : ''} ${Math.abs(i - activeLine) > 2 ? 'distant' : ''}`} onClick={() => p.seek(i * lineLength)}><span>{lyricEffect === '逐字' && i === activeLine ? wordLines[i].map((word, wi) => <span key={wi} className={`lyric-word ${wi < activeWord ? 'spoken' : ''} ${wi === activeWord ? 'speaking' : ''}`} style={{ animationDuration: `${Math.max(.1, word.end - word.start)}s` }}>{word.text}</span>) : line}</span>{i === activeLine && showTranslation && translations[i] && <small>{translations[i]}</small>}</button>)}</div></div>{translations.length > 0 && <button type="button" title={showTranslation ? '隐藏翻译' : '显示翻译'} aria-label={showTranslation ? '隐藏翻译' : '显示翻译'} aria-pressed={showTranslation} onClick={() => setShowTranslation(!showTranslation)} className={`translation-toggle ${showTranslation ? 'is-active' : ''}`}>文</button>}</div>}
+          {hasLyrics && (
+            <div className={`lyrics-column lyric-${lyricEffect} ${lyricScroll === '即时' ? 'lyric-scroll-instant' : ''} ${browsingLyrics ? 'is-browsing' : ''}`}>
+              <div
+                ref={lyricsWindow}
+                className="lyrics-window"
+                onWheel={onLyricWheel}
+                onPointerDown={onLyricPointerDown}
+                onPointerMove={onLyricPointerMove}
+                onPointerUp={onLyricPointerUp}
+                onPointerCancel={onLyricPointerUp}
+                onClickCapture={event => {
+                  if (suppressLyricClick.current) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    suppressLyricClick.current = false;
+                  }
+                }}
+              >
+                <div className="lyrics-track">
+                  {lines.map((line, i) => (
+                    <button
+                      key={`${p.trackId}-${i}`}
+                      className={`lyric-line ${i === activeLine ? 'current' : ''} ${Math.abs(i - activeLine) > 2 ? 'distant' : ''}`}
+                      onClick={() => {
+                        p.seek(i * lineLength);
+                        setBrowsingLyrics(false);
+                        if (followTimer.current) clearTimeout(followTimer.current);
+                      }}
+                    >
+                      <span>{lyricEffect === '逐字' && i === activeLine ? wordLines[i].map((word, wi) => <span key={wi} className={`lyric-word ${wi < activeWord ? 'spoken' : ''} ${wi === activeWord ? 'speaking' : ''}`} style={{ animationDuration: `${Math.max(.1, word.end - word.start)}s` }}>{word.text}</span>) : line}</span>
+                      {i === activeLine && showTranslation && translations[i] && <small>{translations[i]}</small>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {translations.length > 0 && <button type="button" title={showTranslation ? '隐藏翻译' : '显示翻译'} aria-label={showTranslation ? '隐藏翻译' : '显示翻译'} aria-pressed={showTranslation} onClick={() => setShowTranslation(!showTranslation)} className={`translation-toggle ${showTranslation ? 'is-active' : ''}`}>文</button>}
+            </div>
+          )}
         </div> : <div className="listening-empty"><img src="/covers/local.svg" alt="" /><h2>播放队列为空</h2></div>}
         <div className="stage-toolbar flex items-center justify-between"><Popover><PopoverTrigger asChild><button className="toolbar-button"><SlidersHorizontal size={14} /> 音效 <span>{p.effect}</span><ChevronDown size={12} /></button></PopoverTrigger><PopoverContent className="player-popover w-56">{['原声', '低音增强', '空间回响', '温暖 Lo-fi'].map(e => <button className="popover-item" key={e} onClick={() => p.setEffect(e)}>{e}{p.effect === e && <Check size={14} />}</button>)}</PopoverContent></Popover><Link to="/settings" className="toolbar-button"><Settings2 size={14} /> 播放器样式</Link><Popover><PopoverTrigger asChild><button className="toolbar-button eq-trigger"><Waves size={15} /> 均衡器</button></PopoverTrigger><PopoverContent className="player-popover eq-popover"><div className="eq-heading"><h3>五段均衡器</h3><button onClick={p.resetEqualizer}>重置</button></div><div className="eq-sliders">{eqNames.map((name, i) => <label key={name}><span>{p.equalizer[i] > 0 ? '+' : ''}{p.equalizer[i]}</span><input type="range" min="-12" max="12" value={p.equalizer[i]} onChange={e => p.setBand(i, Number(e.target.value))} aria-label={`${name}频段`} /><small>{name}</small></label>)}</div></PopoverContent></Popover></div>
       </section><QueuePanel player={p} onViewInfo={setDetailTrack} /></div>
