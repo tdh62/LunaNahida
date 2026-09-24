@@ -33,7 +33,7 @@ function loadFile(file: File, id: number): Promise<Track | null> {
       probe.onloadedmetadata = null; probe.onerror = null;
       probe.removeAttribute('src'); probe.load();
       if (duration === null) { URL.revokeObjectURL(source); resolve(null); return; }
-      resolve({ id, title: file.name.replace(/\.[^.]+$/, ''), english: 'LOCAL AUDIO', artist: '本地文件', album: '本地音乐', duration, cover: '/covers/local.svg', genre: '本地音频', year: '—', color: '#a5b5ff', source });
+      resolve({ id, title: file.name.replace(/\.[^.]+$/, ''), english: 'LOCAL AUDIO', artist: '本地文件', album: '本地音乐', duration, cover: '/covers/local.svg', genre: '本地音频', year: '—', color: '#a5b5ff', source, fileName: file.name });
     };
     probe.onloadedmetadata = () => done(Number.isFinite(probe.duration) ? probe.duration : 0);
     probe.onerror = () => done(null);
@@ -131,13 +131,33 @@ export function usePlayer() {
     if (start < 0 || end < 0 || start === end) return;
     list.splice(end, 0, list.splice(start, 1)[0]); updateQueue(list);
   };
-  const addFiles = async (files: File[], replace = false) => {
-    const loaded = (await Promise.all(files.filter(isAudioFile).map(file => loadFile(file, nextId.current++)))).filter((item): item is Track => item !== null);
+  const addFiles = async (files: File[], replace = false, duplicates: 'append' | 'overwrite' | 'skip' = 'append') => {
+    const audioFiles = files.filter(isAudioFile);
+    const existingNames = new Set(queueRef.current.map(t => t.fileName?.toLowerCase()).filter((name): name is string => Boolean(name)));
+    const chosen = duplicates === 'append' ? audioFiles : duplicates === 'skip'
+      ? audioFiles.filter(file => { const name = file.name.toLowerCase(); if (existingNames.has(name)) return false; existingNames.add(name); return true; })
+      : [...new Map(audioFiles.map(file => [file.name.toLowerCase(), file])).values()];
+    const loaded = (await Promise.all(chosen.map(file => loadFile(file, nextId.current++)))).filter((item): item is Track => item !== null);
     if (!loaded.length) return 0;
     if (replace) {
       audio.current?.pause(); shouldPlay.current = false;
       const old = queueRef.current; updateQueue(loaded); setTrackId(loaded[0].id);
       old.forEach(t => { if (t.source) URL.revokeObjectURL(t.source); });
+    } else if (duplicates === 'overwrite') {
+      const next = [...queueRef.current];
+      let replacementId: number | null = null;
+      for (const item of loaded) {
+        const matches = next.filter(t => t.fileName?.toLowerCase() === item.fileName?.toLowerCase());
+        if (!matches.length) { next.push(item); continue; }
+        const position = next.indexOf(matches[0]);
+        if (matches.some(t => t.id === trackId)) replacementId = item.id;
+        matches.forEach(t => { next.splice(next.indexOf(t), 1); if (t.source) URL.revokeObjectURL(t.source); });
+        next.splice(position, 0, item);
+      }
+      const wasEmpty = queueRef.current.length === 0;
+      updateQueue(next);
+      if (replacementId !== null) setTrackId(replacementId);
+      else if (wasEmpty) setTrackId(next[0].id);
     } else {
       const empty = queueRef.current.length === 0;
       updateQueue([...queueRef.current, ...loaded]);
