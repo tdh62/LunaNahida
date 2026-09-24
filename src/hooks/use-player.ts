@@ -43,18 +43,20 @@ function loadFile(file: File, id: number): Promise<Track | null> {
 
 export function usePlayer() {
   const [queue, setQueue] = useState<Track[]>(tracks), [trackId, setTrackId] = useState<number | null>(0);
+  const [recent, setRecent] = useState<number[]>([]);
   const [playing, setPlaying] = useState(false), [time, setTime] = useState(0);
   const [volume, setVolume] = useState(65), [mode, setMode] = useState<'list' | 'repeat' | 'shuffle'>('list');
   const [effect, setEffect] = useState('原声'), [equalizer, setEqualizer] = useState<number[]>(emptyBands), [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
   const audio = useRef<HTMLAudioElement | null>(null), graph = useRef<Graph | null>(null);
-  const demos = useRef(new Map<number, string>()), queueRef = useRef(queue), shouldPlay = useRef(false), nextRef = useRef<() => void>(() => {}), nextId = useRef(100);
+  const demos = useRef(new Map<number, string>()), queueRef = useRef(queue), currentId = useRef(trackId), shouldPlay = useRef(false), nextRef = useRef<() => void>(() => {}), nextId = useRef(100);
+  currentId.current = trackId;
   const track = queue.find(t => t.id === trackId) ?? null;
   const updateQueue = (value: Track[]) => { queueRef.current = value; setQueue(value); };
 
   useEffect(() => {
     const element = new Audio(); audio.current = element;
     element.ontimeupdate = () => setTime(element.currentTime); element.onended = () => nextRef.current();
-    element.onplay = () => setPlaying(true); element.onpause = () => setPlaying(false);
+    element.onplay = () => { setPlaying(true); if (currentId.current !== null) setRecent(prev => [currentId.current!, ...prev.filter(id => id !== currentId.current)].slice(0, 50)); }; element.onpause = () => setPlaying(false);
     return () => { element.pause(); element.removeAttribute('src'); demos.current.forEach(URL.revokeObjectURL); queueRef.current.forEach(t => { if (t.source) URL.revokeObjectURL(t.source); }); void graph.current?.context.close(); };
   }, []);
   const ensureGraph = () => {
@@ -95,6 +97,7 @@ export function usePlayer() {
       list = [...list, demo]; updateQueue(list);
     }
     ensureGraph(); shouldPlay.current = true;
+    currentId.current = id;
     if (id === trackId) { if (audio.current) { audio.current.currentTime = 0; void audio.current.play().catch(() => setPlaying(false)); } }
     else setTrackId(id);
   };
@@ -165,5 +168,5 @@ export function usePlayer() {
     }
     return loaded.length;
   };
-  return { track: track ?? emptyTrack, hasTrack: Boolean(track), trackId, queue, playing, time, volume, setVolume, mode, setMode, effect, setEffect, equalizer, setBand, resetEqualizer, analyser, select, next, previous, toggle, seek, clearQueue, removeTrack, move, addFiles };
+  return { track: track ?? emptyTrack, hasTrack: Boolean(track), trackId, queue, recent, playing, time, volume, setVolume, mode, setMode, effect, setEffect, equalizer, setBand, resetEqualizer, analyser, select, next, previous, toggle, seek, clearQueue, removeTrack, move, addFiles };
 }

@@ -17,6 +17,9 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />}>
             <Route index element={null} />
+            <Route path="music" element={null} />
+            <Route path="liked" element={null} />
+            <Route path="recent" element={null} />
             <Route path="settings" element={null} />
           </Route>
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
