@@ -1,5 +1,5 @@
 export type AudioQuality = { sampleRate?: number; bitDepth?: number; bitrate?: number; lossless?: boolean; codec?: string };
-export type Track = { id: number; title: string; english: string; artist: string; album: string; duration: number; cover: string; genre: string; year: string; color: string; source?: string; fileName?: string; quality?: AudioQuality };
+export type Track = { id: number; title: string; english: string; artist: string; album: string; duration: number; cover: string; genre: string; year: string; color: string; source?: string; fileName?: string; lyrics?: string; quality?: AudioQuality };
 
 export const tracks: Track[] = [
   { id: 0, title: '风经过的地方', english: 'WHERE THE WIND GOES', artist: '青木 · Aoki', album: '山海之间', duration: 216, cover: '/covers/mountain.svg', genre: '氛围流行 / Ambient', year: '2025', color: '#9caeff' },

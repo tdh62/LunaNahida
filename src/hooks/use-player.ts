@@ -51,6 +51,7 @@ async function loadFile(file: File, id: number): Promise<Track | null> {
 
   let title = file.name.replace(/\.[^.]+$/, '');
   let artist = '本地文件', album = '本地音乐', genre = '本地音频', year = '—', cover = '/covers/local.svg';
+  let embeddedLyrics: string | undefined;
   let quality: Track['quality'];
   try {
     const { common, format } = await parseBlob(file, { duration: false });
@@ -60,12 +61,16 @@ async function loadFile(file: File, id: number): Promise<Track | null> {
     album = common.album?.trim() || album;
     genre = common.genre?.find(value => value.trim())?.trim() || genre;
     year = common.year ? String(common.year) : year;
+    const lyrics = common.lyrics?.find(item => item.text?.trim() || item.syncText?.length);
+    if (lyrics) embeddedLyrics = lyrics.syncText?.length
+      ? lyrics.syncText.map(line => `[${String(Math.floor((line.timestamp ?? 0) / 60000)).padStart(2, '0')}:${((line.timestamp ?? 0) % 60000 / 1000).toFixed(2).padStart(5, '0')}]${line.text}`).join('\n')
+      : lyrics.text;
     const picture = common.picture?.find(item => /^image\/(jpeg|png|webp|gif)$/i.test(item.format));
     if (picture) cover = URL.createObjectURL(new Blob([new Uint8Array(picture.data)], { type: picture.format }));
   } catch {
     // Files without readable tags still remain playable.
   }
-  return { id, title, english: 'LOCAL AUDIO', artist, album, duration, cover, genre, year, color: '#a5b5ff', source, fileName: file.name, quality };
+  return { id, title, english: 'LOCAL AUDIO', artist, album, duration, cover, lyrics: embeddedLyrics, genre, year, color: '#a5b5ff', source, fileName: file.name, quality };
 }
 
 export function usePlayer() {
