@@ -1,0 +1,20 @@
+
+.sleep-quick-popover { width: 250px; padding: 14px; border: 1px solid #424347; border-radius: 8px; background: #202123; color: #f1f0ed; box-shadow: 0 12px 36px rgba(0,0,0,.35); }
+.sleep-quick-popover > strong { font-size: 13px; }
+.sleep-quick-popover > p { margin: 4px 0 12px; color: #aaa9ad; font-size: 11px; }
+.sleep-quick-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+.sleep-quick-options button, .sleep-quick-popover form > button, .sleep-quick-cancel { min-height: 30px; border: 1px solid #414246; border-radius: 5px; background: #292a2d; color: #e9e8e6; font-size: 11px; }
+.sleep-quick-options button:hover, .sleep-quick-popover form > button:hover, .sleep-quick-cancel:hover { border-color: var(--accent); color: var(--accent); }
+.sleep-quick-popover form { display: flex; align-items: end; gap: 7px; margin-top: 12px; }
+.sleep-quick-popover form label { display: grid; flex: 1; gap: 5px; color: #aaa9ad; font-size: 10px; }
+.sleep-quick-popover form input, .sleep-settings-form input { width: 100%; height: 32px; border: 1px solid #414246; border-radius: 5px; outline: none; padding: 0 8px; background: #171819; color: #f1f0ed; font: inherit; }
+.sleep-quick-popover form input:focus, .sleep-settings-form input:focus { border-color: var(--accent); }
+.sleep-quick-popover form > button { padding: 0 12px; }
+.sleep-quick-cancel { width: 100%; margin-top: 8px; }
+.sleep-settings-form { display: flex; align-items: center; gap: 8px; color: #aaa9ad; font-size: 11px; }
+.sleep-settings-form input { width: 90px; }
+.sleep-settings-form button { min-height: 32px; padding: 0 13px; border: 0; border-radius: 5px; background: var(--accent); color: #18191b; font-size: 11px; font-weight: 600; }
+@media (max-width: 760px) {
+  .sleep-settings-form { width: 100%; }
+  .sleep-settings-form input { width: 100%; }
+}
