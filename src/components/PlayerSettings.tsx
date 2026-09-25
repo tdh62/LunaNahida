@@ -1,4 +1,4 @@
-import { Check, Headphones, Leaf, Moon, Palette, Pencil, Plus, SlidersHorizontal, Sparkles, Timer, Trash2, Users, Waves } from 'lucide-react';
+import { Check, Headphones, Leaf, Moon, Palette, Pencil, Plus, SlidersHorizontal, Sparkles, Sun, Timer, Trash2, Users, Waves } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { normalizeName, type ArtistMapping } from '@/lib/catalog';
 import { formatTime } from '@/lib/music';
@@ -14,6 +14,8 @@ const eqNames = ['低音', '低中', '中音', '高中', '高音'];
 type SettingsProps = {
   theme: string;
   setTheme: (value: string) => void;
+  appearance: 'dark' | 'light';
+  setAppearance: (value: 'dark' | 'light') => void;
   visual: string;
   setVisual: (value: string) => void;
   lyricEffect: string;
@@ -36,7 +38,7 @@ type SettingsProps = {
   artistNames: string[];
 };
 
-export default function PlayerSettings({ theme, setTheme, visual, setVisual, lyricEffect, setLyricEffect, lyricScroll, setLyricScroll, showTranslation, setShowTranslation, sleep, setSleep, effect, setEffect, equalizer, setBand, resetEqualizer, mappings, setMappings, lyricAppearance, setLyricAppearance, artistNames }: SettingsProps) {
+export default function PlayerSettings({ theme, setTheme, appearance, setAppearance, visual, setVisual, lyricEffect, setLyricEffect, lyricScroll, setLyricScroll, showTranslation, setShowTranslation, sleep, setSleep, effect, setEffect, equalizer, setBand, resetEqualizer, mappings, setMappings, lyricAppearance, setLyricAppearance, artistNames }: SettingsProps) {
   const [root, setRoot] = useState('');
   const [aliases, setAliases] = useState('');
   const [editing, setEditing] = useState<number | null>(null);
@@ -54,6 +56,9 @@ export default function PlayerSettings({ theme, setTheme, visual, setVisual, lyr
   };
   return <div className="settings-page">
     <header className="settings-heading"><h1>设置</h1></header>
+    <section className="settings-group"><div className="settings-group-title"><Sun size={19} /><div><h2>外观</h2><p>明暗外观与下方色调可自由组合。</p></div></div>
+      <div className="settings-options appearance-options" role="group" aria-label="外观模式">{([{ id: 'dark', label: '深色', icon: Moon }, { id: 'light', label: '浅色', icon: Sun }] as const).map(option => <button key={option.id} type="button" aria-pressed={appearance === option.id} className={appearance === option.id ? 'active' : ''} onClick={() => setAppearance(option.id)}><option.icon size={15} />{option.label}</button>)}</div>
+    </section>
     <section className="settings-group"><div className="settings-group-title"><Palette size={19} /><div><h2>界面主题</h2><p>颜色只影响界面，不会改变正在播放的音乐。</p></div></div>
       <div className="settings-themes">{themes.map(t => <button type="button" key={t.id} aria-pressed={theme === t.id} onClick={() => setTheme(t.id)} className={`settings-theme ${theme === t.id ? 'selected' : ''}`}><span className={`settings-theme-preview preview-${t.id}`}><t.icon size={24} /></span><span className="settings-theme-label"><strong><t.icon size={15} /> {t.name}</strong><small>{t.desc}</small></span><span className="settings-theme-check">{theme === t.id && <Check size={15} />}</span></button>)}</div>
     </section>

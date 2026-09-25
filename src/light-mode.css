@@ -1,0 +1,147 @@
+/* Light appearance is independent of the three accent palettes. */
+html.mode-light { --background: 160 20% 97%; --foreground: 205 22% 17%; --card: 0 0% 100%; --card-foreground: 205 22% 17%; --popover: 0 0% 100%; --popover-foreground: 205 22% 17%; --secondary: 165 13% 91%; --secondary-foreground: 205 22% 17%; --muted: 165 13% 91%; --muted-foreground: 205 12% 38%; --border: 170 13% 82%; --input: 170 13% 82%; --light-text: #25343a; --light-muted: #586968; --light-panel: #fff; --light-soft: #edf3f0; --line: #d8e1dc; }
+html.mode-light body { background: #f6f9f7; color: #25343a; }
+.music-app.mode-light { --accent: #435db8; --tint: rgba(67,93,184,.1); --background: #f6f9f7; --surface: #fff; --line: #d8e1dc; --muted: #5f706f; --cover-glow: rgba(80,115,181,.08); --light-text: #25343a; --light-muted: #586968; --light-panel: #fff; --light-soft: #edf3f0; color: var(--light-text); }
+.music-app.mode-light.theme-anime { --accent: #a63d8b; --tint: rgba(166,61,139,.1); --cover-glow: rgba(166,61,139,.07); }
+.music-app.mode-light.theme-forest { --accent: #276d4d; --tint: rgba(39,109,77,.1); --cover-glow: rgba(39,109,77,.08); }
+.mode-light .sidebar { background: #eff4f1; }
+.mode-light .brand, .mode-light .collection, .mode-light .profile,
+.mode-light .album-title h2, .mode-light .lyric-line.current,
+.mode-light .queue-tabs > button.active, .mode-light .queue-description,
+.mode-light .queue-track-label, .mode-light .theme-heading h2,
+.mode-light .library-heading h1, .mode-light .library-track-name strong,
+.mode-light .playlists-heading h1, .mode-light .playlist-hero h1,
+.mode-light .playlist-card, .mode-light .catalog-card,
+.mode-light .artist-description-heading h2, .mode-light .artist-description-section h2,
+.mode-light .quick-queue-panel h2 { color: var(--light-text); }
+.mode-light .nav-label, .mode-light .nav-item small, .mode-light .collection small,
+.mode-light .profile small, .mode-light .local-badge, .mode-light .player-heading p,
+.mode-light .session-label, .mode-light .audio-caption, .mode-light .lyrics-header small,
+.mode-light .lyric-footer, .mode-light .track-number, .mode-light .track-duration,
+.mode-light .queue-track-label small, .mode-light .theme-card small,
+.mode-light .workspace-footer, .mode-light .mini-track small, .mode-light .seek-row,
+.mode-light .settings-heading p, .mode-light .settings-group-title p,
+.mode-light .settings-theme-label small, .mode-light .settings-row small,
+.mode-light .catalog-heading p, .mode-light .catalog-hero p,
+.mode-light .catalog-card small, .mode-light .library-heading p,
+.mode-light .library-track-name small, .mode-light .library-track-name .track-meta-link,
+.mode-light .playlists-heading p, .mode-light .playlist-hero p,
+.mode-light .playlist-card p, .mode-light .quick-queue-panel header span {
+  color: var(--light-muted);
+}
+.mode-light .nav-item, .mode-light .icon-button, .mode-light .sidebar-toggle,
+.mode-light .sidebar-now-playing, .mode-light .sidebar-restore,
+.mode-light .playlist-nav-add, .mode-light .playlist-nav-more,
+.mode-light .topbar, .mode-light .stage-top, .mode-light .text-action,
+.mode-light .artist-name, .mode-light .audio-caption, .mode-light .lyrics-header button,
+.mode-light .lyric-line, .mode-light .lyric-line small, .mode-light .stage-toolbar,
+.mode-light .toolbar-button, .mode-light .small-tab, .mode-light .queue-tabs > button,
+.mode-light .queue-track, .mode-light .queue-add, .mode-light .queue-note > span,
+.mode-light .inline-details > p, .mode-light .inline-details dt,
+.mode-light .detail-modal dt, .mode-light .demo-note, .mode-light .library-album,
+.mode-light .library-duration, .mode-light .library-like, .mode-light .library-empty,
+.mode-light .playlist-back, .mode-light .playlist-delete, .mode-light .playlist-edit,
+.mode-light .playlist-empty, .mode-light .catalog-tabs button,
+.mode-light .artist-description, .mode-light .artist-description-status,
+.mode-light .artist-description-brief, .mode-light .artist-description-section p,
+.mode-light .queue-empty, .mode-light .queue-actions button,
+.mode-light .queue-density, .mode-light .settings-eq-grid label,
+.mode-light .settings-row small, .mode-light .lyric-setting-control label {
+  color: var(--light-muted);
+}
+.mode-light .nav-item:hover, .mode-light .nav-item.selected,
+.mode-light .sidebar .playlist-nav .nav-item,
+.mode-light .import-actions .nav-item, .mode-light .sidebar-restore,
+.mode-light .queue-track:hover, .mode-light .library-row:hover,
+.mode-light .library-row.is-current, .mode-light .quick-queue-list .queue-track:hover {
+  background: #e3ebe6; color: var(--light-text);
+}
+.mode-light .header-separator { background: var(--line); }
+.mode-light .stage-top, .mode-light .lyrics-header, .mode-light .stage-toolbar,
+.mode-light .queue-tabs, .mode-light .queue-track, .mode-light .queue-note,
+.mode-light .inline-details dl > div, .mode-light .settings-row,
+.mode-light .settings-eq, .mode-light .lyric-setting-control,
+.mode-light .library-table-head { border-color: var(--line); }
+.mode-light .track-tags span, .mode-light .quality-badge { border-color: var(--line); color: var(--light-muted); }
+.mode-light .lyric-line.current > span, .mode-light .queue-tabs > button.active,
+.mode-light .settings-eq-grid small { color: var(--accent); }
+.mode-light .lyric-逐字 .lyric-line.current > span { background: linear-gradient(90deg,var(--accent) 0 52%,var(--light-text) 52% 100%); background-clip: text; color: transparent; }
+.mode-light .lyric-word { color: var(--light-text); }
+.mode-light .seek-row > input, .mode-light .playback-extras > input { background: linear-gradient(to right,var(--accent) 0%,var(--accent) var(--fill,50%),#bccac3 var(--fill,50%),#bccac3 100%); }
+.mode-light .seek-row > input::-webkit-slider-thumb, .mode-light .playback-extras > input::-webkit-slider-thumb { background: var(--accent); }
+.mode-light .playback-bar { background: #fff; border-color: var(--line); color: var(--light-text); }
+.mode-light .player-popover, .mode-light .quick-queue-panel,
+.mode-light .settings-theme, .mode-light .settings-options,
+.mode-light .lyric-font-select, .mode-light .artist-mapping-item,
+.mode-light .artist-mapping-form input, .mode-light .catalog-search,
+.mode-light .catalog-sort, .mode-light .catalog-sort option,
+.mode-light .catalog-tabs, .mode-light .library-view .library-search,
+.mode-light .queue-context, .mode-light .sleep-quick-popover,
+.mode-light .playlist-editor { background: var(--light-panel); border-color: var(--line); color: var(--light-text); }
+.mode-light .settings-theme.selected, .mode-light .settings-theme:hover { background: var(--tint); border-color: var(--accent); }
+.mode-light .settings-theme-check { background: var(--light-panel); }
+.mode-light .settings-theme.selected .settings-theme-check { background: transparent; }
+.mode-light .settings-options button { color: var(--light-muted); }
+.mode-light .settings-options button:hover { color: var(--light-text); }
+.mode-light .settings-options button.active, .mode-light .play-button,
+.mode-light .playlist-primary, .mode-light .sleep-settings-form button,
+.mode-light .folder-dialog-actions button:last-child { color: #fff; }
+.mode-light .settings-switch { background: #b2c2b9; }
+.mode-light .settings-switch.on span { background: #fff; }
+.mode-light .settings-eq-grid label, .mode-light .lyric-setting-control label,
+.mode-light .artist-mapping-form label, .mode-light .playlist-field,
+.mode-light .cover-picker legend { color: var(--light-text); }
+.mode-light .settings-row small, .mode-light .artist-mapping-item small,
+.mode-light .artist-mapping-form input::placeholder,
+.mode-light .catalog-search input::placeholder, .mode-light .library-view .library-search input::placeholder,
+.mode-light .playlist-field input::placeholder, .mode-light .playlist-field textarea::placeholder {
+  color: var(--light-muted);
+}
+.mode-light .settings-switch span { background: #fff; }
+.mode-light .catalog-search input, .mode-light .catalog-sort select,
+.mode-light .library-search input, .mode-light .lyric-font-select { color: var(--light-text); }
+.mode-light .catalog-tabs button span, .mode-light .queue-context [role=menuitem]:focus {
+  background: var(--light-soft); color: var(--light-text);
+}
+.mode-light .catalog-tabs button:hover { color: var(--light-text); }
+.mode-light .catalog-tabs button.active span { background: var(--accent); color: #fff; }
+.mode-light .artist-description-refresh, .mode-light .artist-mapping-cancel,
+.mode-light .playlist-dialog-actions button:not(.playlist-danger),
+.mode-light .editor-cancel, .mode-light .folder-dialog-actions button,
+.mode-light .sleep-quick-options button, .mode-light .sleep-quick-popover form > button,
+.mode-light .sleep-quick-cancel, .mode-light .cover-upload button,
+.mode-light .cover-mode-tabs button { background: var(--light-soft); border-color: var(--line); color: var(--light-text); }
+.mode-light .folder-dialog-actions button:last-child { background: var(--accent); border-color: var(--accent); }
+.mode-light .playlist-dialog input, .mode-light .playlist-field input,
+.mode-light .playlist-field textarea, .mode-light .sleep-quick-popover form input,
+.mode-light .sleep-settings-form input { background: #fff; border-color: var(--line); color: var(--light-text); }
+.mode-light .playlist-editor > header, .mode-light .playlist-editor form > footer,
+.mode-light .quick-queue-panel > header, .mode-light .quick-queue-list .queue-track,
+.mode-light .music-dialog .demo-note { border-color: var(--line); }
+.mode-light .playlist-editor > header > button, .mode-light .sleep-quick-popover > p,
+.mode-light .sleep-quick-popover form label, .mode-light .sleep-settings-form,
+.mode-light .cover-upload small, .mode-light .cover-hint,
+.mode-light .cover-preview, .mode-light .inline-details dd,
+.mode-light .detail-modal dd { color: var(--light-muted); }
+.mode-light .playlist-editor > header > button:hover,
+.mode-light .quick-queue-panel header button:hover { background: var(--light-soft); color: var(--accent); }
+.mode-light .translation-toggle, .mode-light .lyrics-settings-toggle,
+.mode-light .lyrics-immersive-toggle { background: rgba(255,255,255,.9); border-color: var(--line); color: var(--light-text); }
+.mode-light .queue-context .queue-context-danger { color: #a82f40; }
+.mode-light .playback-extras > .quality-badge { background: #e1f3e9; border-color: #74a98c; color: #276d4d; }
+.mode-light .file-drop-overlay { background: rgba(246,249,247,.96); }
+.mode-light .artist-mapping-form p { color: #ac3041; }
+/* Dialogs and popovers are portalled outside the player, so they use the html class. */
+html.mode-light .music-dialog { background: #fff !important; border-color: #d8e1dc !important; color: #25343a !important; }
+html.mode-light .music-dialog h2, html.mode-light .music-dialog [role=heading] { color: #25343a; }
+html.mode-light .music-dialog > p[data-description], html.mode-light .music-dialog > button:last-of-type { color: #586968; }
+html.mode-light .music-dialog input { background: #fff; border-color: #d8e1dc; color: #25343a; }
+html.mode-light .music-dialog .demo-note { color: #586968; border-color: #d8e1dc; }
+html.mode-light .player-popover, html.mode-light .sleep-quick-popover, html.mode-light .queue-context { background: #fff; border-color: #d8e1dc; color: #25343a; }
+html.mode-light .player-popover .popover-item, html.mode-light .player-popover .option-chip,
+html.mode-light .player-popover .eq-sliders label, html.mode-light .player-popover .eq-sliders small { color: #586968; border-color: #d8e1dc; }
+html.mode-light .sleep-quick-popover p, html.mode-light .sleep-quick-popover form label { color: #586968; }
+html.mode-light .sleep-quick-popover button { background: #edf3f0; border-color: #d8e1dc; color: #25343a; }
+html.mode-light .sleep-quick-popover input { background: #fff; border-color: #d8e1dc; color: #25343a; }
+html.mode-light .queue-context [role=menuitem]:focus { background: #edf3f0; color: #25343a; }
+html.mode-light .queue-context .queue-context-danger { color: #a82f40; }
