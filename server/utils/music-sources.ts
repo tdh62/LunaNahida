@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
+import { Converter } from 'opencc-js';
 import { decryptEapi, eapi, weapi } from './ncm-crypto';
 
 type Source = 'ncm' | 'qq';
@@ -11,6 +12,7 @@ const nextSlot: Record<Source, number> = { ncm: 0, qq: 0 };
 const chains: Record<Source, Promise<void>> = { ncm: Promise.resolve(), qq: Promise.resolve() };
 const ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0';
 const weapiUa = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36 Edg/116.0.1938.69';
+const toSimplified = Converter({ from: 'tw', to: 'cn' });
 let anonymousToken = '';
 let queued = 0;
 
@@ -114,7 +116,7 @@ async function search(source: Source, query: string): Promise<Song[]> {
 }
 
 function normalized(value: string) {
-  return value.normalize('NFKC').toLowerCase().replace(/[\s\p{P}\p{S}]+/gu, '');
+  return toSimplified(value.normalize('NFKC')).toLowerCase().replace(/[\s\p{P}\p{S}]+/gu, '');
 }
 
 function matches(song: Song, title: string, artist: string) {
@@ -146,10 +148,10 @@ export async function enrich(title: string, artist: string, needCover: boolean, 
     if ((!needCover || found.cover) && (!needLyrics || found.lyric)) break;
     try {
       const lookup = (query: string) => force ? search(source, query) : cached(`search:v3:${source}:${normalized(query)}`, 60 * 60 * 1000, () => search(source, query));
-      const combined = await lookup(`${title} ${artist}`);
+      const combined = await lookup(`${toSimplified(title)} ${toSimplified(artist)}`);
       let song = combined.find(item => matches(item, title, artist));
       if (!song) {
-        const byTitle = await lookup(title);
+        const byTitle = await lookup(toSimplified(title));
         song = byTitle.find(item => matches(item, title, artist));
         if (!song) console.info(`音乐未匹配 (${source}):`, { title, artist, candidates: byTitle.slice(0, 8).map(item => ({ title: item.title, artist: item.artist })) });
       }

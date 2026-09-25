@@ -4,7 +4,7 @@ import type { Track } from '@/lib/music';
 export type TimedLine = { time: number; text: string; translation?: string };
 type Enrichment = { cover?: string; lyric?: string; translation?: string };
 type Entry = { value: Enrichment; expires: number; coverRequested?: boolean; lyricRequested?: boolean; override?: boolean };
-const storageKey = 'lumatune-music-enrichment-v3';
+const storageKey = 'lumatune-music-enrichment-v4';
 const maxEntries = 200;
 
 function readCache(): Record<string, Entry> {
