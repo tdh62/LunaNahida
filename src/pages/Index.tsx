@@ -224,9 +224,42 @@ export default function Index() {
   const toggleTrackLike = (id: number) => setLiked(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]);
   const toggleLike = () => { if (p.trackId !== null) toggleTrackLike(p.trackId); };
   useEffect(() => {
-    const key = (e: KeyboardEvent) => { if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement || e.target instanceof HTMLButtonElement) return; if (e.code === 'Space') { e.preventDefault(); p.toggle(); } if (e.code === 'ArrowRight') p.seek(Math.min(p.time + 5, p.track.duration)); if (e.code === 'ArrowLeft') p.seek(Math.max(p.time - 5, 0)); if (e.key === 'Escape') setFocus(false); };
-    window.addEventListener('keydown', key); return () => window.removeEventListener('keydown', key);
-  }, [p]);
+    const key = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.isComposing || event.altKey || event.ctrlKey || event.metaKey) return;
+      const target = event.target;
+      if (target instanceof Element && target.closest('input, textarea, select, button, a, [contenteditable]:not([contenteditable="false"]), [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [role="slider"]')) return;
+
+      if (event.key === 'Escape') {
+        if (focus) { event.preventDefault(); setFocus(false); }
+        return;
+      }
+      if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+        event.preventDefault();
+        p.setVolume(Math.max(0, Math.min(100, p.volume + (event.key === 'ArrowUp' ? 5 : -5))));
+        return;
+      }
+      if (event.key.toLowerCase() === 'm') {
+        event.preventDefault(); p.setVolume(p.volume ? 0 : 65); return;
+      }
+      if (!p.hasTrack) return;
+      switch (event.key) {
+        case ' ': case 'k': case 'K': case 'MediaPlayPause':
+          event.preventDefault(); if (!event.repeat) p.toggle(); break;
+        case 'ArrowRight': case 'l': case 'L':
+          event.preventDefault(); p.seek(Math.min(p.time + (event.key === 'ArrowRight' ? 5 : 10), p.track.duration)); break;
+        case 'ArrowLeft': case 'j': case 'J':
+          event.preventDefault(); p.seek(Math.max(p.time - (event.key === 'ArrowLeft' ? 5 : 10), 0)); break;
+        case 'Home': event.preventDefault(); p.seek(0); break;
+        case 'End': event.preventDefault(); p.seek(p.track.duration); break;
+        case 'n': case 'N': case 'MediaTrackNext':
+          event.preventDefault(); if (!event.repeat) p.next(); break;
+        case 'p': case 'P': case 'MediaTrackPrevious':
+          event.preventDefault(); if (!event.repeat) p.previous(); break;
+      }
+    };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, [p, focus]);
   useEffect(() => { if (!sleep) return; const timer = window.setInterval(() => setSleep(v => Math.max(0, v - 1)), 1000); return () => window.clearInterval(timer); }, [sleep > 0]);
   useEffect(() => { if (sleep === 1 && p.playing) p.toggle(); }, [sleep]);
   const allTracks = useMemo(() => [...tracks, ...p.queue.filter(t => t.source)], [p.queue]);
