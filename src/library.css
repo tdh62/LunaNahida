@@ -38,7 +38,7 @@
 .library-track-name strong, .library-track-name small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .library-track-name strong { color: #efeeeb; font-size: 13px; font-weight: 500; }
 .library-track-name:hover strong, .library-row.is-current .library-track-name strong { color: var(--accent); }
-.library-track-name small { margin-top: 5px; color: #aaa9ad; font-size: 11px; }
+.library-track-name small, .library-track-name .track-meta-link { display: block; max-width: 100%; overflow: hidden; margin-top: 5px; color: #aaa9ad; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .library-album { overflow: hidden; color: #b4b2b5; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .library-duration { color: #aaa9ad; font: 11px 'DM Mono', monospace; }
 .library-like { width: 34px; height: 34px; display: grid; place-items: center; border: 0; border-radius: 6px; background: none; color: #aaa9ad; }
