@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { parseBlob } from 'music-metadata';
 import { tracks, type Track } from '@/lib/music';
 
 function renderDemo(id: number, duration: number) {
@@ -28,19 +29,41 @@ type Graph = { context: AudioContext; filter: BiquadFilterNode; delay: DelayNode
 
 let activePlayback: { element: HTMLAudioElement; stop: () => void } | null = null;
 
-function loadFile(file: File, id: number): Promise<Track | null> {
-  return new Promise(resolve => {
-    const source = URL.createObjectURL(file), probe = new Audio();
-    const done = (duration: number | null) => {
+function releaseTrack(track: Track) {
+  if (track.source) URL.revokeObjectURL(track.source);
+  if (track.cover.startsWith('blob:')) URL.revokeObjectURL(track.cover);
+}
+
+async function loadFile(file: File, id: number): Promise<Track | null> {
+  const source = URL.createObjectURL(file);
+  const duration = await new Promise<number | null>(resolve => {
+    const probe = new Audio();
+    const done = (value: number | null) => {
       probe.onloadedmetadata = null; probe.onerror = null;
       probe.removeAttribute('src'); probe.load();
-      if (duration === null) { URL.revokeObjectURL(source); resolve(null); return; }
-      resolve({ id, title: file.name.replace(/\.[^.]+$/, ''), english: 'LOCAL AUDIO', artist: '本地文件', album: '本地音乐', duration, cover: '/covers/local.svg', genre: '本地音频', year: '—', color: '#a5b5ff', source, fileName: file.name });
+      resolve(value);
     };
     probe.onloadedmetadata = () => done(Number.isFinite(probe.duration) ? probe.duration : 0);
     probe.onerror = () => done(null);
     probe.preload = 'metadata'; probe.src = source;
   });
+  if (duration === null) { URL.revokeObjectURL(source); return null; }
+
+  let title = file.name.replace(/\.[^.]+$/, '');
+  let artist = '本地文件', album = '本地音乐', genre = '本地音频', year = '—', cover = '/covers/local.svg';
+  try {
+    const { common } = await parseBlob(file, { duration: false });
+    title = common.title?.trim() || title;
+    artist = common.artist?.trim() || common.albumartist?.trim() || artist;
+    album = common.album?.trim() || album;
+    genre = common.genre?.find(value => value.trim())?.trim() || genre;
+    year = common.year ? String(common.year) : year;
+    const picture = common.picture?.find(item => /^image\/(jpeg|png|webp|gif)$/i.test(item.format));
+    if (picture) cover = URL.createObjectURL(new Blob([new Uint8Array(picture.data)], { type: picture.format }));
+  } catch {
+    // Files without readable tags still remain playable.
+  }
+  return { id, title, english: 'LOCAL AUDIO', artist, album, duration, cover, genre, year, color: '#a5b5ff', source, fileName: file.name };
 }
 
 export function usePlayer() {
@@ -74,7 +97,7 @@ export function usePlayer() {
       if (activePlayback?.element === element) activePlayback = null;
       element.onplay = element.onpause = element.onended = element.ontimeupdate = null;
       element.removeAttribute('src'); element.load(); audio.current = null;
-      demos.current.forEach(URL.revokeObjectURL); demos.current.clear(); queueRef.current.forEach(t => { if (t.source) URL.revokeObjectURL(t.source); });
+      demos.current.forEach(URL.revokeObjectURL); demos.current.clear(); queueRef.current.forEach(releaseTrack);
       void graph.current?.context.close(); graph.current = null;
     };
   }, []);
@@ -146,7 +169,7 @@ export function usePlayer() {
   const clearQueue = () => {
     audio.current?.pause(); shouldPlay.current = false; setTrackId(null); setTime(0);
     const old = queueRef.current; updateQueue([]);
-    old.forEach(t => { if (t.source) URL.revokeObjectURL(t.source); });
+    old.forEach(releaseTrack);
   };
   const removeTracks = (ids: number[]) => {
     const removedIds = new Set(ids);
@@ -161,7 +184,7 @@ export function usePlayer() {
       else { shouldPlay.current = false; setTrackId(null); setTime(0); }
     }
     updateQueue(remaining);
-    removed.forEach(t => { if (t.source) URL.revokeObjectURL(t.source); });
+    removed.forEach(releaseTrack);
   };
   const move = (from: number, to: number) => {
     const list = [...queueRef.current], start = list.findIndex(t => t.id === from), end = list.findIndex(t => t.id === to);
@@ -174,12 +197,16 @@ export function usePlayer() {
     const chosen = duplicates === 'append' ? audioFiles : duplicates === 'skip'
       ? audioFiles.filter(file => { const name = file.name.toLowerCase(); if (existingNames.has(name)) return false; existingNames.add(name); return true; })
       : [...new Map(audioFiles.map(file => [file.name.toLowerCase(), file])).values()];
-    const loaded = (await Promise.all(chosen.map(file => loadFile(file, nextId.current++)))).filter((item): item is Track => item !== null);
+    const loaded: Track[] = [];
+    for (let index = 0; index < chosen.length; index += 8) {
+      const batch = await Promise.all(chosen.slice(index, index + 8).map(file => loadFile(file, nextId.current++)));
+      loaded.push(...batch.filter((item): item is Track => item !== null));
+    }
     if (!loaded.length) return 0;
     if (replace) {
       audio.current?.pause(); shouldPlay.current = false;
       const old = queueRef.current; updateQueue(loaded); setTrackId(loaded[0].id);
-      old.forEach(t => { if (t.source) URL.revokeObjectURL(t.source); });
+      old.forEach(releaseTrack);
     } else if (duplicates === 'overwrite') {
       const next = [...queueRef.current];
       let replacementId: number | null = null;
@@ -188,7 +215,7 @@ export function usePlayer() {
         if (!matches.length) { next.push(item); continue; }
         const position = next.indexOf(matches[0]);
         if (matches.some(t => t.id === trackId)) replacementId = item.id;
-        matches.forEach(t => { next.splice(next.indexOf(t), 1); if (t.source) URL.revokeObjectURL(t.source); });
+        matches.forEach(t => { next.splice(next.indexOf(t), 1); releaseTrack(t); });
         next.splice(position, 0, item);
       }
       const wasEmpty = queueRef.current.length === 0;
