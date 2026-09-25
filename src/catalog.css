@@ -16,6 +16,12 @@
 .catalog-text-link { display: block; padding: 0; border: 0; background: none; color: var(--accent); font-size: 13px; text-align: left; }
 .catalog-text-link:hover, .track-meta-link:hover { text-decoration: underline; }
 .catalog-related { margin-bottom: 34px; }
+.catalog-tabs { display: flex; gap: 4px; width: fit-content; margin: 0 0 22px; padding: 4px; border: 1px solid #383a3c; border-radius: 7px; background: #202123; }
+.catalog-tabs button { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 0 12px; border: 0; border-radius: 5px; background: transparent; color: #aaa9ad; font-size: 12px; }
+.catalog-tabs button:hover { color: #f1f0ed; }
+.catalog-tabs button.active { background: var(--tint); color: var(--accent); }
+.catalog-tabs button span { min-width: 20px; padding: 2px 5px; border-radius: 10px; background: #343538; color: #d5d4d5; font-size: 10px; text-align: center; }
+.catalog-tabs button.active span { background: var(--accent); color: #191a1c; }
 .catalog-related h2, .catalog-songs h2 { margin: 0 0 16px; font-size: 17px; font-weight: 600; }
 .catalog-related .catalog-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 150px)); }
 .catalog-songs .library-view { min-height: 0; padding: 0; }
