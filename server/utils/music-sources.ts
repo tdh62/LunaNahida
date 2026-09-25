@@ -29,9 +29,9 @@ function limited<T>(source: Source, work: () => Promise<T>): Promise<T> {
   return run.finally(() => { queued--; });
 }
 
-export function cached<T>(key: string, ttl: number, load: () => Promise<T>): Promise<T> {
+export function cached<T>(key: string, ttl: number, load: () => Promise<T>, refresh = false): Promise<T> {
   const hit = cache.get(key);
-  if (hit && hit.expires > Date.now()) return hit.error ? Promise.reject(hit.value) : Promise.resolve(hit.value as T);
+  if (!refresh && hit && hit.expires > Date.now()) return hit.error ? Promise.reject(hit.value) : Promise.resolve(hit.value as T);
   const running = pending.get(key);
   if (running) return running as Promise<T>;
   const task = load().then(value => {
@@ -148,7 +148,7 @@ async function lyrics(source: Source, song: Song): Promise<Pick<Enrichment, 'lyr
   return { lyric: result.lyric ? decode(result.lyric) : '', translation: result.trans ? decode(result.trans) : '' };
 }
 
-export type ArtistDescription = { id: string; name: string; briefDesc: string; introduction: { ti: string; txt: string }[] };
+export type ArtistDescription = { id: string; name: string; picture?: string; briefDesc: string; introduction: { ti: string; txt: string }[] };
 
 export async function getArtistDescription(name: string): Promise<ArtistDescription | null> {
   const result = await ncm('https://music.163.com/weapi/search/get', { s: toSimplified(name), type: 100, limit: 30, offset: 0 });
@@ -161,6 +161,7 @@ export async function getArtistDescription(name: string): Promise<ArtistDescript
   return {
     id: String(artist.id),
     name: artist.name,
+    picture: typeof (artist.picUrl ?? artist.img1v1Url) === 'string' && /^https?:\/\/(?:p\d+\.music\.126\.net)\//.test(artist.picUrl ?? artist.img1v1Url) ? (artist.picUrl ?? artist.img1v1Url).replace(/^http:\/\//, 'https://') : undefined,
     briefDesc: description.briefDesc ?? '',
     introduction: Array.isArray(description.introduction) ? description.introduction.map((item: any) => ({ ti: String(item.ti ?? ''), txt: String(item.txt ?? '') })).filter((item: { ti: string; txt: string }) => item.ti || item.txt) : [],
   };

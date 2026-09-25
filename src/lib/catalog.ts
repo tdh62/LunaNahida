@@ -24,6 +24,8 @@ export function buildCatalog(tracks: Track[], mappings: ArtistMapping[]) {
     if (!artist) {
       artist = { key, name: mapping?.root ?? track.artist, tracks: [], cover: track.cover, aliases: [] };
       artists.set(key, artist);
+    } else if (artist.cover === '/covers/local.svg' && track.cover !== '/covers/local.svg') {
+      artist.cover = track.cover;
     }
     artist.tracks.push(track);
     if (!artist.aliases.includes(track.artist)) artist.aliases.push(track.artist);

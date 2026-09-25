@@ -1,4 +1,4 @@
-import { ArrowDownAZ, ArrowLeft, Disc3, ListMusic, Mic2, Play, Search, Users } from 'lucide-react';
+import { ArrowDownAZ, ArrowLeft, Disc3, ListMusic, Mic2, Play, RefreshCw, Search, Users } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import LibraryView from '@/components/LibraryView';
@@ -6,7 +6,33 @@ import type { AlbumEntry, ArtistEntry } from '@/lib/catalog';
 import type { Track } from '@/lib/music';
 import type { Playlist } from '@/lib/playlists';
 
-type ArtistDescription = { id: string; name: string; briefDesc: string; introduction: { ti: string; txt: string }[] };
+type ArtistDescription = { id: string; name: string; picture?: string; briefDesc: string; introduction: { ti: string; txt: string }[] };
+const artistDescriptionStorageKey = 'lumatune-artist-descriptions-v1';
+
+function readArtistDescriptionCache(name: string) {
+  try {
+    const cache = JSON.parse(localStorage.getItem(artistDescriptionStorageKey) ?? '{}');
+    return cache[name.trim().normalize('NFKC').toLowerCase()] as ArtistDescription | undefined;
+  } catch { return undefined; }
+}
+
+function saveArtistDescriptionCache(name: string, data: ArtistDescription) {
+  try {
+    const cache = JSON.parse(localStorage.getItem(artistDescriptionStorageKey) ?? '{}');
+    const key = name.trim().normalize('NFKC').toLowerCase();
+    const entries = Object.entries(cache).filter(([existing]) => existing !== key).slice(-19);
+    localStorage.setItem(artistDescriptionStorageKey, JSON.stringify(Object.fromEntries([...entries, [key, data]])));
+  } catch { /* Keep artist details available for the current session if storage is full. */ }
+}
+
+async function fetchArtistDescription(name: string, refresh = false, signal?: AbortSignal) {
+  const params = new URLSearchParams({ name });
+  if (refresh) params.set('refresh', '1');
+  const response = await fetch(`/api/music/artist?${params}`, { signal });
+  if (response.status === 404) throw new Error('暂未收录歌手介绍');
+  if (!response.ok) throw new Error('歌手介绍暂时不可用');
+  return response.json() as Promise<ArtistDescription>;
+}
 
 type Props = {
   kind: 'artists' | 'albums';
@@ -45,16 +71,21 @@ export default function CatalogView({ kind, artists, albums, artist, album, curr
   useEffect(() => {
     if (!artist || kind !== 'artists') return;
     const controller = new AbortController();
-    setArtistDescriptionLoading(true);
     setArtistDescriptionError('');
-    const params = new URLSearchParams({ name: artist.name });
-    fetch(`/api/music/artist?${params}`, { signal: controller.signal })
-      .then(async response => {
-        if (response.status === 404) throw new Error('暂未收录歌手介绍');
-        if (!response.ok) throw new Error('歌手介绍暂时不可用');
-        return response.json() as Promise<ArtistDescription>;
+    const cachedDescription = readArtistDescriptionCache(artist.name);
+    if (cachedDescription) {
+      setArtistDescription({ name: artist.name, data: cachedDescription });
+      setArtistDescriptionLoading(false);
+      return () => controller.abort();
+    }
+    setArtistDescriptionLoading(true);
+    fetchArtistDescription(artist.name, false, controller.signal)
+      .then(data => {
+        if (!controller.signal.aborted) {
+          saveArtistDescriptionCache(artist.name, data);
+          setArtistDescription({ name: artist.name, data });
+        }
       })
-      .then(data => { if (!controller.signal.aborted) setArtistDescription({ name: artist.name, data }); })
       .catch(error => { if (!controller.signal.aborted) setArtistDescriptionError(error instanceof Error ? error.message : '歌手介绍暂时不可用'); })
       .finally(() => { if (!controller.signal.aborted) setArtistDescriptionLoading(false); });
     return () => controller.abort();
@@ -76,16 +107,34 @@ export default function CatalogView({ kind, artists, albums, artist, album, curr
     if (albumSort === 'artist') result.sort((a, b) => compareText(a.artistName, b.artistName) || compareText(a.name, b.name));
     return result;
   }, [albums, albumSort, search]);
+  const refreshArtistDescription = async () => {
+    if (!artist) return;
+    setArtistDescriptionLoading(true);
+    setArtistDescriptionError('');
+    try {
+      const data = await fetchArtistDescription(artist.name, true);
+      saveArtistDescriptionCache(artist.name, data);
+      setArtistDescription({ name: artist.name, data });
+    } catch (error) {
+      setArtistDescriptionError(error instanceof Error ? error.message : '歌手介绍暂时不可用');
+    } finally {
+      setArtistDescriptionLoading(false);
+    }
+  };
+  const artistCover = artist
+    ? (artistDescription?.name === artist.name ? artistDescription.data.picture : undefined) ?? artist.tracks.find(track => track.cover !== '/covers/local.svg')?.cover ?? artist.cover
+    : detail?.cover ?? '/covers/local.svg';
   return <section className="catalog-page">
     {detail ? <>
       <Link className="playlist-back" to={kind === 'artists' ? '/artists' : '/albums'}><ArrowLeft size={16} /> 返回{label}</Link>
-      <header className="catalog-hero"><img src={detail.cover} alt="" /><div><span className="eyebrow"><span /> {kind === 'artists' ? 'ARTIST' : 'ALBUM'}</span><h1>{detail.name}</h1>
+      <header className="catalog-hero"><img src={kind === 'artists' ? artistCover : detail.cover} alt="" /><div><span className="eyebrow"><span /> {kind === 'artists' ? 'ARTIST' : 'ALBUM'}</span><h1>{detail.name}</h1>
         {album && kind === 'albums' && <button className="catalog-text-link" onClick={() => onArtist(album.artistName)}>{album.artistName}</button>}
         {artist && kind === 'artists' && artist.aliases.length > 1 && <p>收录名称：{artist.aliases.join(' / ')}</p>}
         <p>{detail.tracks.length} 首歌曲{album && kind === 'albums' ? ` · ${yearValue(album.year) === null ? '未知年份' : album.year}` : ''}</p>
         <button type="button" className="playlist-primary" onClick={() => onPlay(detail.tracks[0].id)}><Play size={16} fill="currentColor" /> 播放</button>
       </div></header>
       {artist && kind === 'artists' && <section className="artist-description" aria-label="歌手介绍">
+        <div className="artist-description-heading"><h2>歌手介绍</h2><button type="button" className="artist-description-refresh" onClick={() => void refreshArtistDescription()} disabled={artistDescriptionLoading}><RefreshCw size={14} className={artistDescriptionLoading ? 'animate-spin' : ''} />刷新资料</button></div>
         {artistDescriptionLoading && <p className="artist-description-status">正在加载歌手介绍…</p>}
         {artistDescriptionError && !artistDescriptionLoading && <p className="artist-description-status">{artistDescriptionError}</p>}
         {artistDescription?.name === artist.name && <>
