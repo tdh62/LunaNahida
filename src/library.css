@@ -1,3 +1,17 @@
+.library-rows.is-virtualized { max-height: calc(100dvh - 300px); min-height: 320px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #555 transparent; }
+.library-rows.is-virtualized .library-row { height: 72px; min-height: 72px; box-sizing: border-box; }
+@media (max-width: 760px) {
+  .library-rows.is-virtualized { max-height: calc(100dvh - 335px); min-height: 260px; }
+  .library-rows.is-virtualized .library-row { height: 66px; min-height: 66px; }
+}
+
+@media (min-width: 761px) {
+  .scrolling-workspace { display: block; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #44464a transparent; }
+}
+@media (max-width: 760px) {
+  .scrolling-workspace { display: block; height: auto; overflow: visible; }
+}
+
 .library-view { min-height: calc(100vh - 153px); padding: 36px 24px 52px; }
 .library-heading { display: flex; align-items: end; justify-content: space-between; gap: 22px; margin-bottom: 29px; }
 .library-heading h1 { margin: 10px 0 5px; color: #f2f0ec; font-size: 27px; font-weight: 600; }

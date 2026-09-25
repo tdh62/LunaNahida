@@ -48,7 +48,8 @@ body { overflow-y: hidden; }
 .immersive-transport input { min-width: 0; flex: 1; }
 .immersive-extra { justify-content: flex-end; }
 .is-fullscreen .immersive-overlay { position: absolute; }
-@media(max-width:760px) {
+@media (max-width: 760px) {
+  .scrolling-workspace { display: block; height: auto; overflow: visible; }
   body { overflow-y: auto; }
   .music-app { height: auto; min-height: 100dvh; overflow: visible; }
   .workspace { height: auto; overflow: visible; }
