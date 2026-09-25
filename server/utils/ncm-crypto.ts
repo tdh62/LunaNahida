@@ -29,6 +29,9 @@ export function eapi(path: string, data: object) {
 }
 
 export function decryptEapi(buffer: Buffer) {
+  const text = buffer.toString('utf8').trim();
+  if (text.startsWith('{') || text.startsWith('[')) return JSON.parse(text);
+  const payload = /^[\da-f]+$/i.test(text) && text.length % 2 === 0 ? Buffer.from(text, 'hex') : buffer;
   const decipher = createDecipheriv('aes-128-ecb', eapiKey, null);
-  return JSON.parse(Buffer.concat([decipher.update(buffer), decipher.final()]).toString('utf8'));
+  return JSON.parse(Buffer.concat([decipher.update(payload), decipher.final()]).toString('utf8'));
 }

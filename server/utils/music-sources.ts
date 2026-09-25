@@ -104,13 +104,13 @@ async function search(source: Source, query: string): Promise<Song[]> {
       id: String(item.id), title: item.name, artist: (item.artists ?? item.ar ?? []).map((a: any) => a.name).join(', '), artwork: item.album?.picUrl ?? item.al?.picUrl,
     }));
   }
-  const response = await post('qq', 'https://u.y.qq.com/cgi-bin/musicu.fcg', JSON.stringify({ req_1: { module: 'music.search.SearchCgiService', method: 'DoSearchForQQMusicDesktop', param: { num_per_page: 10, page_num: 1, query, search_type: 0 } } }), {
+  const response = await post('qq', 'https://u.y.qq.com/cgi-bin/musicu.fcg', JSON.stringify({ req_1: { module: 'music.search.SearchCgiService', method: 'DoSearchForQQMusicDesktop', param: { num_per_page: 20, page_num: 1, query, search_type: 0 } } }), {
     'User-Agent': ua, Referer: 'https://y.qq.com/', Cookie: 'uin=', 'Content-Type': 'application/json',
   });
   const payload = await response.json();
   const result = payload.req_1;
   if (!Array.isArray(result?.data?.body?.song?.list) || (result.code != null && Number(result.code) !== 0)) {
-    throw new Error(`QQ 音乐搜索失败 (code=${String(payload.code ?? '-')}, reqCode=${String(result?.code ?? '-')}, dataKeys=${Object.keys(result?.data ?? {}).join(',')})`);
+    throw new Error(`QQ 音乐搜索失败 (code=${String(payload.code ?? '-')}, reqCode=${String(result?.code ?? '-')}, bodyCode=${String(result?.data?.code ?? '-')}, songCount=${String(result?.data?.body?.song?.list?.length ?? '-')}, dataKeys=${Object.keys(result?.data ?? {}).join(',')})`);
   }
   return result.data.body.song.list.map((item: any) => ({
     id: String(item.id ?? item.songid), mid: item.mid ?? item.songmid, title: item.title ?? item.songname, artist: (item.singer ?? []).map((a: any) => a.name).join(', '),
@@ -130,8 +130,13 @@ function matches(song: Song, title: string, artist: string) {
 
 async function lyrics(source: Source, song: Song): Promise<Pick<Enrichment, 'lyric' | 'translation'>> {
   if (source === 'ncm') {
-    const result = await ncm('https://interface3.music.163.com/eapi/song/lyric/v1', { id: song.id, cp: false, tv: 0, lv: 0, rv: 0, kv: 0, yv: 0, ytv: 0, yrv: 0 }, 'eapi', '/api/song/lyric/v1');
-    return { lyric: result.lrc?.lyric ?? '', translation: result.tlyric?.lyric ?? '' };
+    try {
+      const result = await ncm('https://interface3.music.163.com/eapi/song/lyric/v1', { id: song.id, cp: false, tv: 0, lv: 0, rv: 0, kv: 0, yv: 0, ytv: 0, yrv: 0 }, 'eapi', '/api/song/lyric/v1');
+      return { lyric: result.lrc?.lyric ?? '', translation: result.tlyric?.lyric ?? '' };
+    } catch {
+      const result = await ncm('https://music.163.com/weapi/song/lyric', { id: song.id, lv: -1, tv: -1, cp: false, csrf_token: '' });
+      return { lyric: result.lrc?.lyric ?? '', translation: result.tlyric?.lyric ?? '' };
+    }
   }
   if (!song.mid) return {};
   const response = await limited('qq', () => fetch(`https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?${new URLSearchParams({ songmid: song.mid!, g_tk: '5381', loginUin: '0', hostUin: '0', inCharset: 'utf8', outCharset: 'utf-8', notice: '0', platform: 'yqq', needNewCode: '0' })}`, { headers: { Referer: 'https://y.qq.com/', Cookie: 'uin=' }, signal: AbortSignal.timeout(12000) }));
@@ -150,7 +155,7 @@ export async function enrich(title: string, artist: string, needCover: boolean, 
   for (const source of ['ncm', 'qq'] as const) {
     if ((!needCover || found.cover) && (!needLyrics || found.lyric)) break;
     try {
-      const lookup = (query: string) => force ? search(source, query) : cached(`search:v5:${source}:${normalized(query)}`, 60 * 60 * 1000, () => search(source, query));
+      const lookup = (query: string) => force ? search(source, query) : cached(`search:v6:${source}:${normalized(query)}`, 60 * 60 * 1000, () => search(source, query));
       let song: Song | undefined;
       let candidates: Song[] = [];
       let lookupError: unknown;
