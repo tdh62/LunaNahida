@@ -39,6 +39,8 @@
 .translation-toggle { position: absolute; z-index: 2; right: 8px; bottom: 10px; display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid #61636a; border-radius: 6px; background: rgba(28, 30, 33, .82); color: #efeeeb; font-size: 12px; opacity: .6; transition: opacity .2s, border-color .2s; }
 .translation-toggle.is-active { border-color: var(--accent); color: var(--accent); }
 .translation-toggle:hover, .translation-toggle:focus-visible { opacity: 1; }
+.lyrics-settings-toggle { position: absolute; z-index: 2; right: 42px; bottom: 10px; display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid #61636a; border-radius: 6px; background: rgba(28, 30, 33, .82); color: #efeeeb; opacity: .7; transition: opacity .2s, border-color .2s, color .2s; }
+.lyrics-settings-toggle:hover, .lyrics-settings-toggle:focus-visible { border-color: var(--accent); color: var(--accent); opacity: 1; }
 .lyric-footer { position: static; min-height: 32px; }
 .listening-empty { flex: 1; min-height: 0; }
 .stage-top, .stage-toolbar { flex: none; }
@@ -97,7 +99,7 @@
   .sidebar-collapsed .sidebar-controls { align-self: center; }
   .sidebar-hidden .workspace { padding-left: 52px; }
 }
-@media (max-width: 760px) { .sidebar-toggle, .sidebar-restore { display: none; } }
+@media (max-width: 760px) { .sidebar-toggle, .sidebar-now-playing, .sidebar-restore { display: none; } }
 @media (max-width: 1060px) and (min-width: 761px) {
   .workspace:not(.settings-workspace) .main-columns { grid-template-columns: minmax(0, 1fr) 240px; }
 }
