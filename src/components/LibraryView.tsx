@@ -12,12 +12,14 @@ type LibraryViewProps = {
   onPlay: (id: number) => void;
   onToggleLike: (id: number) => void;
   onViewInfo: (track: Track) => void;
+  onArtist?: (name: string) => void;
+  onAlbum?: (track: Track) => void;
   playlists?: Playlist[];
   onAddToPlaylist?: (playlistId: string, ids: number[]) => void;
   onRemoveFromPlaylist?: (ids: number[]) => void;
 };
 
-export default function LibraryView({ title, tracks, currentId, liked, onPlay, onToggleLike, onViewInfo, playlists, onAddToPlaylist, onRemoveFromPlaylist }: LibraryViewProps) {
+export default function LibraryView({ title, tracks, currentId, liked, onPlay, onToggleLike, onViewInfo, onArtist, onAlbum, playlists, onAddToPlaylist, onRemoveFromPlaylist }: LibraryViewProps) {
   const [search, setSearch] = useState('');
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const anchor = useRef<number | null>(null);
@@ -61,8 +63,8 @@ export default function LibraryView({ title, tracks, currentId, liked, onPlay, o
       return <ContextMenu key={track.id}><ContextMenuTrigger asChild>
         <div className={`library-row ${currentId === track.id ? 'is-current' : ''} ${selected.includes(track.id) ? 'is-selected' : ''}`} role="option" aria-selected={selected.includes(track.id)} tabIndex={0} onClick={event => selectRow(event, track.id)} onDoubleClick={() => onPlay(track.id)} onContextMenu={() => { if (!selected.includes(track.id)) { setSelectedIds([track.id]); anchor.current = track.id; } }} onKeyDown={event => onRowKeyDown(event, track.id)}>
           <span className="library-play"><img src={track.cover} alt="" /><span className="library-play-icon"><Play size={18} fill="currentColor" /></span></span>
-          <span className="library-track-name"><strong>{track.title}</strong><small>{track.artist}</small></span>
-          <span className="library-album">{track.album}</span><span className="library-duration">{formatTime(track.duration)}</span>
+          <span className="library-track-name"><strong>{track.title}</strong>{onArtist ? <button type="button" className="track-meta-link" onClick={event => { event.stopPropagation(); onArtist(track.artist); }} onDoubleClick={event => event.stopPropagation()}>{track.artist}</button> : <small>{track.artist}</small>}</span>
+          <span className="library-album">{onAlbum ? <button type="button" className="track-meta-link" onClick={event => { event.stopPropagation(); onAlbum(track); }} onDoubleClick={event => event.stopPropagation()}>{track.album}</button> : track.album}</span><span className="library-duration">{formatTime(track.duration)}</span>
           {track.source ? <span /> : <button type="button" className={`library-like ${liked.includes(track.id) ? 'is-liked' : ''}`} onClick={event => { event.stopPropagation(); onToggleLike(track.id); }} onDoubleClick={event => event.stopPropagation()} aria-label={liked.includes(track.id) ? `取消喜欢 ${track.title}` : `喜欢 ${track.title}`} title={liked.includes(track.id) ? '取消喜欢' : '喜欢'}><Heart size={18} fill={liked.includes(track.id) ? 'currentColor' : 'none'} /></button>}
         </div>
       </ContextMenuTrigger><ContextMenuContent className="queue-context">

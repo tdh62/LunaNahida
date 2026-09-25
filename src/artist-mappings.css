@@ -1,0 +1,16 @@
+.artist-mapping-list { display: grid; gap: 7px; margin-bottom: 18px; }
+.artist-mapping-item { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 10px 12px; border: 1px solid #36383a; border-radius: 7px; background: #202123; }
+.artist-mapping-item > div { flex: 1; min-width: 0; }
+.artist-mapping-item strong, .artist-mapping-item small { display: block; overflow-wrap: anywhere; }
+.artist-mapping-item strong { font-size: 12px; }
+.artist-mapping-item small { margin-top: 4px; color: #aaa9ad; font-size: 11px; }
+.artist-mapping-item button { display: grid; place-items: center; width: 32px; height: 32px; flex: none; border: 0; border-radius: 6px; background: transparent; color: #aaa9ad; }
+.artist-mapping-item button:hover { background: var(--tint); color: var(--accent); }
+.artist-mapping-form { display: grid; gap: 12px; }
+.artist-mapping-form label { display: grid; gap: 7px; color: #d5d4d5; font-size: 11px; }
+.artist-mapping-form input { width: 100%; min-height: 38px; padding: 8px 11px; border: 1px solid #45464a; border-radius: 7px; outline: none; background: #202123; color: #f1f0ed; font-size: 12px; }
+.artist-mapping-form input:focus { border-color: var(--accent); }
+.artist-mapping-form input::placeholder { color: #99999d; }
+.artist-mapping-form p { margin: 0; color: #ffa5a5; font-size: 11px; }
+.artist-mapping-form > div { display: flex; gap: 10px; }
+.artist-mapping-cancel { padding: 0 12px; border: 1px solid #45464a; border-radius: 7px; background: transparent; color: #ddd; font-size: 12px; }

@@ -1,0 +1,26 @@
+.catalog-workspace { overflow-y: auto; scrollbar-width: thin; scrollbar-color: #44464a transparent; }
+.catalog-page { min-height: calc(100vh - 160px); padding: 36px clamp(16px, 4vw, 56px) 60px; }
+.catalog-heading { margin-bottom: 28px; }
+.catalog-heading h1, .catalog-hero h1 { margin: 10px 0 7px; font-size: 29px; font-weight: 600; overflow-wrap: anywhere; }
+.catalog-heading p, .catalog-hero p { color: #aaa9ad; font-size: 12px; line-height: 1.7; }
+.catalog-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 24px 18px; }
+.catalog-card { min-width: 0; padding: 0; border: 0; background: transparent; color: #eee; text-align: left; }
+.catalog-card img { width: 100%; aspect-ratio: 1; border-radius: 7px; background: #27292d; object-fit: cover; transition: transform .2s; }
+.catalog-card:hover img { transform: scale(1.025); }
+.catalog-card strong { display: block; margin-top: 10px; overflow-wrap: anywhere; font-size: 14px; font-weight: 600; }
+.catalog-card small { display: flex; align-items: center; gap: 5px; margin-top: 5px; color: #aaa9ad; font-size: 11px; overflow-wrap: anywhere; }
+.catalog-hero { display: flex; align-items: center; gap: 28px; margin: 22px 0 36px; }
+.catalog-hero > img { width: clamp(120px, 19vw, 210px); aspect-ratio: 1; flex: none; border-radius: 7px; object-fit: cover; }
+.catalog-hero > div { min-width: 0; }
+.catalog-hero .playlist-primary { margin-top: 14px; }
+.catalog-text-link { display: block; padding: 0; border: 0; background: none; color: var(--accent); font-size: 13px; text-align: left; }
+.catalog-text-link:hover, .track-meta-link:hover { text-decoration: underline; }
+.catalog-related { margin-bottom: 34px; }
+.catalog-related h2, .catalog-songs h2 { margin: 0 0 16px; font-size: 17px; font-weight: 600; }
+.catalog-related .catalog-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 150px)); }
+.catalog-songs .library-view { min-height: 0; padding: 0; }
+.catalog-songs .library-heading { display: none; }
+.track-meta-link { padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.library-track-name .track-meta-link { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #aaa9ad; }
+.library-album .track-meta-link { overflow: hidden; max-width: 100%; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 760px) { .sidebar > nav.space-y-1 { overflow-x: auto; min-width: 0; scrollbar-width: none; } .sidebar > nav.space-y-1 .nav-item { flex: none; } .catalog-workspace { overflow: visible; } .catalog-page { padding: 24px 16px 48px; } .catalog-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 12px; } .catalog-hero { gap: 16px; } .catalog-hero > img { width: 100px; } .catalog-hero h1 { font-size: 22px; } }

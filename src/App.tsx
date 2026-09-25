@@ -22,6 +22,10 @@ const App = () => (
             <Route path="recent" element={null} />
             <Route path="playlists" element={null} />
             <Route path="playlists/:playlistId" element={null} />
+            <Route path="artists" element={null} />
+            <Route path="artists/:artistKey" element={null} />
+            <Route path="albums" element={null} />
+            <Route path="albums/:artistKey/:albumKey" element={null} />
             <Route path="settings" element={null} />
           </Route>
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
