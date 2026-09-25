@@ -69,7 +69,9 @@
 .without-lyrics .album-column { width: min(100%, 650px); }
 .without-lyrics .album-art { width: min(100%, 42vh, 360px); }
 .without-lyrics .visualizer { height: clamp(80px, 17vh, 165px); margin-top: 20px; }
-.mini-track > .mini-cover { width: 50px; height: 50px; flex: none; object-fit: cover; }
+.mini-cover-link { border-radius: 6px; overflow: hidden; cursor: pointer; }
+.mini-cover-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.mini-cover-link img { display: block; }
 @media (min-width: 761px) {
   .music-app { position: relative; }
   .sidebar-brand-row { display: flex; align-items: flex-start; justify-content: space-between; }
@@ -116,7 +118,6 @@
   .queue-list { display: block; max-height: none; }
   .queue-actions { justify-content: flex-start; gap: 14px; }
   .queue-actions button { font-size: 10px; }
-  .mini-track > .mini-cover { width: 38px; height: 38px; }
   .file-drop-overlay { inset: 10px 10px 125px; }
 }
 @media(max-width:450px) {
