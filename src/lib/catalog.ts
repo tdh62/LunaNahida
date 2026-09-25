@@ -33,6 +33,8 @@ export function buildCatalog(tracks: Track[], mappings: ArtistMapping[]) {
     if (!album) {
       album = { key: albumKey, name: track.album, artistKey: key, artistName: artist.name, tracks: [], cover: track.cover, year: track.year };
       albums.set(id, album);
+    } else if (!/^\d{4}$/.test(album.year.trim()) && /^\d{4}$/.test(track.year.trim())) {
+      album.year = track.year;
     }
     album.tracks.push(track);
   }

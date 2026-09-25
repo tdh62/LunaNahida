@@ -1,5 +1,5 @@
-import { ArrowLeft, Disc3, ListMusic, Mic2, Play } from 'lucide-react';
-import { useState } from 'react';
+import { ArrowDownAZ, ArrowLeft, Disc3, ListMusic, Mic2, Play, Search, Users } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import LibraryView from '@/components/LibraryView';
 import type { AlbumEntry, ArtistEntry } from '@/lib/catalog';
@@ -23,6 +23,9 @@ type Props = {
   onAlbum: (track: Track) => void;
 };
 
+const yearValue = (year: string) => /^\d{4}$/.test(year.trim()) ? Number(year) : null;
+const compareText = (a: string, b: string) => a.localeCompare(b, 'zh-CN');
+
 export default function CatalogView({ kind, artists, albums, artist, album, currentId, liked, playlists, onPlay, onToggleLike, onViewInfo, onAddToPlaylist, onArtist, onAlbum }: Props) {
   const navigate = useNavigate();
   const detail = kind === 'artists' ? artist : album;
@@ -30,13 +33,25 @@ export default function CatalogView({ kind, artists, albums, artist, album, curr
   const label = kind === 'artists' ? '歌手' : '专辑';
   const relatedAlbums = artist ? albums.filter(item => item.artistKey === artist.key) : [];
   const [artistTab, setArtistTab] = useState<'albums' | 'songs'>('albums');
+  const [search, setSearch] = useState('');
+  const [artistSort, setArtistSort] = useState<'name' | 'tracks'>('name');
+  const [albumSort, setAlbumSort] = useState<'year' | 'name' | 'artist'>('year');
+  const filteredArtists = useMemo(() => artists.filter(item => `${item.name} ${item.aliases.join(' ')}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())).sort((a, b) => artistSort === 'name' ? compareText(a.name, b.name) : b.tracks.length - a.tracks.length || compareText(a.name, b.name)), [artists, artistSort, search]);
+  const filteredAlbums = useMemo(() => albums.filter(item => `${item.name} ${item.artistName}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())).sort((a, b) => {
+    if (albumSort === 'year') {
+      const yearA = yearValue(a.year), yearB = yearValue(b.year);
+      if (yearA === null || yearB === null) return yearA === yearB ? compareText(a.name, b.name) : yearA === null ? 1 : -1;
+      return yearB - yearA || compareText(a.name, b.name);
+    }
+    return albumSort === 'name' ? compareText(a.name, b.name) : compareText(a.artistName, b.artistName) || compareText(a.name, b.name);
+  }), [albums, albumSort, search]);
   return <section className="catalog-page">
     {detail ? <>
       <Link className="playlist-back" to={kind === 'artists' ? '/artists' : '/albums'}><ArrowLeft size={16} /> 返回{label}</Link>
       <header className="catalog-hero"><img src={detail.cover} alt="" /><div><span className="eyebrow"><span /> {kind === 'artists' ? 'ARTIST' : 'ALBUM'}</span><h1>{detail.name}</h1>
         {album && kind === 'albums' && <button className="catalog-text-link" onClick={() => onArtist(album.artistName)}>{album.artistName}</button>}
         {artist && kind === 'artists' && artist.aliases.length > 1 && <p>收录名称：{artist.aliases.join(' / ')}</p>}
-        <p>{detail.tracks.length} 首歌曲{album && kind === 'albums' && album.year !== '—' ? ` · ${album.year}` : ''}</p>
+        <p>{detail.tracks.length} 首歌曲{album && kind === 'albums' ? ` · ${yearValue(album.year) === null ? '未知年份' : album.year}` : ''}</p>
         <button type="button" className="playlist-primary" onClick={() => onPlay(detail.tracks[0].id)}><Play size={16} fill="currentColor" /> 播放</button>
       </div></header>
       {artist && kind === 'artists' ? <>
@@ -44,11 +59,13 @@ export default function CatalogView({ kind, artists, albums, artist, album, curr
           <button type="button" role="tab" aria-selected={artistTab === 'albums'} className={artistTab === 'albums' ? 'active' : ''} onClick={() => setArtistTab('albums')}><Disc3 size={15} />专辑<span>{relatedAlbums.length}</span></button>
           <button type="button" role="tab" aria-selected={artistTab === 'songs'} className={artistTab === 'songs' ? 'active' : ''} onClick={() => setArtistTab('songs')}><ListMusic size={15} />歌曲<span>{artist.tracks.length}</span></button>
         </div>
-        {artistTab === 'albums' ? <div className="catalog-related"><div className="catalog-grid">{relatedAlbums.map(item => <button type="button" className="catalog-card" key={item.key} onClick={() => navigate(`/albums/${encodeURIComponent(item.artistKey)}/${encodeURIComponent(item.key)}`)}><img src={item.cover} alt="" /><strong>{item.name}</strong><small>{item.tracks.length} 首歌曲 · {item.year}</small></button>)}</div>{!relatedAlbums.length && <div className="library-empty"><Disc3 size={28} /><p>暂无专辑</p></div>}</div> : <div className="catalog-songs"><LibraryView key={`artist-${artist.key}`} title="歌曲" tracks={artist.tracks} currentId={currentId} liked={liked} playlists={playlists} onPlay={onPlay} onToggleLike={onToggleLike} onViewInfo={onViewInfo} onAddToPlaylist={onAddToPlaylist} onArtist={onArtist} onAlbum={onAlbum} /></div>}
+        {artistTab === 'albums' ? <div className="catalog-related"><div className="catalog-grid">{relatedAlbums.map(item => <button type="button" className="catalog-card" key={item.key} onClick={() => navigate(`/albums/${encodeURIComponent(item.artistKey)}/${encodeURIComponent(item.key)}`)}><img src={item.cover} alt="" /><strong>{item.name}</strong><small>{item.tracks.length} 首歌曲 · {yearValue(item.year) === null ? '未知年份' : item.year}</small></button>)}</div>{!relatedAlbums.length && <div className="library-empty"><Disc3 size={28} /><p>暂无专辑</p></div>}</div> : <div className="catalog-songs"><LibraryView key={`artist-${artist.key}`} title="歌曲" tracks={artist.tracks} currentId={currentId} liked={liked} playlists={playlists} onPlay={onPlay} onToggleLike={onToggleLike} onViewInfo={onViewInfo} onAddToPlaylist={onAddToPlaylist} onArtist={onArtist} onAlbum={onAlbum} /></div>}
       </> : <div className="catalog-songs"><h2>歌曲</h2><LibraryView key={`${kind}-${detail.name}`} title="歌曲" tracks={detail.tracks} currentId={currentId} liked={liked} playlists={playlists} onPlay={onPlay} onToggleLike={onToggleLike} onViewInfo={onViewInfo} onAddToPlaylist={onAddToPlaylist} onArtist={onArtist} onAlbum={onAlbum} /></div>}
     </> : <><header className="catalog-heading"><span className="eyebrow"><span /> YOUR COLLECTION</span><h1>{label}</h1><p>音乐库中共 {items.length} {kind === 'artists' ? '位歌手' : '张专辑'}</p></header>
-      <div className="catalog-grid">{kind === 'artists' ? artists.map(item => <button type="button" className="catalog-card" key={item.key} onClick={() => navigate(`/artists/${encodeURIComponent(item.key)}`)}><img src={item.cover} alt="" /><strong>{item.name}</strong><small><Mic2 size={13} /> {item.tracks.length} 首歌曲</small></button>) : albums.map(item => <button type="button" className="catalog-card" key={`${item.artistKey}-${item.key}`} onClick={() => navigate(`/albums/${encodeURIComponent(item.artistKey)}/${encodeURIComponent(item.key)}`)}><img src={item.cover} alt="" /><strong>{item.name}</strong><small><Disc3 size={13} /> {item.artistName} · {item.tracks.length} 首</small></button>)}</div>
+      <div className="catalog-toolbar"><label className="catalog-search"><Search size={16} /><input value={search} onChange={event => setSearch(event.target.value)} aria-label={`搜索${label}`} placeholder={kind === 'artists' ? '搜索歌手名称' : '搜索专辑或歌手'} /></label><label className="catalog-sort"><ArrowDownAZ size={16} /><span>排序</span><select aria-label={`${label}排序`} value={kind === 'artists' ? artistSort : albumSort} onChange={event => kind === 'artists' ? setArtistSort(event.target.value as typeof artistSort) : setAlbumSort(event.target.value as typeof albumSort)}>{kind === 'artists' ? <><option value="name">名称</option><option value="tracks">歌曲数量</option></> : <><option value="year">发行年份</option><option value="name">专辑名称</option><option value="artist">歌手名称</option></>}</select></label></div>
+      <div className="catalog-grid">{kind === 'artists' ? filteredArtists.map(item => <button type="button" className="catalog-card" key={item.key} onClick={() => navigate(`/artists/${encodeURIComponent(item.key)}`)}><img src={item.cover} alt="" /><strong>{item.name}</strong><small><Mic2 size={13} /> {item.tracks.length} 首歌曲</small></button>) : filteredAlbums.map(item => <button type="button" className="catalog-card" key={`${item.artistKey}-${item.key}`} onClick={() => navigate(`/albums/${encodeURIComponent(item.artistKey)}/${encodeURIComponent(item.key)}`)}><img src={item.cover} alt="" /><strong>{item.name}</strong><small><Users size={13} /> {item.artistName} · {item.tracks.length} 首 · {yearValue(item.year) === null ? '未知年份' : item.year}</small></button>)}</div>
       {!items.length && <div className="library-empty"><Disc3 size={28} /><p>音乐库还没有歌曲</p></div>}
+      {items.length > 0 && (kind === 'artists' ? filteredArtists.length : filteredAlbums.length) === 0 && <div className="library-empty"><Search size={25} /><p>没有找到匹配的{label}</p></div>}
     </>}
   </section>;
 }

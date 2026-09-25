@@ -5,7 +5,7 @@ export const tracks: Track[] = [
   { id: 1, title: '最后一班星际列车', english: 'THE LAST NIGHT TRAIN', artist: '星野遥 · Haruka', album: '午夜放映室', duration: 198, cover: 'https://images.unsplash.com/photo-1519608487953-e999c86e7455?w=800&auto=format&fit=crop&q=85', genre: '电子 / Chillwave', year: '2025', color: '#d4a7db' },
   { id: 2, title: '森林来信', english: 'LETTERS FROM THE FOREST', artist: '森屿 · Forest Isle', album: '自然发生', duration: 243, cover: 'https://images.unsplash.com/photo-1448375240586-882707db888b?w=800&auto=format&fit=crop&q=85', genre: '自然 / New Age', year: '2024', color: '#a4c8b1' },
   { id: 3, title: '落日慢递', english: 'A SLOW SUNSET', artist: '橘子海岸', album: '橘色星期天', duration: 185, cover: 'https://images.unsplash.com/photo-1472120435266-53107fd0c44a?w=800&auto=format&fit=crop&q=85', genre: '轻音乐 / Lo-fi', year: '2025', color: '#e3b58e' },
-  { id: 4, title: '月亮也失眠', english: 'SLEEPLESS MOON', artist: 'Luna & The Waves', album: '夜航日志', duration: 228, cover: 'https://images.unsplash.com/photo-1475924156734-496f6cac6ec1?w=800&auto=format&fit=crop&q=85', genre: '梦幻流行 / Dream Pop', year: '2024', color: '#99bad4' },
+  { id: 4, title: '月亮也失眠', english: 'SLEEPLESS MOON', artist: 'Luna & The Waves', album: '夜航日志', duration: 228, cover: 'https://images.unsplash.com/photo-1475924156734-496f6cac6ec1?w=800&auto=format&fit=crop&q=85', genre: '梦幻流行 / Dream Pop', year: '—', color: '#99bad4' },
   { id: 5, title: '等一场雨停', english: 'AFTER THE RAIN', artist: '青木 · Aoki', album: '山海之间', duration: 202, cover: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=800&auto=format&fit=crop&q=85', genre: '氛围流行 / Ambient', year: '2025', color: '#a5c8bf' },
 ];
 export const lyricSets = [
