@@ -96,12 +96,13 @@ async function ncm(url: string, data: Record<string, unknown>, mode: 'weapi' | '
 
 async function search(source: Source, query: string): Promise<Song[]> {
   if (source === 'ncm') {
-    const result = await ncm('https://music.163.com/weapi/search/get', { s: query, type: 1, limit: 10, offset: 0 });
-    return (result.result?.songs ?? []).map((item: any) => ({
-      id: String(item.id), title: item.name, artist: (item.artists ?? []).map((a: any) => a.name).join(', '), artwork: item.album?.picUrl,
+    const result = await ncm('https://music.163.com/weapi/search/get', { s: query, type: 1, limit: 30, offset: 0 });
+    if (!Array.isArray(result.result?.songs)) throw new Error('网易云搜索缺少歌曲列表');
+    return result.result.songs.map((item: any) => ({
+      id: String(item.id), title: item.name, artist: (item.artists ?? item.ar ?? []).map((a: any) => a.name).join(', '), artwork: item.album?.picUrl ?? item.al?.picUrl,
     }));
   }
-  const response = await post('qq', 'https://u.y.qq.com/cgi-bin/musicu.fcg', JSON.stringify({ req_1: { module: 'music.search.SearchCgiService', method: 'DoSearchForQQMusicDesktop', param: { num_per_page: 10, page_num: 1, query, search_type: 0 } } }), {
+  const response = await post('qq', 'https://u.y.qq.com/cgi-bin/musicu.fcg', JSON.stringify({ req_1: { module: 'music.search.SearchCgiService', method: 'DoSearchForQQMusicDesktop', param: { num_per_page: 30, page_num: 1, query, search_type: 0 } } }), {
     'User-Agent': ua, Referer: 'https://y.qq.com/', Cookie: 'uin=', 'Content-Type': 'application/json',
   });
   const result = (await response.json()).req_1;
@@ -137,31 +138,51 @@ async function lyrics(source: Source, song: Song): Promise<Pick<Enrichment, 'lyr
   return { lyric: result.lyric ? decode(result.lyric) : '', translation: result.trans ? decode(result.trans) : '' };
 }
 
-export async function enrich(title: string, artist: string, needCover: boolean, needLyrics: boolean): Promise<Enrichment> {
+export async function enrich(title: string, artist: string, needCover: boolean, needLyrics: boolean, force = false): Promise<Enrichment> {
   const found: Enrichment = {};
   let failed = false;
+  let matched = false;
   for (const source of ['ncm', 'qq'] as const) {
     if ((!needCover || found.cover) && (!needLyrics || found.lyric)) break;
     try {
-      const lookup = (query: string) => cached(`search:${source}:${normalized(query)}`, 60 * 60 * 1000, () => search(source, query));
-      let song = (await lookup(`${title} ${artist}`)).find(item => matches(item, title, artist));
-      if (!song) song = (await lookup(title)).find(item => matches(item, title, artist));
+      const lookup = (query: string) => force ? search(source, query) : cached(`search:v3:${source}:${normalized(query)}`, 60 * 60 * 1000, () => search(source, query));
+      const combined = await lookup(`${title} ${artist}`);
+      let song = combined.find(item => matches(item, title, artist));
+      if (!song) {
+        const byTitle = await lookup(title);
+        song = byTitle.find(item => matches(item, title, artist));
+        if (!song) console.info(`音乐未匹配 (${source}):`, { title, artist, candidates: byTitle.slice(0, 8).map(item => ({ title: item.title, artist: item.artist })) });
+      }
       if (!song) continue;
-      if (needCover && !found.cover && song.artwork?.startsWith('https://')) found.cover = song.artwork;
+      matched = true;
+      if (needCover && !found.cover) {
+        if (source === 'ncm' && !song.artwork) {
+          try {
+            const detail = await ncm('https://music.163.com/weapi/v3/song/detail', { c: JSON.stringify([{ id: Number(song.id) }]) });
+            song.artwork = detail.songs?.[0]?.al?.picUrl ?? detail.songs?.[0]?.album?.picUrl;
+          } catch (error) {
+            failed = true;
+            console.warn('网易云歌曲详情失败:', error instanceof Error ? error.message : String(error));
+          }
+        }
+        if (song.artwork && /^https?:\/\/(?:p\d+\.music\.126\.net|y\.gtimg\.cn)\//.test(song.artwork)) found.cover = song.artwork.replace(/^http:\/\//, 'https://');
+      }
       if (needLyrics && !found.lyric) {
         try {
-          const result = await cached(`lyric:${source}:${song.id}:${song.mid ?? ''}`, 24 * 60 * 60 * 1000, () => lyrics(source, song));
+          const result = force ? await lyrics(source, song) : await cached(`lyric:${source}:${song.id}:${song.mid ?? ''}`, 24 * 60 * 60 * 1000, () => lyrics(source, song));
           if (result.lyric) { found.lyric = result.lyric; found.translation = result.translation; }
         } catch (error) {
           failed = true;
           console.warn(`歌词补全失败 (${source}):`, error instanceof Error ? error.message : String(error));
         }
       }
+      if ((needCover && !found.cover) || (needLyrics && !found.lyric)) console.info(`音乐资料不完整 (${source}):`, { title, artist, cover: !!found.cover, lyric: !!found.lyric });
     } catch (error) {
       failed = true;
       console.warn(`音乐搜索失败 (${source}):`, error instanceof Error ? error.message : String(error));
     }
   }
   if (failed && !found.cover && !found.lyric) throw new Error('音乐源暂时不可用');
+  if (!matched && !failed) console.info('两个音乐源均未找到匹配:', { title, artist });
   return found;
 }

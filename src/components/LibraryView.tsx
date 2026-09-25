@@ -1,4 +1,4 @@
-import { Heart, Info, ListMusic, Play, Search, Plus, Trash2 } from 'lucide-react';
+import { Heart, Info, ListMusic, Play, RefreshCw, Search, Plus, Trash2 } from 'lucide-react';
 import { useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { formatTime, type Track } from '@/lib/music';
@@ -12,6 +12,7 @@ type LibraryViewProps = {
   onPlay: (id: number) => void;
   onToggleLike: (id: number) => void;
   onViewInfo: (track: Track) => void;
+  onRefreshInfo?: (track: Track) => void;
   onArtist?: (name: string) => void;
   onAlbum?: (track: Track) => void;
   playlists?: Playlist[];
@@ -24,7 +25,7 @@ const INITIAL_BATCH = 200;
 const NEXT_BATCH = 100;
 const OVERSCAN = 8;
 
-export default function LibraryView({ title, tracks, currentId, liked, onPlay, onToggleLike, onViewInfo, onArtist, onAlbum, playlists, onAddToPlaylist, onRemoveFromPlaylist }: LibraryViewProps) {
+export default function LibraryView({ title, tracks, currentId, liked, onPlay, onToggleLike, onViewInfo, onRefreshInfo, onArtist, onAlbum, playlists, onAddToPlaylist, onRemoveFromPlaylist }: LibraryViewProps) {
   const [search, setSearch] = useState('');
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [scrollTop, setScrollTop] = useState(0);
@@ -95,6 +96,7 @@ export default function LibraryView({ title, tracks, currentId, liked, onPlay, o
         </ContextMenuTrigger><ContextMenuContent className="queue-context">
           <ContextMenuItem onSelect={() => onPlay(track.id)}><Play size={15} />{menuIds.length > 1 ? '播放此曲' : '立即播放'}</ContextMenuItem>
           <ContextMenuItem onSelect={() => onViewInfo(track)}><Info size={15} />{menuIds.length > 1 ? '查看此曲信息' : '查看信息'}</ContextMenuItem>
+          {track.source && onRefreshInfo && <ContextMenuItem onSelect={() => onRefreshInfo(track)}><RefreshCw size={15} />立即刷新信息</ContextMenuItem>}
           {playlists && onAddToPlaylist && playlists.length > 0 && <ContextMenuSub><ContextMenuSubTrigger><Plus size={15} className="mr-2" />添加到歌单</ContextMenuSubTrigger><ContextMenuSubContent className="queue-context">{playlists.map(playlist => <ContextMenuItem key={playlist.id} onSelect={() => onAddToPlaylist(playlist.id, menuIds)}>{playlist.name}</ContextMenuItem>)}</ContextMenuSubContent></ContextMenuSub>}
           {onRemoveFromPlaylist && <ContextMenuItem onSelect={() => onRemoveFromPlaylist(menuIds)}><Trash2 size={15} />从列表移除{menuIds.length > 1 && ` (${menuIds.length})`}</ContextMenuItem>}
           {likeable.length > 0 && <ContextMenuItem onSelect={() => likeable.filter(id => liked.includes(id) === allLiked).forEach(onToggleLike)}><Heart size={15} />{allLiked ? '取消喜欢' : '添加到我喜欢的'}{likeable.length > 1 && ` (${likeable.length})`}</ContextMenuItem>}

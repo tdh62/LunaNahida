@@ -17,6 +17,7 @@ type Props = {
   onPlay: (id: number) => void;
   onToggleLike: (id: number) => void;
   onViewInfo: (track: Track) => void;
+  onRefreshInfo: (track: Track) => void;
   onArtist: (name: string) => void;
   onAlbum: (track: Track) => void;
   onAddToPlaylist: (playlistId: string, ids: number[]) => void;
@@ -33,7 +34,7 @@ const presetCovers = [
 
 type CoverMode = 'upload' | 'url' | 'preset' | 'first-track';
 
-export default function PlaylistView({ playlists, playlist, tracks, currentId, liked, onCreate, onDelete, onPlay, onToggleLike, onViewInfo, onArtist, onAlbum, onAddToPlaylist, onRemoveFromPlaylist, onEditPlaylist }: Props) {
+export default function PlaylistView({ playlists, playlist, tracks, currentId, liked, onCreate, onDelete, onPlay, onToggleLike, onViewInfo, onRefreshInfo, onArtist, onAlbum, onAddToPlaylist, onRemoveFromPlaylist, onEditPlaylist }: Props) {
   const navigate = useNavigate();
   const fileInput = useRef<HTMLInputElement>(null);
   const [editing, setEditing] = useState(false);
@@ -95,7 +96,7 @@ export default function PlaylistView({ playlists, playlist, tracks, currentId, l
   return <section className="playlist-detail">
     <button type="button" className="playlist-back" onClick={() => navigate('/playlists')}><ArrowLeft size={16} /> 返回歌单</button>
     <header className="playlist-hero"><img src={playlist.cover} alt="" /><div><span className="eyebrow"><span /> PLAYLIST</span><h1>{playlist.name}</h1><p>{playlist.description}</p><small>{playlistTracks.length} 首歌曲</small><div className="playlist-hero-actions"><button type="button" className="playlist-primary" disabled={!playlistTracks.length} onClick={() => onPlay(playlistTracks[0].id)}><Play size={16} fill="currentColor" /> 播放</button><button type="button" className="playlist-edit" title="编辑歌单" aria-label="编辑歌单" onClick={() => setEditing(true)}><ImagePlus size={17} /></button><button type="button" className="playlist-delete" title="删除歌单" aria-label={`删除歌单 ${playlist.name}`} onClick={() => onDelete(playlist.id)}><Trash2 size={17} /></button></div></div></header>
-    {playlistTracks.length === 0 ? <div className="playlist-empty"><ListMusic size={30} /><p>这个歌单还没有歌曲</p><button type="button" onClick={() => navigate('/music')}>前往音乐库添加歌曲</button></div> : <LibraryView key={playlist.id} title="歌曲列表" tracks={playlistTracks} currentId={currentId} liked={liked} onPlay={onPlay} onToggleLike={onToggleLike} onViewInfo={onViewInfo} onArtist={onArtist} onAlbum={onAlbum} playlists={playlists} onAddToPlaylist={onAddToPlaylist} onRemoveFromPlaylist={ids => onRemoveFromPlaylist(playlist.id, ids)} />}
+    {playlistTracks.length === 0 ? <div className="playlist-empty"><ListMusic size={30} /><p>这个歌单还没有歌曲</p><button type="button" onClick={() => navigate('/music')}>前往音乐库添加歌曲</button></div> : <LibraryView key={playlist.id} title="歌曲列表" tracks={playlistTracks} currentId={currentId} liked={liked} onPlay={onPlay} onToggleLike={onToggleLike} onViewInfo={onViewInfo} onRefreshInfo={onRefreshInfo} onArtist={onArtist} onAlbum={onAlbum} playlists={playlists} onAddToPlaylist={onAddToPlaylist} onRemoveFromPlaylist={ids => onRemoveFromPlaylist(playlist.id, ids)} />}
     {editing && <div className="playlist-editor-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setEditing(false); }}><section className="playlist-editor" role="dialog" aria-modal="true" aria-labelledby="playlist-editor-title"><header><div><span className="eyebrow"><span /> PLAYLIST SETTINGS</span><h2 id="playlist-editor-title">编辑歌单</h2></div><button type="button" aria-label="关闭编辑" onClick={() => setEditing(false)}>×</button></header><form onSubmit={savePlaylist}>
       <label className="playlist-field">歌单名称<input required maxLength={40} value={name} onChange={event => setName(event.target.value)} placeholder="歌单名称" /></label>
       <label className="playlist-field">简介<textarea maxLength={120} rows={3} value={description} onChange={event => setDescription(event.target.value)} placeholder="写一句关于这个歌单的话" /></label>
