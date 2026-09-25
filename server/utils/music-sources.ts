@@ -107,8 +107,11 @@ async function search(source: Source, query: string): Promise<Song[]> {
   const response = await post('qq', 'https://u.y.qq.com/cgi-bin/musicu.fcg', JSON.stringify({ req_1: { module: 'music.search.SearchCgiService', method: 'DoSearchForQQMusicDesktop', param: { num_per_page: 30, page_num: 1, query, search_type: 0 } } }), {
     'User-Agent': ua, Referer: 'https://y.qq.com/', Cookie: 'uin=', 'Content-Type': 'application/json',
   });
-  const result = (await response.json()).req_1;
-  if (!result?.data?.body?.song?.list || (result.code != null && Number(result.code) !== 0)) throw new Error('QQ 音乐搜索失败');
+  const payload = await response.json();
+  const result = payload.req_1;
+  if (!Array.isArray(result?.data?.body?.song?.list) || (result.code != null && Number(result.code) !== 0)) {
+    throw new Error(`QQ 音乐搜索失败 (code=${String(payload.code ?? '-')}, reqCode=${String(result?.code ?? '-')}, dataKeys=${Object.keys(result?.data ?? {}).join(',')})`);
+  }
   return result.data.body.song.list.map((item: any) => ({
     id: String(item.id ?? item.songid), mid: item.mid ?? item.songmid, title: item.title ?? item.songname, artist: (item.singer ?? []).map((a: any) => a.name).join(', '),
     artwork: (item.album?.mid ?? item.albummid) ? `https://y.gtimg.cn/music/photo_new/T002R300x300M000${item.album?.mid ?? item.albummid}.jpg` : undefined,
@@ -147,14 +150,23 @@ export async function enrich(title: string, artist: string, needCover: boolean, 
   for (const source of ['ncm', 'qq'] as const) {
     if ((!needCover || found.cover) && (!needLyrics || found.lyric)) break;
     try {
-      const lookup = (query: string) => force ? search(source, query) : cached(`search:v3:${source}:${normalized(query)}`, 60 * 60 * 1000, () => search(source, query));
-      const combined = await lookup(`${toSimplified(title)} ${toSimplified(artist)}`);
-      let song = combined.find(item => matches(item, title, artist));
-      if (!song) {
-        const byTitle = await lookup(toSimplified(title));
-        song = byTitle.find(item => matches(item, title, artist));
-        if (!song) console.info(`音乐未匹配 (${source}):`, { title, artist, candidates: byTitle.slice(0, 8).map(item => ({ title: item.title, artist: item.artist })) });
+      const lookup = (query: string) => force ? search(source, query) : cached(`search:v4:${source}:${normalized(query)}`, 60 * 60 * 1000, () => search(source, query));
+      let song: Song | undefined;
+      let candidates: Song[] = [];
+      let lookupError: unknown;
+      for (const query of [toSimplified(title), `${toSimplified(title)} ${toSimplified(artist)}`]) {
+        try {
+          candidates = await lookup(query);
+          song = candidates.find(item => matches(item, title, artist));
+          if (song) break;
+        } catch (error) {
+          lookupError = error;
+          failed = true;
+          console.warn(`音乐搜索失败 (${source}, ${query === toSimplified(title) ? '曲名' : '组合'}):`, error instanceof Error ? error.message : String(error));
+        }
       }
+      if (!song && !candidates.length && lookupError) throw lookupError;
+      if (!song) console.info(`音乐未匹配 (${source}):`, { title, artist, candidates: candidates.slice(0, 8).map(item => ({ title: item.title, artist: item.artist })) });
       if (!song) continue;
       matched = true;
       if (needCover && !found.cover) {
