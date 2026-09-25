@@ -13,8 +13,10 @@
 .catalog-sort option { background: #202224; color: #f1f0ed; }
 .catalog-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 24px 18px; }
 .catalog-card { min-width: 0; padding: 0; border: 0; background: transparent; color: #eee; text-align: left; }
-.catalog-card img { width: 100%; aspect-ratio: 1; border-radius: 7px; background: #27292d; object-fit: cover; transition: transform .2s; }
-.catalog-card:hover img { transform: scale(1.025); }
+.catalog-cover { position: relative; display: block; width: 100%; aspect-ratio: 1; overflow: hidden; border-radius: 7px; background: #27292d; }
+.catalog-cover > img { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform .2s; }
+.catalog-card:hover .catalog-cover > img { transform: scale(1.025); }
+.catalog-cover-badge { position: absolute; right: 8px; bottom: 8px; display: block !important; margin: 0 !important; padding: 4px 7px; border: 1px solid rgba(255,255,255,.17); border-radius: 5px; background: rgba(18,20,22,.86); color: #fff !important; font-size: 10px !important; line-height: 1.2; white-space: nowrap; backdrop-filter: blur(5px); }
 .catalog-card strong { display: block; margin-top: 10px; overflow-wrap: anywhere; font-size: 14px; font-weight: 600; }
 .catalog-card small { display: flex; align-items: center; gap: 5px; margin-top: 5px; color: #aaa9ad; font-size: 11px; overflow-wrap: anywhere; }
 .catalog-hero { display: flex; align-items: center; gap: 28px; margin: 22px 0 36px; }
