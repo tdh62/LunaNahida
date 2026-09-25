@@ -38,3 +38,10 @@
   .immersive-lyrics > div { max-height: 23vh; }
   .immersive-lyrics p { padding: 4px 0; font-size: 12px; }
 }
+
+.lyrics-immersive-toggle { position: absolute; z-index: 3; top: 5px; right: 4px; width: 30px; height: 30px; border: 1px solid #3a3b3e; border-radius: 5px; background: rgba(28, 30, 33, .84); color: #b8b7bb; }
+.lyrics-immersive-toggle:hover, .lyrics-immersive-toggle:focus-visible { border-color: var(--accent); background: var(--tint); color: var(--accent); }
+.lyrics-window { scrollbar-width: none; }
+.lyrics-window::-webkit-scrollbar { display: none; }
+.lyrics-track { padding-top: 126px; }
+@media (max-width: 760px) { .lyrics-track { padding-top: 124px; } }
