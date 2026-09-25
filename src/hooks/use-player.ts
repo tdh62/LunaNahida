@@ -124,6 +124,18 @@ export function usePlayer() {
     void graph.current?.context.resume();
   };
   useEffect(() => {
+    const updateEnrichedCover = (event: Event) => {
+      const { title, artist, value } = (event as CustomEvent<{ title: string; artist: string; value: { cover?: string } }>).detail;
+      if (!value.cover) return;
+      const normalize = (text: string) => text.trim().normalize('NFKC').toLowerCase();
+      const updated = queueRef.current.map(item => normalize(item.title) === normalize(title) && normalize(item.artist) === normalize(artist) ? { ...item, cover: value.cover! } : item);
+      if (updated.some((item, index) => item !== queueRef.current[index])) updateQueue(updated);
+    };
+    window.addEventListener('lumatune-music-refreshed', updateEnrichedCover);
+    return () => window.removeEventListener('lumatune-music-refreshed', updateEnrichedCover);
+  }, []);
+
+  useEffect(() => {
     const el = audio.current; if (!el) return;
     el.pause(); el.removeAttribute('src'); el.load();
     if (trackId === null || !track) { setTime(0); return; }

@@ -39,7 +39,7 @@ export async function refreshMusicInfo(track: Track) {
   if (!value.cover && !value.lyric) throw new Error('未找到与曲名和歌手匹配的资料');
   const key = cacheKey(track);
   saveCache(key, value, true, true, true);
-  window.dispatchEvent(new CustomEvent('lumatune-music-refreshed', { detail: { key, value } }));
+  window.dispatchEvent(new CustomEvent('lumatune-music-refreshed', { detail: { key, value, title: track.title, artist: track.artist } }));
   return value;
 }
 
@@ -88,7 +88,7 @@ export function useMusicEnrichment(track: Track, playing: boolean) {
     if (params.get('cover') === '0' && params.get('lyric') === '0') return;
     fetch(`/api/music/enrich?${params}`, { signal: controller.signal })
       .then(response => { if (!response.ok) throw new Error('补全失败'); return response.json() as Promise<Enrichment>; })
-      .then(value => { if (!controller.signal.aborted) { saveCache(key, value, needCover, needLyrics); setResult({ key, value: { ...cached?.value, ...value } }); } })
+      .then(value => { if (!controller.signal.aborted) { saveCache(key, value, needCover, needLyrics); setResult({ key, value: { ...cached?.value, ...value } }); window.dispatchEvent(new CustomEvent('lumatune-music-refreshed', { detail: { key, value, title: track.title, artist: track.artist } })); } })
       .catch(() => {});
     return () => { controller.abort(); if (inFlight.current === controller) inFlight.current = null; };
   }, [key, playing, needCover, needLyrics, track.title, track.artist]);
