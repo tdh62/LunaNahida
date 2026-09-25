@@ -3,12 +3,15 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import PlayerSettings from '@/components/PlayerSettings';
 import QueuePanel from '@/components/QueuePanel';
 import LibraryView from '@/components/LibraryView';
+import PlaylistView from '@/components/PlaylistView';
+import { mockPlaylists, type Playlist } from '@/lib/playlists';
 import { droppedAudioFiles } from '@/lib/local-files';
 import { isAudioFile } from '@/hooks/use-player';
 import { toast } from 'sonner';
 import '@/settings.css';
 import { AudioLines, Check, ChevronDown, ChevronsLeft, Disc3, X, FolderOpen, Heart, ListEnd, ListMusic, Maximize2, Minimize2, PanelLeftClose, PanelLeftOpen, Pause, Play, Plus, Repeat, Repeat1, Settings2, Shuffle, SkipBack, SkipForward, SlidersHorizontal, Square, Volume2, VolumeX, Waves } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { usePlayer } from '@/hooks/use-player';
 import { formatTime, lyricSets, lyricTranslations, tracks, wordLyricSets, type Track } from '@/lib/music';
@@ -16,6 +19,7 @@ import '@/player.css';
 import '@/quick-queue.css';
 import '@/player-import.css';
 import '@/library.css';
+import '@/playlists.css';
 
 const eqNames = ['低音', '低中', '中音', '高中', '高音'];
 function IconButton({ children, label, onClick, active = false, className = '' }: { children: ReactNode; label: string; onClick?: () => void; active?: boolean; className?: string }) {
@@ -62,7 +66,13 @@ export default function Index() {
   const navigate = useNavigate();
   const pathname = useLocation().pathname;
   const isSettings = pathname === '/settings';
+  const isPlaylists = pathname === '/playlists' || pathname.startsWith('/playlists/');
+  const playlistId = pathname.startsWith('/playlists/') ? decodeURIComponent(pathname.slice('/playlists/'.length)) : null;
   const view = ({ '/music': '我的音乐', '/liked': '我喜欢的', '/recent': '最近播放' } as Record<string, string>)[pathname] ?? '正在播放';
+  const [playlists, setPlaylists] = useState<Playlist[]>(mockPlaylists);
+  const [createPlaylistOpen, setCreatePlaylistOpen] = useState(false);
+  const [playlistName, setPlaylistName] = useState('');
+  const [deletePlaylistId, setDeletePlaylistId] = useState<string | null>(null);
   const [theme, setTheme] = useState(() => localStorage.getItem('luma-theme') || 'dusk'), [lyricEffect, setLyricEffect] = useState('流动'), [lyricScroll, setLyricScroll] = useState('平滑'), [visual, setVisual] = useState('频谱');
   const [liked, setLiked] = useState<number[]>([2]);
   const [detailTrack, setDetailTrack] = useState<Track | null>(null), [focus, setFocus] = useState(false);
@@ -168,17 +178,48 @@ export default function Index() {
   useEffect(() => { if (sleep === 1 && p.playing) p.toggle(); }, [sleep]);
   const allTracks = [...tracks, ...p.queue.filter(t => t.source)];
   const visibleTracks = view === '我喜欢的' ? allTracks.filter(t => liked.includes(t.id)) : view === '最近播放' ? p.recent.map(id => allTracks.find(t => t.id === id)).filter((t): t is Track => Boolean(t)) : allTracks;
+  const activePlaylist = playlists.find(item => item.id === playlistId);
+  const createPlaylist = () => {
+    const name = playlistName.trim();
+    if (!name) return;
+    const id = crypto.randomUUID();
+    setPlaylists(prev => [...prev, { id, name, description: '我的歌单', trackIds: [], cover: '/covers/local.svg' }]);
+    setPlaylistName(''); setCreatePlaylistOpen(false);
+    navigate(`/playlists/${id}`);
+    toast.success('歌单已创建');
+  };
+  const addToPlaylist = (id: string, ids: number[]) => {
+    const playlist = playlists.find(item => item.id === id);
+    if (!playlist) return;
+    const additions = ids.filter(trackId => !playlist.trackIds.includes(trackId));
+    if (!additions.length) { toast.info('歌曲已在歌单中'); return; }
+    setPlaylists(prev => prev.map(item => item.id === id ? { ...item, trackIds: [...item.trackIds, ...additions], cover: item.trackIds.length ? item.cover : allTracks.find(track => track.id === additions[0])?.cover ?? item.cover } : item));
+    toast.success(`已添加 ${additions.length} 首到「${playlist.name}」`);
+  };
+  const removeFromPlaylist = (id: string, ids: number[]) => {
+    setPlaylists(prev => prev.map(item => item.id === id ? { ...item, trackIds: item.trackIds.filter(trackId => !ids.includes(trackId)) } : item));
+    toast.success('已从歌单移除');
+  };
+  const deletePlaylist = () => {
+    if (!deletePlaylistId) return;
+    setPlaylists(prev => prev.filter(item => item.id !== deletePlaylistId));
+    setDeletePlaylistId(null);
+    navigate('/playlists');
+    toast.success('歌单已删除');
+  };
   return <div ref={appRef} className={`music-app theme-${theme} ${focus ? 'focus-mode' : ''} sidebar-${sidebarMode}`} onDragEnter={event => { if (event.dataTransfer.types.includes('Files')) { dragDepth.current++; setDropActive(true); } }} onDragLeave={event => { if (event.dataTransfer.types.includes('Files') && --dragDepth.current <= 0) { dragDepth.current = 0; setDropActive(false); } }} onDragOver={event => { if (event.dataTransfer.types.includes('Files')) event.preventDefault(); }} onDrop={event => { void dropFiles(event); }}>
     <aside className="sidebar flex flex-col">
       
       <div className="nav-label">音乐库</div><nav className="space-y-1">{[{ title: '正在播放', path: '/', icon: AudioLines }, { title: '我的音乐', path: '/music', icon: Disc3 }, { title: '我喜欢的', path: '/liked', icon: Heart }, { title: '最近播放', path: '/recent', icon: ListMusic }].map(({ title, path, icon: Icon }) => <button key={title} title={title} onClick={() => navigate(path)} className={`nav-item ${!isSettings && pathname === path ? 'selected' : ''}`}><Icon size={18} />{title}{title === '正在播放' && <span className="tiny-bars"><i /><i /><i /></span>}{title === '我喜欢的' && <small>{liked.length}</small>}</button>)}</nav>
       <Link to="/settings" title="播放器设置" className={`nav-item settings-nav ${isSettings ? 'selected' : ''}`}><Settings2 size={18} />播放器设置</Link>
+      <div className="playlist-nav-heading"><button type="button" onClick={() => navigate('/playlists')} className="nav-label" title="查看全部歌单">歌单</button><button type="button" className="playlist-nav-add" title="新建歌单" aria-label="新建歌单" onClick={() => setCreatePlaylistOpen(true)}><Plus size={16} /></button></div>
+      <nav className="playlist-nav"><button type="button" title="我的歌单" className={`nav-item ${pathname === '/playlists' ? 'selected' : ''}`} onClick={() => navigate('/playlists')}><ListMusic size={18} />我的歌单<small>{playlists.length}</small></button>{playlists.map(item => <button type="button" key={item.id} title={item.name} className={`nav-item playlist-nav-entry ${playlistId === item.id ? 'selected' : ''}`} onClick={() => navigate(`/playlists/${item.id}`)}><img src={item.cover} alt="" /><span>{item.name}</span></button>)}</nav>
       <div className="nav-label mt-10">本地音乐</div><div className="import-actions"><button title="打开歌曲" className="nav-item" onClick={() => fileInput.current?.click()}><Plus size={18} />打开歌曲</button><button title="打开文件夹" className="nav-item" onClick={() => folderInput.current?.click()}><FolderOpen size={18} />打开文件夹</button></div>
       <div className="sidebar-controls sidebar-bottom-controls"><button type="button" className="sidebar-toggle" title={sidebarMode === 'collapsed' ? '展开侧栏' : '折叠为图标'} aria-label={sidebarMode === 'collapsed' ? '展开侧栏' : '折叠为图标'} onClick={() => setSidebarMode(sidebarMode === 'collapsed' ? 'expanded' : 'collapsed')}>{sidebarMode === 'collapsed' ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}</button>{view === '正在播放' && !isSettings && <button type="button" className="sidebar-toggle" title="完全隐藏侧栏" aria-label="完全隐藏侧栏" onClick={() => setSidebarMode('hidden')}><ChevronsLeft size={17} /></button>}</div>
     </aside>
     {sidebarMode === 'hidden' && <button type="button" className="sidebar-restore" title="展开侧栏" aria-label="展开侧栏" onClick={() => setSidebarMode('expanded')}><PanelLeftOpen size={19} /></button>}
     <main className={`workspace min-w-0 ${isSettings ? 'settings-workspace' : ''}`}>
-      {isSettings ? <PlayerSettings theme={theme} setTheme={setTheme} visual={visual} setVisual={setVisual} lyricEffect={lyricEffect} setLyricEffect={setLyricEffect} lyricScroll={lyricScroll} setLyricScroll={setLyricScroll} showTranslation={showTranslation} setShowTranslation={setShowTranslation} sleep={sleep} setSleep={setSleep} effect={p.effect} setEffect={p.setEffect} equalizer={p.equalizer} setBand={p.setBand} resetEqualizer={p.resetEqualizer} /> : view !== '正在播放' ? <LibraryView key={view} title={view} tracks={visibleTracks} currentId={p.trackId} liked={liked} onToggleLike={toggleTrackLike} onViewInfo={setDetailTrack} onPlay={id => { p.select(id); navigate('/'); }} /> : <>
+      {isSettings ? <PlayerSettings theme={theme} setTheme={setTheme} visual={visual} setVisual={setVisual} lyricEffect={lyricEffect} setLyricEffect={setLyricEffect} lyricScroll={lyricScroll} setLyricScroll={setLyricScroll} showTranslation={showTranslation} setShowTranslation={setShowTranslation} sleep={sleep} setSleep={setSleep} effect={p.effect} setEffect={p.setEffect} equalizer={p.equalizer} setBand={p.setBand} resetEqualizer={p.resetEqualizer} /> : isPlaylists ? <PlaylistView playlists={playlists} playlist={activePlaylist} tracks={allTracks} currentId={p.trackId} liked={liked} onCreate={() => setCreatePlaylistOpen(true)} onDelete={setDeletePlaylistId} onPlay={id => { p.select(id); navigate('/'); }} onToggleLike={toggleTrackLike} onViewInfo={setDetailTrack} onAddToPlaylist={addToPlaylist} onRemoveFromPlaylist={removeFromPlaylist} /> : view !== '正在播放' ? <LibraryView key={view} title={view} tracks={visibleTracks} currentId={p.trackId} liked={liked} onToggleLike={toggleTrackLike} onViewInfo={setDetailTrack} playlists={playlists} onAddToPlaylist={addToPlaylist} onPlay={id => { p.select(id); navigate('/'); }} /> : <>
       <div className="main-columns"><section className="listening-stage">
         {p.hasTrack ? <div className={`listening-content ${!hasLyrics ? 'without-lyrics' : ''}`}><div className="album-column"><div className={`album-art ${visual === '唱片' ? 'vinyl' : ''}`}><img src={p.track.cover} alt={`${p.track.album}专辑封面`} />{!p.track.source && <><span className="album-print">{p.track.english}</span><span className="cover-corner">VOL. 0{(p.trackId ?? 0) + 1}</span></>}</div><div className="album-title flex items-center justify-between"><h2>{p.track.title}</h2>{!p.track.source && <IconButton label={favorite ? '取消喜欢' : '喜欢这首歌'} active={favorite} onClick={toggleLike}><Heart size={21} fill={favorite ? 'currentColor' : 'none'} /></IconButton>}</div><p className="artist-name">{p.track.artist}<span> · </span>{p.track.album}</p><div className="track-tags"><span>{p.track.source ? '本地文件' : '演示曲目'}</span><span>{p.track.genre.split(' / ')[0]}</span></div><div className={`visualizer ${p.playing ? 'animated' : ''} ${visual === '呼吸' ? 'breathing' : ''}`} aria-label="音乐频谱">{visual === '频谱' ? <Spectrum analyser={p.analyser} active={p.playing} /> : Array.from({ length: 48 }, (_, i) => <i key={i} style={{ height: `${8 + Math.sin(i * .65) ** 2 * 23 + Math.sin(i * .2) ** 2 * 13}px`, animationDelay: `${i * -.13}s`, animationDuration: `${.65 + i % 5 * .2}s` }} />)}</div></div>
           {hasLyrics && (
@@ -226,6 +267,8 @@ export default function Index() {
     </main>
     <input ref={fileInput} className="sr-only" type="file" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.oga,.opus,.flac,.webm" multiple onChange={chooseFiles} />
     <input ref={folderInput} className="sr-only" type="file" multiple onChange={chooseFolder} />
+    <Dialog open={createPlaylistOpen} onOpenChange={open => { setCreatePlaylistOpen(open); if (!open) setPlaylistName(''); }}><DialogContent className="music-dialog playlist-dialog"><DialogTitle>新建歌单</DialogTitle><DialogDescription>给你的新歌单取个名字。</DialogDescription><form onSubmit={event => { event.preventDefault(); createPlaylist(); }}><Input autoFocus maxLength={40} placeholder="歌单名称" aria-label="歌单名称" value={playlistName} onChange={event => setPlaylistName(event.target.value)} /><button type="submit" className="playlist-primary" disabled={!playlistName.trim()}>创建歌单</button></form></DialogContent></Dialog>
+    <Dialog open={deletePlaylistId !== null} onOpenChange={open => { if (!open) setDeletePlaylistId(null); }}><DialogContent className="music-dialog playlist-dialog"><DialogTitle>删除歌单？</DialogTitle><DialogDescription>「{playlists.find(item => item.id === deletePlaylistId)?.name}」将从歌单列表移除，歌曲不会从音乐库删除。</DialogDescription><div className="playlist-dialog-actions"><button type="button" onClick={() => setDeletePlaylistId(null)}>取消</button><button type="button" className="playlist-danger" onClick={deletePlaylist}>删除歌单</button></div></DialogContent></Dialog>
     {dropActive && <div className="file-drop-overlay"><Plus size={32} /><strong>添加到播放队列</strong></div>}
     <Dialog open={pendingDrop.length > 0} onOpenChange={open => { if (!open) setPendingDrop([]); }}><DialogContent className="music-dialog folder-dialog"><DialogTitle>发现重复歌曲</DialogTitle><DialogDescription>拖入的 {pendingDrop.length} 个音频文件中，有 {duplicateCount} 个文件名与播放列表或本次拖入的文件重复。如何处理？</DialogDescription><div className="folder-dialog-actions duplicate-dialog-actions"><button onClick={() => confirmDrop('overwrite')}>覆盖同名歌曲</button><button onClick={() => confirmDrop('append')}>全部追加</button><button onClick={() => confirmDrop('skip')}>忽略重复</button></div></DialogContent></Dialog>
     <Dialog open={folderOpen} onOpenChange={open => { setFolderOpen(open); if (!open) setPendingFolder([]); }}><DialogContent className="music-dialog folder-dialog"><DialogTitle>导入文件夹</DialogTitle><DialogDescription>找到 {pendingFolder.length} 个音频文件。如何处理现有播放队列？</DialogDescription><div className="folder-dialog-actions"><button onClick={() => confirmFolder(false)}>追加到队列</button><button onClick={() => confirmFolder(true)}>替换队列</button></div></DialogContent></Dialog>

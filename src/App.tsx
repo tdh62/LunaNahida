@@ -20,6 +20,8 @@ const App = () => (
             <Route path="music" element={null} />
             <Route path="liked" element={null} />
             <Route path="recent" element={null} />
+            <Route path="playlists" element={null} />
+            <Route path="playlists/:playlistId" element={null} />
             <Route path="settings" element={null} />
           </Route>
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
