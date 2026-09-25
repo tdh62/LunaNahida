@@ -3,6 +3,7 @@ html, body, #root { min-height: 100%; overflow-x: hidden; }
 body { overflow-y: hidden; }
 .music-app { height: 100dvh; min-height: 0; overflow: hidden; }
 .sidebar, .workspace { min-height: 0; }
+.music-app > .sidebar { overflow-y: auto; overscroll-behavior-y: contain; scrollbar-width: thin; scrollbar-color: #44464a transparent; }
 .workspace { height: calc(100dvh - 88px); overflow: hidden; }
 .main-columns { min-height: 0; overflow: hidden; }
 .queue-list, .library-list { scrollbar-width: none; }

@@ -1,4 +1,4 @@
-.settings-workspace { overflow-y: auto; scrollbar-width: thin; scrollbar-color: #44464a transparent; }
+.music-app .workspace.settings-workspace { display: block; height: calc(100dvh - 88px); min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: contain; scrollbar-width: thin; scrollbar-color: #44464a transparent; }
 .settings-page { max-width: 920px; margin: 0 auto; padding: 33px 0 60px; }
 .settings-heading { padding: 10px 0 28px; border-bottom: 1px solid var(--line); }
 .settings-heading > span { color: var(--accent); font: 10px 'DM Mono', monospace; }
@@ -43,6 +43,7 @@
 .settings-eq-grid input { width: 100%; accent-color: var(--accent); }
 .settings-eq-grid small { color: var(--accent); font: 10px 'DM Mono', monospace; }
 @media (max-width: 760px) {
+  .music-app .workspace.settings-workspace { height: auto; overflow: visible; }
   .sidebar > .settings-nav { display: flex; position: absolute; right: 15px; top: 10px; width: auto; padding: 0 8px; font-size: 0; }
   .sidebar > .settings-nav svg { width: 20px; height: 20px; }
   .settings-page { padding: 22px 0 130px; }
