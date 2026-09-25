@@ -1,0 +1,9 @@
+.quick-queue-dialog { max-width: 440px !important; }
+.quick-queue-dialog [data-description] { margin-top: 5px; color: #99989b; font-size: 11px; }
+.quick-queue-list { max-height: min(55vh, 420px); margin-top: 12px; overflow: auto; }
+.quick-queue-list .queue-track { min-height: 56px; }
+.quick-queue-list .queue-track:hover { background: #27282a; }
+.quick-queue-list .queue-track.current { color: var(--accent); }
+@media (max-width: 480px) {
+  .quick-queue-dialog { width: calc(100% - 28px) !important; padding: 20px !important; }
+}
