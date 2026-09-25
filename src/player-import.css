@@ -19,6 +19,7 @@
 .duplicate-dialog-actions { flex-wrap: wrap; }
 .duplicate-dialog-actions button { flex: 1; white-space: nowrap; }
 .play-button:disabled { cursor: not-allowed; opacity: .4; }
+.player-popover { max-height: calc(100dvh - 24px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #555 transparent; }
 /* The player, lyrics and queue share the available viewport below the top bar. */
 .import-actions { display: flex; flex-direction: column; }
 .workspace:not(.settings-workspace) .main-columns { height: calc(100% - 65px); grid-template-columns: minmax(0, 1fr) clamp(265px, 24vw, 340px); }
