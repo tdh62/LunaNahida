@@ -128,7 +128,11 @@ export function usePlayer() {
       const { title, artist, value } = (event as CustomEvent<{ title: string; artist: string; value: { cover?: string } }>).detail;
       if (!value.cover) return;
       const normalize = (text: string) => text.trim().normalize('NFKC').toLowerCase();
-      const updated = queueRef.current.map(item => normalize(item.title) === normalize(title) && normalize(item.artist) === normalize(artist) ? { ...item, cover: value.cover! } : item);
+      const updated = queueRef.current.map(item => {
+        if (normalize(item.title) !== normalize(title) || normalize(item.artist) !== normalize(artist) || item.cover === value.cover) return item;
+        window.dispatchEvent(new CustomEvent('lumatune-track-cover-updated', { detail: { id: item.id, previousCover: item.cover, cover: value.cover } }));
+        return { ...item, cover: value.cover! };
+      });
       if (updated.some((item, index) => item !== queueRef.current[index])) updateQueue(updated);
     };
     window.addEventListener('lumatune-music-refreshed', updateEnrichedCover);

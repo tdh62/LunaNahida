@@ -24,7 +24,7 @@ export function buildCatalog(tracks: Track[], mappings: ArtistMapping[]) {
     if (!artist) {
       artist = { key, name: mapping?.root ?? track.artist, tracks: [], cover: track.cover, aliases: [] };
       artists.set(key, artist);
-    } else if (artist.cover === '/covers/local.svg' && track.cover !== '/covers/local.svg') {
+    } else if (track.cover !== '/covers/local.svg') {
       artist.cover = track.cover;
     }
     artist.tracks.push(track);
@@ -35,8 +35,9 @@ export function buildCatalog(tracks: Track[], mappings: ArtistMapping[]) {
     if (!album) {
       album = { key: albumKey, name: track.album, artistKey: key, artistName: artist.name, tracks: [], cover: track.cover, year: track.year };
       albums.set(id, album);
-    } else if (!/^\d{4}$/.test(album.year.trim()) && /^\d{4}$/.test(track.year.trim())) {
-      album.year = track.year;
+    } else {
+      if (track.cover !== '/covers/local.svg') album.cover = track.cover;
+      if (!/^\d{4}$/.test(album.year.trim()) && /^\d{4}$/.test(track.year.trim())) album.year = track.year;
     }
     album.tracks.push(track);
   }

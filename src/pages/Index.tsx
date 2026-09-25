@@ -106,6 +106,15 @@ export default function Index() {
   const fileInput = useRef<HTMLInputElement>(null), folderInput = useRef<HTMLInputElement>(null), dragDepth = useRef(0);
   const [pendingFolder, setPendingFolder] = useState<File[]>([]), [folderOpen, setFolderOpen] = useState(false), [dropActive, setDropActive] = useState(false);
   const [pendingDrop, setPendingDrop] = useState<File[]>([]), [duplicateCount, setDuplicateCount] = useState(0);
+  useEffect(() => {
+    const updatePlaylistCover = (event: Event) => {
+      const { id, previousCover, cover } = (event as CustomEvent<{ id: number; previousCover: string; cover: string }>).detail;
+      setPlaylists(previous => previous.map(item => item.trackIds[0] === id && item.cover === previousCover ? { ...item, cover } : item));
+    };
+    window.addEventListener('lumatune-track-cover-updated', updatePlaylistCover);
+    return () => window.removeEventListener('lumatune-track-cover-updated', updatePlaylistCover);
+  }, []);
+
   useEffect(() => { localStorage.setItem('luma-theme', theme); }, [theme]);
   useEffect(() => { localStorage.setItem('luma-artist-mappings', JSON.stringify(mappings)); }, [mappings]);
   useEffect(() => { folderInput.current?.setAttribute('webkitdirectory', ''); }, []);
