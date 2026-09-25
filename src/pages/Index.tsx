@@ -16,6 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { usePlayer } from '@/hooks/use-player';
 import { formatTime, lyricSets, lyricTranslations, tracks, wordLyricSets, type Track } from '@/lib/music';
 import '@/player.css';
+import '@/vinyl-playback.css';
 import '@/quick-queue.css';
 import '@/player-import.css';
 import '@/library.css';

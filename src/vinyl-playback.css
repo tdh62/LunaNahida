@@ -1,0 +1,1 @@
+.album-column:not(:has(.visualizer.animated)) .album-art.vinyl > img { animation: none; }
