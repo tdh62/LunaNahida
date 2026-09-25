@@ -16,7 +16,25 @@
 .sidebar-toggle { border-radius: 5px; }
 .sidebar-collapsed .sidebar-controls.sidebar-bottom-controls { justify-content: center; }
 .sidebar-restore { top: auto !important; bottom: 102px !important; left: 12px !important; }
+.music-app:not(.focus-mode) .workspace:not(.settings-workspace) .main-columns { height: 100%; }
+.immersive-overlay { bottom: 88px; }
+.immersive-shade { background: rgba(12, 13, 15, .77); }
+.immersive-overlay > header { min-height: 58px; height: 58px; }
+.immersive-overlay > header > span { color: #f2f0ed; font-size: 13px; }
+.immersive-overlay > header small { margin-left: 8px; color: var(--accent); font-size: 9px; }
+.immersive-main { grid-template-columns: minmax(220px, 34vw) minmax(300px, 1fr); gap: clamp(28px, 6vw, 90px); padding: 22px 6vw; }
+.immersive-art { width: min(34vw, 390px); }
+.immersive-lyrics { max-height: calc(100% - 10px); overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--accent) transparent; }
+.immersive-lyrics > div { max-height: 48vh; overflow-y: auto; scrollbar-width: none; }
 @keyframes queue-panel-enter { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
 @media (max-width: 760px) {
   .quick-queue-panel { right: 10px; bottom: 126px; width: min(390px, calc(100vw - 20px)); max-height: min(55vh, 440px); }
+  .immersive-overlay { bottom: 120px; }
+  .immersive-overlay > header { min-height: 48px; height: 48px; padding: 0 18px; }
+  .immersive-main { grid-template-columns: minmax(0, 1fr); gap: 14px; padding: 15px 20px 10px; }
+  .immersive-art { width: min(42vw, 220px); justify-self: center; }
+  .immersive-lyrics { max-height: 100%; }
+  .immersive-lyrics h1 { margin: 5px 0 8px; font-size: 21px; }
+  .immersive-lyrics > div { max-height: 23vh; }
+  .immersive-lyrics p { padding: 4px 0; font-size: 12px; }
 }
