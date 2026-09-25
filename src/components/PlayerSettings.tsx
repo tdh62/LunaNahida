@@ -31,10 +31,12 @@ type SettingsProps = {
   resetEqualizer: () => void;
   mappings: ArtistMapping[];
   setMappings: (mappings: ArtistMapping[]) => void;
+  lyricAppearance: { font: string; size: number; lineHeight: number; spacing: number };
+  setLyricAppearance: (value: { font: string; size: number; lineHeight: number; spacing: number }) => void;
   artistNames: string[];
 };
 
-export default function PlayerSettings({ theme, setTheme, visual, setVisual, lyricEffect, setLyricEffect, lyricScroll, setLyricScroll, showTranslation, setShowTranslation, sleep, setSleep, effect, setEffect, equalizer, setBand, resetEqualizer, mappings, setMappings, artistNames }: SettingsProps) {
+export default function PlayerSettings({ theme, setTheme, visual, setVisual, lyricEffect, setLyricEffect, lyricScroll, setLyricScroll, showTranslation, setShowTranslation, sleep, setSleep, effect, setEffect, equalizer, setBand, resetEqualizer, mappings, setMappings, lyricAppearance, setLyricAppearance, artistNames }: SettingsProps) {
   const [root, setRoot] = useState('');
   const [aliases, setAliases] = useState('');
   const [editing, setEditing] = useState<number | null>(null);
@@ -60,6 +62,12 @@ export default function PlayerSettings({ theme, setTheme, visual, setVisual, lyr
       <div className="settings-row"><div><strong>歌词效果</strong><small>调整正在播放的歌词样式</small></div><div className="settings-options">{['流动', '聚焦', '逐字'].map(v => <button key={v} aria-pressed={lyricEffect === v} className={lyricEffect === v ? 'active' : ''} onClick={() => setLyricEffect(v)}>{v}</button>)}</div></div>
       <div className="settings-row"><div><strong>歌词滚动</strong><small>切换歌词跟随播放的过渡方式</small></div><div className="settings-options">{['平滑', '即时'].map(v => <button key={v} aria-pressed={lyricScroll === v} className={lyricScroll === v ? 'active' : ''} onClick={() => setLyricScroll(v)}>{v}</button>)}</div></div>
       <div className="settings-row"><div><strong>显示翻译</strong><small>在当前歌词下显示译文</small></div><button type="button" role="switch" aria-checked={showTranslation} aria-label="显示翻译" onClick={() => setShowTranslation(!showTranslation)} className={`settings-switch ${showTranslation ? 'on' : ''}`}><span /></button></div>
+    </section>
+    <section className="settings-group"><div className="settings-group-title"><SlidersHorizontal size={19} /><div><h2>歌词排版</h2><p>调整歌词字体与阅读间距。</p></div></div>
+      <div className="settings-row"><div><strong>字体</strong></div><select className="lyric-font-select" aria-label="歌词字体" value={lyricAppearance.font} onChange={event => setLyricAppearance({ ...lyricAppearance, font: event.target.value })}><option value="default">默认黑体</option><option value="sans">清晰无衬线</option><option value="serif">衬线字体</option></select></div>
+      <div className="lyric-setting-control"><label htmlFor="lyric-size">字号 <strong>{lyricAppearance.size}px</strong></label><input id="lyric-size" type="range" min="12" max="28" value={lyricAppearance.size} onChange={event => setLyricAppearance({ ...lyricAppearance, size: Number(event.target.value) })} /></div>
+      <div className="lyric-setting-control"><label htmlFor="lyric-line-height">行高 <strong>{lyricAppearance.lineHeight}px</strong></label><input id="lyric-line-height" type="range" min="40" max="100" value={lyricAppearance.lineHeight} onChange={event => setLyricAppearance({ ...lyricAppearance, lineHeight: Number(event.target.value) })} /></div>
+      <div className="lyric-setting-control"><label htmlFor="lyric-spacing">行间距 <strong>{lyricAppearance.spacing}px</strong></label><input id="lyric-spacing" type="range" min="0" max="24" value={lyricAppearance.spacing} onChange={event => setLyricAppearance({ ...lyricAppearance, spacing: Number(event.target.value) })} /></div>
     </section>
     <section className="settings-group"><div className="settings-group-title"><SlidersHorizontal size={19} /><div><h2>声音</h2></div></div>
       <div className="settings-row"><div><strong>音效</strong></div><div className="settings-options settings-wrap">{['原声', '低音增强', '空间回响', '温暖 Lo-fi'].map(v => <button key={v} aria-pressed={effect === v} className={effect === v ? 'active' : ''} onClick={() => setEffect(v)}>{v}</button>)}</div></div>

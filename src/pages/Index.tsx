@@ -1,4 +1,4 @@
-import { type ChangeEvent, type DragEvent, type PointerEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { type ChangeEvent, type CSSProperties, type DragEvent, type PointerEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import PlayerSettings from '@/components/PlayerSettings';
 import QueuePanel from '@/components/QueuePanel';
@@ -92,6 +92,20 @@ export default function Index() {
   const [playlistNavExpanded, setPlaylistNavExpanded] = useState(false);
   const [recentPlaylistIds, setRecentPlaylistIds] = useState<string[]>([]);
   const [theme, setTheme] = useState(() => localStorage.getItem('luma-theme') || 'dusk'), [lyricEffect, setLyricEffect] = useState('流动'), [lyricScroll, setLyricScroll] = useState('平滑'), [visual, setVisual] = useState('频谱');
+  const [lyricAppearance, setLyricAppearance] = useState(() => {
+    const defaults = { font: 'default', size: 16, lineHeight: 57, spacing: 0 };
+    try {
+      const saved: unknown = JSON.parse(localStorage.getItem('luma-lyric-appearance') ?? 'null');
+      if (!saved || typeof saved !== 'object') return defaults;
+      const value = saved as Record<string, unknown>;
+      return {
+        font: ['default', 'serif', 'sans'].includes(String(value.font)) ? String(value.font) : defaults.font,
+        size: typeof value.size === 'number' ? Math.min(28, Math.max(12, value.size)) : defaults.size,
+        lineHeight: typeof value.lineHeight === 'number' ? Math.min(100, Math.max(40, value.lineHeight)) : defaults.lineHeight,
+        spacing: typeof value.spacing === 'number' ? Math.min(24, Math.max(0, value.spacing)) : defaults.spacing,
+      };
+    } catch { return defaults; }
+  });
   const [liked, setLiked] = useState<number[]>([2]);
   const [detailTrack, setDetailTrack] = useState<Track | null>(null), [focus, setFocus] = useState(false);
   const [sidebarMode, setSidebarMode] = useState<'expanded' | 'collapsed' | 'hidden'>('expanded');
@@ -116,6 +130,7 @@ export default function Index() {
   }, []);
 
   useEffect(() => { localStorage.setItem('luma-theme', theme); }, [theme]);
+  useEffect(() => { localStorage.setItem('luma-lyric-appearance', JSON.stringify(lyricAppearance)); }, [lyricAppearance]);
   useEffect(() => { localStorage.setItem('luma-artist-mappings', JSON.stringify(mappings)); }, [mappings]);
   useEffect(() => { folderInput.current?.setAttribute('webkitdirectory', ''); }, []);
   const importFiles = async (files: File[], replace = false, duplicates: 'append' | 'overwrite' | 'skip' = 'append') => {
@@ -269,7 +284,7 @@ export default function Index() {
     </aside>
     {sidebarMode === 'hidden' && <button type="button" className="sidebar-restore" title="展开侧栏" aria-label="展开侧栏" onClick={() => setSidebarMode('expanded')}><PanelLeftOpen size={19} /></button>}
     <main className={`workspace min-w-0 ${isSettings ? 'settings-workspace' : ''} ${isArtists || isAlbums ? 'catalog-workspace' : ''} ${isPlaylists || pathname === '/music' || pathname === '/liked' || pathname === '/recent' ? 'scrolling-workspace' : ''}`}>
-      {isSettings ? <PlayerSettings theme={theme} setTheme={setTheme} visual={visual} setVisual={setVisual} lyricEffect={lyricEffect} setLyricEffect={setLyricEffect} lyricScroll={lyricScroll} setLyricScroll={setLyricScroll} showTranslation={showTranslation} setShowTranslation={setShowTranslation} sleep={sleep} setSleep={setSleep} effect={p.effect} setEffect={p.setEffect} equalizer={p.equalizer} setBand={p.setBand} resetEqualizer={p.resetEqualizer} mappings={mappings} setMappings={setMappings} artistNames={[...new Set(allTracks.map(track => track.artist))]} /> : isArtists || isAlbums ? <CatalogView onRefreshInfo={refreshInfo} kind={isArtists ? 'artists' : 'albums'} artists={catalog.artists} albums={catalog.albums} artist={selectedArtist} album={selectedAlbum} currentId={p.trackId} liked={liked} playlists={playlists} onPlay={id => { p.select(id); navigate('/'); }} onToggleLike={toggleTrackLike} onViewInfo={setDetailTrack} onAddToPlaylist={addToPlaylist} onArtist={openArtist} onAlbum={openAlbum} /> : isPlaylists ? <PlaylistView onRefreshInfo={refreshInfo} playlists={overviewPlaylists} playlist={activePlaylist} tracks={allTracks} currentId={p.trackId} liked={liked} onCreate={() => setCreatePlaylistOpen(true)} onDelete={setDeletePlaylistId} onPlay={id => { p.select(id); navigate('/'); }} onToggleLike={toggleTrackLike} onViewInfo={setDetailTrack} onArtist={openArtist} onAlbum={openAlbum} onAddToPlaylist={addToPlaylist} onRemoveFromPlaylist={removeFromPlaylist} onEditPlaylist={edited => setPlaylists(prev => prev.map(item => item.id === edited.id ? edited : item))} /> : view !== '正在播放' ? <LibraryView onRefreshInfo={refreshInfo} key={view} title={view} tracks={visibleTracks} currentId={p.trackId} liked={liked} onToggleLike={toggleTrackLike} onViewInfo={setDetailTrack} onArtist={openArtist} onAlbum={openAlbum} playlists={playlists} onAddToPlaylist={addToPlaylist} onPlay={id => { p.select(id); navigate('/'); }} /> : <>
+      {isSettings ? <PlayerSettings theme={theme} setTheme={setTheme} visual={visual} setVisual={setVisual} lyricEffect={lyricEffect} setLyricEffect={setLyricEffect} lyricScroll={lyricScroll} setLyricScroll={setLyricScroll} showTranslation={showTranslation} setShowTranslation={setShowTranslation} sleep={sleep} setSleep={setSleep} effect={p.effect} setEffect={p.setEffect} equalizer={p.equalizer} setBand={p.setBand} resetEqualizer={p.resetEqualizer} mappings={mappings} setMappings={setMappings} lyricAppearance={lyricAppearance} setLyricAppearance={setLyricAppearance} artistNames={[...new Set(allTracks.map(track => track.artist))]} /> : isArtists || isAlbums ? <CatalogView onRefreshInfo={refreshInfo} kind={isArtists ? 'artists' : 'albums'} artists={catalog.artists} albums={catalog.albums} artist={selectedArtist} album={selectedAlbum} currentId={p.trackId} liked={liked} playlists={playlists} onPlay={id => { p.select(id); navigate('/'); }} onToggleLike={toggleTrackLike} onViewInfo={setDetailTrack} onAddToPlaylist={addToPlaylist} onArtist={openArtist} onAlbum={openAlbum} /> : isPlaylists ? <PlaylistView onRefreshInfo={refreshInfo} playlists={overviewPlaylists} playlist={activePlaylist} tracks={allTracks} currentId={p.trackId} liked={liked} onCreate={() => setCreatePlaylistOpen(true)} onDelete={setDeletePlaylistId} onPlay={id => { p.select(id); navigate('/'); }} onToggleLike={toggleTrackLike} onViewInfo={setDetailTrack} onArtist={openArtist} onAlbum={openAlbum} onAddToPlaylist={addToPlaylist} onRemoveFromPlaylist={removeFromPlaylist} onEditPlaylist={edited => setPlaylists(prev => prev.map(item => item.id === edited.id ? edited : item))} /> : view !== '正在播放' ? <LibraryView onRefreshInfo={refreshInfo} key={view} title={view} tracks={visibleTracks} currentId={p.trackId} liked={liked} onToggleLike={toggleTrackLike} onViewInfo={setDetailTrack} onArtist={openArtist} onAlbum={openAlbum} playlists={playlists} onAddToPlaylist={addToPlaylist} onPlay={id => { p.select(id); navigate('/'); }} /> : <>
       <div className="main-columns"><section className="listening-stage">
         {p.hasTrack ? <div className={`listening-content ${!hasLyrics ? 'without-lyrics' : ''}`}><div className="album-column"><div className={`album-art ${visual === '唱片' ? 'vinyl' : ''}`}><img src={cover} alt={`${p.track.album}专辑封面`} />{!p.track.source && <><span className="album-print">{p.track.english}</span><span className="cover-corner">VOL. 0{(p.trackId ?? 0) + 1}</span></>}</div><div className="album-title flex items-center justify-between"><h2>{p.track.title}</h2>{!p.track.source && <IconButton label={favorite ? '取消喜欢' : '喜欢这首歌'} active={favorite} onClick={toggleLike}><Heart size={21} fill={favorite ? 'currentColor' : 'none'} /></IconButton>}</div><p className="artist-name"><button type="button" className="track-meta-link" onClick={() => openArtist(p.track.artist)}>{p.track.artist}</button><span> · </span><button type="button" className="track-meta-link" onClick={() => openAlbum(p.track)}>{p.track.album}</button></p><div className="track-tags"><span>{p.track.source ? '本地文件' : '演示曲目'}</span><span>{p.track.genre.split(' / ')[0]}</span></div><div className={`visualizer ${p.playing ? 'animated' : ''} ${visual === '呼吸' ? 'breathing' : ''}`} aria-label="音乐频谱">{visual === '频谱' ? <Spectrum analyser={p.analyser} active={p.playing} /> : Array.from({ length: 48 }, (_, i) => <i key={i} style={{ height: `${8 + Math.sin(i * .65) ** 2 * 23 + Math.sin(i * .2) ** 2 * 13}px`, animationDelay: `${i * -.13}s`, animationDuration: `${.65 + i % 5 * .2}s` }} />)}</div></div>
           {hasLyrics && (
@@ -277,6 +292,7 @@ export default function Index() {
               <div
                 ref={lyricsWindow}
                 className="lyrics-window"
+                style={{ '--lyric-font': lyricAppearance.font === 'serif' ? 'Georgia, "Noto Serif SC", serif' : lyricAppearance.font === 'sans' ? 'Arial, "Noto Sans SC", sans-serif' : '"DM Sans", "Noto Sans SC", sans-serif', '--lyric-size': `${lyricAppearance.size}px`, '--lyric-row-height': `${lyricAppearance.lineHeight}px`, '--lyric-spacing': `${lyricAppearance.spacing}px` } as CSSProperties}
                 onWheel={onLyricWheel}
                 onPointerDown={onLyricPointerDown}
                 onPointerMove={onLyricPointerMove}

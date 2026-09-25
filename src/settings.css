@@ -42,6 +42,12 @@
 .settings-eq-grid label { display: flex; flex-direction: column; gap: 8px; color: #b7b6ba; text-align: center; font-size: 10px; }
 .settings-eq-grid input { width: 100%; accent-color: var(--accent); }
 .settings-eq-grid small { color: var(--accent); font: 10px 'DM Mono', monospace; }
+.lyric-font-select { min-height: 34px; padding: 0 10px; border: 1px solid #3b3c3f; border-radius: 6px; background: #202123; color: #eee; font-size: 11px; }
+.lyric-setting-control { display: grid; grid-template-columns: 110px minmax(0, 1fr); align-items: center; gap: 14px; max-width: 520px; padding: 10px 0; border-top: 1px solid #28292b; }
+.lyric-setting-control label { display: flex; justify-content: space-between; gap: 8px; color: #c7c6c8; font-size: 11px; }
+.lyric-setting-control label strong { color: var(--accent); font: 10px 'DM Mono', monospace; }
+.lyric-setting-control input { width: 100%; accent-color: var(--accent); }
+@media (max-width: 760px) { .lyric-setting-control { grid-template-columns: 90px minmax(0, 1fr); max-width: none; } }
 @media (max-width: 760px) {
   .music-app .workspace.settings-workspace { height: auto; overflow: visible; }
   .sidebar > .settings-nav { display: flex; position: absolute; right: 15px; top: 10px; width: auto; padding: 0 8px; font-size: 0; }
