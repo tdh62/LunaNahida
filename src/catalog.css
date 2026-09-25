@@ -23,6 +23,11 @@
 .catalog-hero > img { width: clamp(120px, 19vw, 210px); aspect-ratio: 1; flex: none; border-radius: 7px; object-fit: cover; }
 .catalog-hero > div { min-width: 0; }
 .catalog-hero .playlist-primary { margin-top: 14px; }
+.artist-description { max-width: 920px; margin: -12px 0 30px; color: #d0d0d2; }
+.artist-description-status { color: #aaa9ad; font-size: 12px; }
+.artist-description-brief, .artist-description-section p { margin: 0; color: #c4c4c7; font-size: 13px; line-height: 1.85; white-space: pre-line; overflow-wrap: anywhere; }
+.artist-description-section { margin-top: 20px; }
+.artist-description-section h2 { margin: 0 0 8px; color: #f1f0ed; font-size: 15px; font-weight: 600; }
 .catalog-text-link { display: block; padding: 0; border: 0; background: none; color: var(--accent); font-size: 13px; text-align: left; }
 .catalog-text-link:hover, .track-meta-link:hover { text-decoration: underline; }
 .catalog-related { margin-bottom: 34px; }

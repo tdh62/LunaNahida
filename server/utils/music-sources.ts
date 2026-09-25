@@ -148,6 +148,24 @@ async function lyrics(source: Source, song: Song): Promise<Pick<Enrichment, 'lyr
   return { lyric: result.lyric ? decode(result.lyric) : '', translation: result.trans ? decode(result.trans) : '' };
 }
 
+export type ArtistDescription = { id: string; name: string; briefDesc: string; introduction: { ti: string; txt: string }[] };
+
+export async function getArtistDescription(name: string): Promise<ArtistDescription | null> {
+  const result = await ncm('https://music.163.com/weapi/search/get', { s: toSimplified(name), type: 100, limit: 30, offset: 0 });
+  const artists = result.result?.artists;
+  if (!Array.isArray(artists)) throw new Error('网易云歌手搜索缺少结果');
+  const target = normalized(name);
+  const artist = artists.find((item: any) => [item.name, ...(item.alias ?? [])].some((candidate: string) => normalized(candidate) === target));
+  if (!artist) return null;
+  const description = await ncm('https://music.163.com/weapi/artist/introduction', { id: String(artist.id) });
+  return {
+    id: String(artist.id),
+    name: artist.name,
+    briefDesc: description.briefDesc ?? '',
+    introduction: Array.isArray(description.introduction) ? description.introduction.map((item: any) => ({ ti: String(item.ti ?? ''), txt: String(item.txt ?? '') })).filter((item: { ti: string; txt: string }) => item.ti || item.txt) : [],
+  };
+}
+
 export async function enrich(title: string, artist: string, needCover: boolean, needLyrics: boolean, force = false): Promise<Enrichment> {
   const found: Enrichment = {};
   let failed = false;

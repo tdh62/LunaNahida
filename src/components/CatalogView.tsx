@@ -1,10 +1,12 @@
 import { ArrowDownAZ, ArrowLeft, Disc3, ListMusic, Mic2, Play, Search, Users } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import LibraryView from '@/components/LibraryView';
 import type { AlbumEntry, ArtistEntry } from '@/lib/catalog';
 import type { Track } from '@/lib/music';
 import type { Playlist } from '@/lib/playlists';
+
+type ArtistDescription = { id: string; name: string; briefDesc: string; introduction: { ti: string; txt: string }[] };
 
 type Props = {
   kind: 'artists' | 'albums';
@@ -37,6 +39,26 @@ export default function CatalogView({ kind, artists, albums, artist, album, curr
   const [search, setSearch] = useState('');
   const [artistSort, setArtistSort] = useState<'added' | 'name' | 'tracks'>('added');
   const [albumSort, setAlbumSort] = useState<'added' | 'year' | 'name' | 'artist'>('added');
+  const [artistDescription, setArtistDescription] = useState<{ name: string; data: ArtistDescription } | null>(null);
+  const [artistDescriptionError, setArtistDescriptionError] = useState('');
+  const [artistDescriptionLoading, setArtistDescriptionLoading] = useState(false);
+  useEffect(() => {
+    if (!artist || kind !== 'artists') return;
+    const controller = new AbortController();
+    setArtistDescriptionLoading(true);
+    setArtistDescriptionError('');
+    const params = new URLSearchParams({ name: artist.name });
+    fetch(`/api/music/artist?${params}`, { signal: controller.signal })
+      .then(async response => {
+        if (response.status === 404) throw new Error('暂未收录歌手介绍');
+        if (!response.ok) throw new Error('歌手介绍暂时不可用');
+        return response.json() as Promise<ArtistDescription>;
+      })
+      .then(data => { if (!controller.signal.aborted) setArtistDescription({ name: artist.name, data }); })
+      .catch(error => { if (!controller.signal.aborted) setArtistDescriptionError(error instanceof Error ? error.message : '歌手介绍暂时不可用'); })
+      .finally(() => { if (!controller.signal.aborted) setArtistDescriptionLoading(false); });
+    return () => controller.abort();
+  }, [artist?.key, artist?.name, kind]);
   const filteredArtists = useMemo(() => {
     const result = artists.filter(item => `${item.name} ${item.aliases.join(' ')}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
     if (artistSort === 'name') result.sort((a, b) => compareText(a.name, b.name));
@@ -63,6 +85,14 @@ export default function CatalogView({ kind, artists, albums, artist, album, curr
         <p>{detail.tracks.length} 首歌曲{album && kind === 'albums' ? ` · ${yearValue(album.year) === null ? '未知年份' : album.year}` : ''}</p>
         <button type="button" className="playlist-primary" onClick={() => onPlay(detail.tracks[0].id)}><Play size={16} fill="currentColor" /> 播放</button>
       </div></header>
+      {artist && kind === 'artists' && <section className="artist-description" aria-label="歌手介绍">
+        {artistDescriptionLoading && <p className="artist-description-status">正在加载歌手介绍…</p>}
+        {artistDescriptionError && !artistDescriptionLoading && <p className="artist-description-status">{artistDescriptionError}</p>}
+        {artistDescription?.name === artist.name && <>
+          {artistDescription.data.briefDesc && <p className="artist-description-brief">{artistDescription.data.briefDesc}</p>}
+          {artistDescription.data.introduction.map((section, index) => <section className="artist-description-section" key={`${section.ti}-${index}`}><h2>{section.ti}</h2><p>{section.txt}</p></section>)}
+        </>}
+      </section>}
       {artist && kind === 'artists' ? <>
         <div className="catalog-tabs" role="tablist" aria-label="歌手内容">
           <button type="button" role="tab" aria-selected={artistTab === 'albums'} className={artistTab === 'albums' ? 'active' : ''} onClick={() => setArtistTab('albums')}><Disc3 size={15} />专辑<span>{relatedAlbums.length}</span></button>
