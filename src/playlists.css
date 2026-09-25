@@ -72,3 +72,44 @@
   .playlist-hero h1 { font-size: 19px; }
   .playlist-hero p { font-size: 10px; }
 }
+.playlist-edit { display: grid; place-items: center; width: 38px; height: 38px; border: 1px solid #444548; border-radius: 7px; background: none; color: #aaa9ad; }
+.playlist-edit:hover { color: var(--accent); border-color: var(--accent); }
+.playlist-editor-backdrop { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; overflow-y: auto; padding: 22px; background: rgba(7, 8, 10, .76); backdrop-filter: blur(5px); }
+.playlist-editor { width: min(100%, 600px); max-height: calc(100vh - 44px); overflow-y: auto; border: 1px solid #414246; border-radius: 10px; background: #202123; color: #eeedeb; box-shadow: 0 24px 80px rgba(0,0,0,.48); }
+.playlist-editor > header { display: flex; justify-content: space-between; align-items: flex-start; padding: 22px 24px 17px; border-bottom: 1px solid #37383a; }
+.playlist-editor > header h2 { margin: 9px 0 0; font-size: 20px; font-weight: 600; }
+.playlist-editor > header > button { display: grid; place-items: center; width: 30px; height: 30px; border: 0; border-radius: 6px; background: transparent; color: #aaa9ad; font-size: 24px; }
+.playlist-editor > header > button:hover { color: white; background: #343538; }
+.playlist-editor form { display: grid; gap: 18px; padding: 20px 24px 22px; }
+.playlist-field { display: grid; gap: 8px; color: #c4c3c5; font-size: 12px; }
+.playlist-field input, .playlist-field textarea { width: 100%; border: 1px solid #45464a; border-radius: 6px; outline: none; padding: 10px 11px; background: #171819; color: #f1f0ed; font: inherit; resize: vertical; }
+.playlist-field input:focus, .playlist-field textarea:focus { border-color: var(--accent); }
+.playlist-field input::placeholder, .playlist-field textarea::placeholder { color: #77777b; }
+.cover-picker { min-width: 0; margin: 0; padding: 0; border: 0; }
+.cover-picker legend { margin-bottom: 10px; color: #c4c3c5; font-size: 12px; }
+.cover-mode-tabs { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 6px; }
+.cover-mode-tabs button { min-width: 0; min-height: 40px; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 5px 7px; border: 1px solid #424347; border-radius: 6px; background: #191a1c; color: #b1b0b3; font-size: 11px; }
+.cover-mode-tabs button.active { border-color: var(--accent); background: var(--tint); color: var(--accent); }
+.cover-upload { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.cover-upload button { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 12px; border: 1px solid #45464a; border-radius: 6px; background: #292a2c; color: #e5e4e2; font-size: 11px; }
+.cover-upload button:hover { border-color: var(--accent); color: var(--accent); }
+.cover-upload small, .cover-hint { color: #99989d; font-size: 11px; }
+.cover-url-field { margin-top: 12px; }
+.cover-presets { display: flex; gap: 10px; margin-top: 12px; }
+.cover-presets button { position: relative; width: 64px; height: 64px; overflow: hidden; padding: 0; border: 2px solid transparent; border-radius: 6px; background: #18191b; color: white; }
+.cover-presets button.selected { border-color: var(--accent); }
+.cover-presets img { width: 100%; height: 100%; object-fit: cover; }
+.cover-presets button svg { position: absolute; right: 3px; bottom: 3px; filter: drop-shadow(0 1px 2px #000); }
+.cover-hint { margin: 13px 0 0; }
+.cover-preview { display: flex; align-items: center; gap: 14px; margin-top: 14px; color: #99989d; font-size: 11px; }
+.cover-preview img { width: 76px; height: 76px; border-radius: 6px; background: #171819; object-fit: cover; }
+.playlist-editor form > footer { display: flex; justify-content: flex-end; gap: 9px; padding-top: 15px; border-top: 1px solid #37383a; }
+.editor-cancel { min-height: 38px; padding: 0 16px; border: 1px solid #48494c; border-radius: 7px; background: transparent; color: #ddd; font-size: 12px; }
+@media (max-width: 520px) {
+  .playlist-editor-backdrop { align-items: end; padding: 0; }
+  .playlist-editor { width: 100%; max-height: 92vh; border-radius: 12px 12px 0 0; }
+  .playlist-editor > header { padding: 18px 17px 14px; }
+  .playlist-editor form { padding: 16px 17px calc(20px + env(safe-area-inset-bottom)); }
+  .cover-mode-tabs { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .cover-mode-tabs button { justify-content: flex-start; padding-left: 12px; }
+}
