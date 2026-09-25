@@ -1,5 +1,6 @@
-import { Heart, ListMusic, Play, Search } from 'lucide-react';
-import { useState } from 'react';
+import { Heart, Info, ListMusic, Play, Search } from 'lucide-react';
+import { useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { formatTime, type Track } from '@/lib/music';
 
 type LibraryViewProps = {
@@ -9,24 +10,63 @@ type LibraryViewProps = {
   liked: number[];
   onPlay: (id: number) => void;
   onToggleLike: (id: number) => void;
+  onViewInfo: (track: Track) => void;
 };
 
-export default function LibraryView({ title, tracks, currentId, liked, onPlay, onToggleLike }: LibraryViewProps) {
+export default function LibraryView({ title, tracks, currentId, liked, onPlay, onToggleLike, onViewInfo }: LibraryViewProps) {
   const [search, setSearch] = useState('');
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const anchor = useRef<number | null>(null);
   const filtered = tracks.filter(track => `${track.title}${track.artist}${track.album}`.toLowerCase().includes(search.trim().toLowerCase()));
+  const selected = selectedIds.filter(id => filtered.some(track => track.id === id));
+
+  const selectRow = (event: MouseEvent | KeyboardEvent, id: number) => {
+    if (event.shiftKey && anchor.current !== null) {
+      const from = filtered.findIndex(track => track.id === anchor.current);
+      const to = filtered.findIndex(track => track.id === id);
+      if (from !== -1) {
+        const range = filtered.slice(Math.min(from, to), Math.max(from, to) + 1).map(track => track.id);
+        setSelectedIds(event.ctrlKey || event.metaKey ? [...new Set([...selected, ...range])] : range);
+        return;
+      }
+    }
+    if (event.ctrlKey || event.metaKey) setSelectedIds(selected.includes(id) ? selected.filter(item => item !== id) : [...selected, id]);
+    else setSelectedIds([id]);
+    anchor.current = id;
+  };
+
+  const onRowKeyDown = (event: KeyboardEvent<HTMLDivElement>, id: number) => {
+    if (event.target !== event.currentTarget) return;
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a') {
+      event.preventDefault(); setSelectedIds(filtered.map(track => track.id)); return;
+    }
+    if (event.key === 'Enter') { event.preventDefault(); onPlay(id); }
+    if (event.key === ' ') { event.preventDefault(); selectRow(event, id); }
+  };
 
   return <section className="library-view">
     <div className="library-heading">
-      <div><span className="eyebrow"><span /> MUSIC LIBRARY</span><h1>{title}</h1><p>{tracks.length} 首歌曲</p></div>
-      <div className="library-search"><Search size={17} /><input aria-label="搜索歌曲、歌手或专辑" placeholder="搜索歌曲、歌手或专辑" value={search} onChange={event => setSearch(event.target.value)} /></div>
+      <div><span className="eyebrow"><span /> MUSIC LIBRARY</span><h1>{title}</h1><p>{tracks.length} 首歌曲{selected.length > 0 && ` · 已选 ${selected.length} 首`}</p></div>
+      <div className="library-search"><Search size={17} /><input aria-label="搜索歌曲、歌手或专辑" placeholder="搜索歌曲、歌手或专辑" value={search} onChange={event => { setSearch(event.target.value); setSelectedIds([]); anchor.current = null; }} /></div>
     </div>
     <div className="library-table-head"><span>歌曲</span><span>专辑</span><span>时长</span><span /></div>
-    <div className="library-rows">{filtered.map(track => <div className={`library-row ${currentId === track.id ? 'is-current' : ''}`} key={track.id}>
-      <button className="library-play" onClick={() => onPlay(track.id)} aria-label={`播放 ${track.title}`} title={`播放 ${track.title}`}><img src={track.cover} alt="" /><span className="library-play-icon"><Play size={18} fill="currentColor" /></span></button>
-      <button className="library-track-name" onClick={() => onPlay(track.id)}><strong>{track.title}</strong><small>{track.artist}</small></button>
-      <span className="library-album">{track.album}</span><span className="library-duration">{formatTime(track.duration)}</span>
-      {track.source ? <span /> : <button className={`library-like ${liked.includes(track.id) ? 'is-liked' : ''}`} onClick={() => onToggleLike(track.id)} aria-label={liked.includes(track.id) ? `取消喜欢 ${track.title}` : `喜欢 ${track.title}`} title={liked.includes(track.id) ? '取消喜欢' : '喜欢'}><Heart size={18} fill={liked.includes(track.id) ? 'currentColor' : 'none'} /></button>}
-    </div>)}
+    <div className="library-rows" role="listbox" aria-label={`${title}歌曲列表`} aria-multiselectable="true">{filtered.map(track => {
+      const menuIds = selected.includes(track.id) ? selected : [track.id];
+      const likeable = menuIds.filter(id => !tracks.find(item => item.id === id)?.source);
+      const allLiked = likeable.every(id => liked.includes(id));
+      return <ContextMenu key={track.id}><ContextMenuTrigger asChild>
+        <div className={`library-row ${currentId === track.id ? 'is-current' : ''} ${selected.includes(track.id) ? 'is-selected' : ''}`} role="option" aria-selected={selected.includes(track.id)} tabIndex={0} onClick={event => selectRow(event, track.id)} onDoubleClick={() => onPlay(track.id)} onContextMenu={() => { if (!selected.includes(track.id)) { setSelectedIds([track.id]); anchor.current = track.id; } }} onKeyDown={event => onRowKeyDown(event, track.id)}>
+          <span className="library-play"><img src={track.cover} alt="" /><span className="library-play-icon"><Play size={18} fill="currentColor" /></span></span>
+          <span className="library-track-name"><strong>{track.title}</strong><small>{track.artist}</small></span>
+          <span className="library-album">{track.album}</span><span className="library-duration">{formatTime(track.duration)}</span>
+          {track.source ? <span /> : <button type="button" className={`library-like ${liked.includes(track.id) ? 'is-liked' : ''}`} onClick={event => { event.stopPropagation(); onToggleLike(track.id); }} onDoubleClick={event => event.stopPropagation()} aria-label={liked.includes(track.id) ? `取消喜欢 ${track.title}` : `喜欢 ${track.title}`} title={liked.includes(track.id) ? '取消喜欢' : '喜欢'}><Heart size={18} fill={liked.includes(track.id) ? 'currentColor' : 'none'} /></button>}
+        </div>
+      </ContextMenuTrigger><ContextMenuContent className="queue-context">
+        <ContextMenuItem onSelect={() => onPlay(track.id)}><Play size={15} />{menuIds.length > 1 ? '播放此曲' : '立即播放'}</ContextMenuItem>
+        <ContextMenuItem onSelect={() => onViewInfo(track)}><Info size={15} />{menuIds.length > 1 ? '查看此曲信息' : '查看信息'}</ContextMenuItem>
+        {likeable.length > 0 && <ContextMenuItem onSelect={() => likeable.filter(id => liked.includes(id) === allLiked).forEach(onToggleLike)}><Heart size={15} />{allLiked ? '取消喜欢' : '添加到我喜欢的'}{likeable.length > 1 && ` (${likeable.length})`}</ContextMenuItem>}
+      </ContextMenuContent></ContextMenu>;
+    })}
     {!filtered.length && <div className="library-empty"><ListMusic size={28} /><p>{search ? '没有找到匹配的曲目' : title === '我喜欢的' ? '还没有喜欢的歌曲' : title === '最近播放' ? '还没有播放记录' : '还没有歌曲'}</p></div>}
     </div>
   </section>;
