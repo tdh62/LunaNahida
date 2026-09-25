@@ -4,7 +4,7 @@ import type { Track } from '@/lib/music';
 export type TimedLine = { time: number; text: string; translation?: string };
 type Enrichment = { cover?: string; lyric?: string; translation?: string };
 type Entry = { value: Enrichment; expires: number; coverRequested?: boolean; lyricRequested?: boolean };
-const storageKey = 'lumatune-music-enrichment-v1';
+const storageKey = 'lumatune-music-enrichment-v2';
 const maxEntries = 200;
 
 function readCache(): Record<string, Entry> {
@@ -24,7 +24,8 @@ function saveCache(key: string, value: Enrichment, coverRequested: boolean, lyri
     const cache = Object.fromEntries(entries.slice(-(maxEntries - 1)));
     const previous = cache[key];
     const merged = { ...previous?.value, ...value };
-    cache[key] = { value: merged, coverRequested: coverRequested || previous?.coverRequested, lyricRequested: lyricRequested || previous?.lyricRequested, expires: Date.now() + (merged.cover || merged.lyric ? 7 * 24 * 60 : 30) * 60 * 1000 };
+    const complete = (!coverRequested || !!merged.cover) && (!lyricRequested || !!merged.lyric);
+    cache[key] = { value: merged, coverRequested: coverRequested || previous?.coverRequested, lyricRequested: lyricRequested || previous?.lyricRequested, expires: Date.now() + (complete ? 7 * 24 * 60 : 30) * 60 * 1000 };
     localStorage.setItem(storageKey, JSON.stringify(cache));
   } catch { /* Storage may be unavailable; playback continues normally. */ }
 }

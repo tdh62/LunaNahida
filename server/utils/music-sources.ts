@@ -94,21 +94,21 @@ async function ncm(url: string, data: Record<string, unknown>, mode: 'weapi' | '
   return result;
 }
 
-async function search(source: Source, title: string, artist: string): Promise<Song[]> {
+async function search(source: Source, query: string): Promise<Song[]> {
   if (source === 'ncm') {
-    const result = await ncm('https://music.163.com/weapi/search/get', { s: `${title} ${artist}`, type: 1, limit: 10, offset: 0 });
+    const result = await ncm('https://music.163.com/weapi/search/get', { s: query, type: 1, limit: 10, offset: 0 });
     return (result.result?.songs ?? []).map((item: any) => ({
       id: String(item.id), title: item.name, artist: (item.artists ?? []).map((a: any) => a.name).join(', '), artwork: item.album?.picUrl,
     }));
   }
-  const response = await post('qq', 'https://u.y.qq.com/cgi-bin/musicu.fcg', JSON.stringify({ req_1: { module: 'music.search.SearchCgiService', method: 'DoSearchForQQMusicDesktop', param: { num_per_page: 10, page_num: 1, query: `${title} ${artist}`, search_type: 0 } } }), {
+  const response = await post('qq', 'https://u.y.qq.com/cgi-bin/musicu.fcg', JSON.stringify({ req_1: { module: 'music.search.SearchCgiService', method: 'DoSearchForQQMusicDesktop', param: { num_per_page: 10, page_num: 1, query, search_type: 0 } } }), {
     'User-Agent': ua, Referer: 'https://y.qq.com/', Cookie: 'uin=', 'Content-Type': 'application/json',
   });
   const result = (await response.json()).req_1;
-  if (result?.code !== 0 || !result.data?.body?.song?.list) throw new Error('QQ 音乐搜索失败');
+  if (!result?.data?.body?.song?.list || (result.code != null && Number(result.code) !== 0)) throw new Error('QQ 音乐搜索失败');
   return result.data.body.song.list.map((item: any) => ({
-    id: String(item.id), mid: item.mid, title: item.title, artist: (item.singer ?? []).map((a: any) => a.name).join(', '),
-    artwork: item.album?.mid ? `https://y.gtimg.cn/music/photo_new/T002R300x300M000${item.album.mid}.jpg` : undefined,
+    id: String(item.id ?? item.songid), mid: item.mid ?? item.songmid, title: item.title ?? item.songname, artist: (item.singer ?? []).map((a: any) => a.name).join(', '),
+    artwork: (item.album?.mid ?? item.albummid) ? `https://y.gtimg.cn/music/photo_new/T002R300x300M000${item.album?.mid ?? item.albummid}.jpg` : undefined,
   }));
 }
 
@@ -132,27 +132,36 @@ async function lyrics(source: Source, song: Song): Promise<Pick<Enrichment, 'lyr
   if (!response.ok) throw new Error(`上游返回 ${response.status}`);
   const text = (await response.text()).replace(/^(?:callback|MusicJsonCallback|jsonCallback)\(/, '').replace(/\)\s*;?\s*$/, '');
   const result = JSON.parse(text);
-  if (Number(result.code) !== 0) throw new Error('QQ 音乐歌词不可用');
+  if (result.retcode != null && Number(result.retcode) !== 0) throw new Error('QQ 音乐歌词不可用');
   const decode = (value: string) => Buffer.from(value, 'base64').toString('utf8').replace(/&#(\d+);/g, (_, code: string) => String.fromCodePoint(Number(code))).replace(/&(?:amp|lt|gt|quot|apos);/g, entity => ({ '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&apos;': "'" })[entity] ?? entity);
   return { lyric: result.lyric ? decode(result.lyric) : '', translation: result.trans ? decode(result.trans) : '' };
 }
 
 export async function enrich(title: string, artist: string, needCover: boolean, needLyrics: boolean): Promise<Enrichment> {
   const found: Enrichment = {};
+  let failed = false;
   for (const source of ['ncm', 'qq'] as const) {
     if ((!needCover || found.cover) && (!needLyrics || found.lyric)) break;
     try {
-      const songs = await cached(`search:${source}:${normalized(title)}:${normalized(artist)}`, 60 * 60 * 1000, () => search(source, title, artist));
-      const song = songs.find(item => matches(item, title, artist));
+      const lookup = (query: string) => cached(`search:${source}:${normalized(query)}`, 60 * 60 * 1000, () => search(source, query));
+      let song = (await lookup(`${title} ${artist}`)).find(item => matches(item, title, artist));
+      if (!song) song = (await lookup(title)).find(item => matches(item, title, artist));
       if (!song) continue;
       if (needCover && !found.cover && song.artwork?.startsWith('https://')) found.cover = song.artwork;
       if (needLyrics && !found.lyric) {
         try {
           const result = await cached(`lyric:${source}:${song.id}:${song.mid ?? ''}`, 24 * 60 * 60 * 1000, () => lyrics(source, song));
           if (result.lyric) { found.lyric = result.lyric; found.translation = result.translation; }
-        } catch { /* Try the second source for lyrics. */ }
+        } catch (error) {
+          failed = true;
+          console.warn(`歌词补全失败 (${source}):`, error instanceof Error ? error.message : String(error));
+        }
       }
-    } catch { /* A failed source must not prevent the other source from being tried. */ }
+    } catch (error) {
+      failed = true;
+      console.warn(`音乐搜索失败 (${source}):`, error instanceof Error ? error.message : String(error));
+    }
   }
+  if (failed && !found.cover && !found.lyric) throw new Error('音乐源暂时不可用');
   return found;
 }

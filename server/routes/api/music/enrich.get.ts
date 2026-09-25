@@ -8,7 +8,7 @@ export default defineHandler(async event => {
     throw createError({ statusCode: 400, statusMessage: '无效的曲目信息' });
   }
   try {
-    const key = `enrich:${title.trim().normalize('NFKC').toLowerCase()}:${artist.trim().normalize('NFKC').toLowerCase()}:${cover}:${lyric}`;
+    const key = `enrich:v2:${title.trim().normalize('NFKC').toLowerCase()}:${artist.trim().normalize('NFKC').toLowerCase()}:${cover}:${lyric}`;
     return await cached(key, 30 * 60 * 1000, () => enrich(title.trim(), artist.trim(), cover === '1', lyric === '1'));
   } catch {
     throw createError({ statusCode: 502, statusMessage: '音乐资料暂时不可用' });
