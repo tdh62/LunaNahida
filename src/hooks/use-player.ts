@@ -51,8 +51,10 @@ async function loadFile(file: File, id: number): Promise<Track | null> {
 
   let title = file.name.replace(/\.[^.]+$/, '');
   let artist = '本地文件', album = '本地音乐', genre = '本地音频', year = '—', cover = '/covers/local.svg';
+  let quality: Track['quality'];
   try {
-    const { common } = await parseBlob(file, { duration: false });
+    const { common, format } = await parseBlob(file, { duration: false });
+    quality = { sampleRate: format.sampleRate, bitDepth: format.bitsPerSample, bitrate: format.bitrate, lossless: format.lossless, codec: format.codec };
     title = common.title?.trim() || title;
     artist = common.artist?.trim() || common.albumartist?.trim() || artist;
     album = common.album?.trim() || album;
@@ -63,7 +65,7 @@ async function loadFile(file: File, id: number): Promise<Track | null> {
   } catch {
     // Files without readable tags still remain playable.
   }
-  return { id, title, english: 'LOCAL AUDIO', artist, album, duration, cover, genre, year, color: '#a5b5ff', source, fileName: file.name };
+  return { id, title, english: 'LOCAL AUDIO', artist, album, duration, cover, genre, year, color: '#a5b5ff', source, fileName: file.name, quality };
 }
 
 export function usePlayer() {
