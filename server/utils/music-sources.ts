@@ -119,7 +119,7 @@ async function search(source: Source, query: string): Promise<Song[]> {
 }
 
 function normalized(value: string) {
-  return toSimplified(value.normalize('NFKC')).toLowerCase().replace(/[\s\p{P}\p{S}]+/gu, '');
+  return toSimplified(value.normalize('NFKC')).toLowerCase().replace(/\s+(?:[ivxlcdm]+|\d+)$/i, '').replace(/[\s\p{P}\p{S}]+/gu, '');
 }
 
 function matches(song: Song, title: string, artist: string) {
