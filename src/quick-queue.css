@@ -26,6 +26,11 @@
 .immersive-art { width: min(34vw, 390px); }
 .immersive-lyrics { max-height: calc(100% - 10px); overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--accent) transparent; }
 .immersive-lyrics > div { max-height: 48vh; overflow-y: auto; scrollbar-width: none; }
+.lyrics-immersive-toggle { position: absolute; z-index: 3; top: 5px; right: 4px; width: 30px; height: 30px; border: 1px solid #3a3b3e; border-radius: 5px; background: rgba(28, 30, 33, .84); color: #b8b7bb; }
+.lyrics-immersive-toggle:hover, .lyrics-immersive-toggle:focus-visible { border-color: var(--accent); background: var(--tint); color: var(--accent); }
+.workspace:not(.settings-workspace) .lyrics-column .lyrics-window { scrollbar-width: none; -ms-overflow-style: none; }
+.workspace:not(.settings-workspace) .lyrics-column .lyrics-window::-webkit-scrollbar { display: none; width: 0; height: 0; }
+.lyrics-track { padding-top: 126px; }
 @keyframes queue-panel-enter { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
 @media (max-width: 760px) {
   .quick-queue-panel { right: 10px; bottom: 126px; width: min(390px, calc(100vw - 20px)); max-height: min(55vh, 440px); }
@@ -37,11 +42,5 @@
   .immersive-lyrics h1 { margin: 5px 0 8px; font-size: 21px; }
   .immersive-lyrics > div { max-height: 23vh; }
   .immersive-lyrics p { padding: 4px 0; font-size: 12px; }
+  .lyrics-track { padding-top: 124px; }
 }
-
-.lyrics-immersive-toggle { position: absolute; z-index: 3; top: 5px; right: 4px; width: 30px; height: 30px; border: 1px solid #3a3b3e; border-radius: 5px; background: rgba(28, 30, 33, .84); color: #b8b7bb; }
-.lyrics-immersive-toggle:hover, .lyrics-immersive-toggle:focus-visible { border-color: var(--accent); background: var(--tint); color: var(--accent); }
-.lyrics-window { scrollbar-width: none; }
-.lyrics-window::-webkit-scrollbar { display: none; }
-.lyrics-track { padding-top: 126px; }
-@media (max-width: 760px) { .lyrics-track { padding-top: 124px; } }
