@@ -9,7 +9,7 @@ export default defineHandler(async event => {
   }
   try {
     if (refresh === '1') return await enrich(title.trim(), artist.trim(), cover === '1', lyric === '1', true);
-    const key = `enrich:v5:${title.trim().normalize('NFKC').toLowerCase()}:${artist.trim().normalize('NFKC').toLowerCase()}:${cover}:${lyric}`;
+    const key = `enrich:v6:${title.trim().normalize('NFKC').toLowerCase()}:${artist.trim().normalize('NFKC').toLowerCase()}:${cover}:${lyric}`;
     return await cached(key, 30 * 60 * 1000, () => enrich(title.trim(), artist.trim(), cover === '1', lyric === '1'));
   } catch {
     throw createError({ statusCode: 502, statusMessage: '音乐资料暂时不可用' });

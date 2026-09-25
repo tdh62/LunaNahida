@@ -104,7 +104,7 @@ async function search(source: Source, query: string): Promise<Song[]> {
       id: String(item.id), title: item.name, artist: (item.artists ?? item.ar ?? []).map((a: any) => a.name).join(', '), artwork: item.album?.picUrl ?? item.al?.picUrl,
     }));
   }
-  const response = await post('qq', 'https://u.y.qq.com/cgi-bin/musicu.fcg', JSON.stringify({ req_1: { module: 'music.search.SearchCgiService', method: 'DoSearchForQQMusicDesktop', param: { num_per_page: 30, page_num: 1, query, search_type: 0 } } }), {
+  const response = await post('qq', 'https://u.y.qq.com/cgi-bin/musicu.fcg', JSON.stringify({ req_1: { module: 'music.search.SearchCgiService', method: 'DoSearchForQQMusicDesktop', param: { num_per_page: 10, page_num: 1, query, search_type: 0 } } }), {
     'User-Agent': ua, Referer: 'https://y.qq.com/', Cookie: 'uin=', 'Content-Type': 'application/json',
   });
   const payload = await response.json();
@@ -150,7 +150,7 @@ export async function enrich(title: string, artist: string, needCover: boolean, 
   for (const source of ['ncm', 'qq'] as const) {
     if ((!needCover || found.cover) && (!needLyrics || found.lyric)) break;
     try {
-      const lookup = (query: string) => force ? search(source, query) : cached(`search:v4:${source}:${normalized(query)}`, 60 * 60 * 1000, () => search(source, query));
+      const lookup = (query: string) => force ? search(source, query) : cached(`search:v5:${source}:${normalized(query)}`, 60 * 60 * 1000, () => search(source, query));
       let song: Song | undefined;
       let candidates: Song[] = [];
       let lookupError: unknown;
@@ -163,6 +163,7 @@ export async function enrich(title: string, artist: string, needCover: boolean, 
           lookupError = error;
           failed = true;
           console.warn(`音乐搜索失败 (${source}, ${query === toSimplified(title) ? '曲名' : '组合'}):`, error instanceof Error ? error.message : String(error));
+          if (source === 'qq' && error instanceof Error && error.message.includes('reqCode=2001')) break;
         }
       }
       if (!song && !candidates.length && lookupError) throw lookupError;
