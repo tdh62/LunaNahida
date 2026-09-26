@@ -43,6 +43,20 @@ export function usePlayer() {
     return () => { stop(); channel?.close(); if (activePlayback?.element === element) activePlayback = null; element.removeAttribute('src'); element.load(); audio.current = null; void graph.current?.context.close(); graph.current = null; };
   }, []);
 
+  useEffect(() => {
+    const updateEnrichedTrack = (event: Event) => {
+      const { id, value } = (event as CustomEvent<{ id: number; value: { cover?: string; lyric?: string; translation?: string } }>).detail;
+      updateQueue(queueRef.current.map(item => item.id === id ? {
+        ...item,
+        cover: value.cover || item.cover,
+        lyrics: value.lyric || item.lyrics,
+        translation: value.translation || item.translation,
+      } : item));
+    };
+    window.addEventListener('lumatune-music-refreshed', updateEnrichedTrack);
+    return () => window.removeEventListener('lumatune-music-refreshed', updateEnrichedTrack);
+  }, []);
+
   const ensureGraph = () => {
     if (!graph.current && audio.current) {
       const context = new AudioContext(), source = context.createMediaElementSource(audio.current);

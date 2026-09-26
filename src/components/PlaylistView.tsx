@@ -1,5 +1,5 @@
 import { ArrowLeft, ImagePlus, ListMusic, Play, Plus, Trash2, Upload, Disc3 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import LibraryView from '@/components/LibraryView';
@@ -10,6 +10,7 @@ import { backend } from '@/lib/backend';
 type Props = {
   playlists: Playlist[];
   playlist?: Playlist;
+  displayCover?: string;
   tracks: Track[];
   currentId: number | null;
   liked: number[];
@@ -28,7 +29,7 @@ type Props = {
 
 type CoverMode = 'upload' | 'first-track';
 
-export default function PlaylistView({ playlists, playlist, tracks, currentId, liked, onCreate, onDelete, onPlay, onToggleLike, onViewInfo, onRefreshInfo, onArtist, onAlbum, onAddToPlaylist, onRemoveFromPlaylist, onEditPlaylist }: Props) {
+export default function PlaylistView({ playlists, playlist, displayCover, tracks, currentId, liked, onCreate, onDelete, onPlay, onToggleLike, onViewInfo, onRefreshInfo, onArtist, onAlbum, onAddToPlaylist, onRemoveFromPlaylist, onEditPlaylist }: Props) {
   const navigate = useNavigate();
   const fileInput = useRef<HTMLInputElement>(null);
   const [editing, setEditing] = useState(false);
@@ -39,13 +40,14 @@ export default function PlaylistView({ playlists, playlist, tracks, currentId, l
   const playlistTracks = playlist?.trackIds.map(id => tracks.find(track => track.id === id)).filter((track): track is Track => Boolean(track)) ?? [];
   const firstTrackCover = playlistTracks[0]?.cover ?? '';
 
-  useEffect(() => {
-    if (!playlist || !editing) return;
+  const openEditor = () => {
+    if (!playlist) return;
     setName(playlist.name);
     setDescription(playlist.description);
     setUploadedCover(playlist.cover.startsWith('/api/media/cover/') ? playlist.cover : '');
-    setCoverMode(playlist.cover.startsWith('/api/media/cover/') ? 'upload' : 'first-track');
-  }, [playlist, editing]);
+    setCoverMode(playlist.coverMode);
+    setEditing(true);
+  };
 
   const chooseFile = async (file?: File) => {
     if (!file) return;
@@ -56,13 +58,8 @@ export default function PlaylistView({ playlists, playlist, tracks, currentId, l
   const savePlaylist = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!playlist || !name.trim()) return;
-    let cover = playlist.cover;
-    if (coverMode === 'upload') {
-      if (uploadedCover) cover = uploadedCover;
-    } else {
-      if (firstTrackCover) cover = firstTrackCover;
-    }
-    onEditPlaylist({ ...playlist, name: name.trim(), description: description.trim(), cover });
+    if (coverMode === 'upload' && !uploadedCover) { toast.error('请先选择本地图片'); return; }
+    onEditPlaylist({ ...playlist, name: name.trim(), description: description.trim(), coverMode, cover: coverMode === 'upload' ? uploadedCover : '' });
     setEditing(false);
     toast.success('歌单信息已更新');
   };
@@ -76,7 +73,7 @@ export default function PlaylistView({ playlists, playlist, tracks, currentId, l
   const coverPreview = coverMode === 'upload' ? uploadedCover : firstTrackCover;
   return <section className="playlist-detail">
     <button type="button" className="playlist-back" onClick={() => navigate('/playlists')}><ArrowLeft size={16} /> 返回歌单</button>
-    <header className="playlist-hero"><img src={playlist.cover} alt="" /><div><span className="eyebrow"><span /> PLAYLIST</span><h1>{playlist.name}</h1><p>{playlist.description}</p><small>{playlistTracks.length} 首歌曲</small><div className="playlist-hero-actions"><button type="button" className="playlist-primary" disabled={!playlistTracks.length} onClick={() => onPlay(playlistTracks[0].id)}><Play size={16} fill="currentColor" /> 播放</button><button type="button" className="playlist-edit" title="编辑歌单" aria-label="编辑歌单" onClick={() => setEditing(true)}><ImagePlus size={17} /></button><button type="button" className="playlist-delete" title="删除歌单" aria-label={`删除歌单 ${playlist.name}`} onClick={() => onDelete(playlist.id)}><Trash2 size={17} /></button></div></div></header>
+    <header className="playlist-hero"><img src={displayCover} alt="" /><div><span className="eyebrow"><span /> PLAYLIST</span><h1>{playlist.name}</h1><p>{playlist.description}</p><small>{playlistTracks.length} 首歌曲</small><div className="playlist-hero-actions"><button type="button" className="playlist-primary" disabled={!playlistTracks.length} onClick={() => onPlay(playlistTracks[0].id)}><Play size={16} fill="currentColor" /> 播放</button><button type="button" className="playlist-edit" title="编辑歌单" aria-label="编辑歌单" onClick={openEditor}><ImagePlus size={17} /></button><button type="button" className="playlist-delete" title="删除歌单" aria-label={`删除歌单 ${playlist.name}`} onClick={() => onDelete(playlist.id)}><Trash2 size={17} /></button></div></div></header>
     {playlistTracks.length === 0 ? <div className="playlist-empty"><ListMusic size={30} /><p>这个歌单还没有歌曲</p><button type="button" onClick={() => navigate('/music')}>前往音乐库添加歌曲</button></div> : <LibraryView key={playlist.id} title="歌曲列表" tracks={playlistTracks} currentId={currentId} liked={liked} onPlay={onPlay} onToggleLike={onToggleLike} onViewInfo={onViewInfo} onRefreshInfo={onRefreshInfo} onArtist={onArtist} onAlbum={onAlbum} playlists={playlists} onAddToPlaylist={onAddToPlaylist} onRemoveFromPlaylist={ids => onRemoveFromPlaylist(playlist.id, ids)} />}
     {editing && <div className="playlist-editor-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setEditing(false); }}><section className="playlist-editor" role="dialog" aria-modal="true" aria-labelledby="playlist-editor-title"><header><div><span className="eyebrow"><span /> PLAYLIST SETTINGS</span><h2 id="playlist-editor-title">编辑歌单</h2></div><button type="button" aria-label="关闭编辑" onClick={() => setEditing(false)}>×</button></header><form onSubmit={savePlaylist}>
       <label className="playlist-field">歌单名称<input required maxLength={40} value={name} onChange={event => setName(event.target.value)} placeholder="歌单名称" /></label>

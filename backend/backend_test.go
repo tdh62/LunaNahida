@@ -2,6 +2,7 @@ package backend
 
 import (
 	"context"
+	"database/sql"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -168,5 +169,78 @@ func TestDatabaseSurvivesRestart(t *testing.T) {
 	state, err = store.State()
 	if err != nil || state.Tracks[0].Available == true || len(state.Playlists[0].TrackIDs) != 1 {
 		t.Fatalf("unwatched missing file handling failed: %+v, %v", state, err)
+	}
+}
+
+func TestPlaylistCoverModeSurvivesRestart(t *testing.T) {
+	root := t.TempDir()
+	store, err := Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	playlists := []Playlist{
+		{ID: "automatic", Name: "Automatic", CoverMode: "first-track", Cover: "/api/media/cover/old.jpg"},
+		{ID: "custom", Name: "Custom", CoverMode: "upload", Cover: "/api/media/cover/custom.jpg"},
+	}
+	if err = store.SavePlaylists(playlists); err != nil {
+		t.Fatal(err)
+	}
+	if err = store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	store, err = Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	state, err := store.State()
+	if err != nil || len(state.Playlists) != 2 {
+		t.Fatalf("playlists after restart: %+v, %v", state.Playlists, err)
+	}
+	for index, expected := range playlists {
+		actual := state.Playlists[index]
+		if actual.CoverMode != expected.CoverMode || actual.Cover != expected.Cover {
+			t.Fatalf("playlist cover changed after restart: %+v", actual)
+		}
+	}
+	if err = store.SavePlaylists([]Playlist{{ID: "invalid", Name: "Invalid", CoverMode: "other"}}); err == nil {
+		t.Fatal("invalid cover mode accepted")
+	}
+	state, err = store.State()
+	if err != nil || len(state.Playlists) != 2 {
+		t.Fatalf("failed save changed playlists: %+v, %v", state.Playlists, err)
+	}
+}
+
+func TestPlaylistCoverModeMigration(t *testing.T) {
+	root := t.TempDir()
+	store, err := Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = store.SavePlaylists([]Playlist{{ID: "legacy", Name: "Legacy", Cover: "/api/media/cover/old.jpg"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err = store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	db, err := sql.Open("sqlite", filepath.Join(root, "data", "library.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = db.Exec(`ALTER TABLE playlists DROP COLUMN cover_mode; UPDATE schema_version SET version=2`); err != nil {
+		t.Fatal(err)
+	}
+	if err = db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	store, err = Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	state, err := store.State()
+	if err != nil || len(state.Playlists) != 1 || state.Playlists[0].CoverMode != "first-track" || state.Playlists[0].Cover != "/api/media/cover/old.jpg" {
+		t.Fatalf("legacy cover migration: %+v, %v", state.Playlists, err)
 	}
 }

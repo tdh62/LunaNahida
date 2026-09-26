@@ -7,7 +7,7 @@ import PlaylistView from '@/components/PlaylistView';
 import CatalogView from '@/components/CatalogView';
 import { useMusicEnrichment, refreshMusicInfo } from '@/hooks/use-music-enrichment';
 import { artistKey, buildCatalog, normalizeName, type ArtistMapping } from '@/lib/catalog';
-import { type Playlist } from '@/lib/playlists';
+import { playlistCover, type Playlist } from '@/lib/playlists';
 import { backend, type StoredSettings } from '@/lib/backend';
 import { Events } from '@wailsio/runtime';
 import { toast } from 'sonner';
@@ -109,15 +109,6 @@ export default function Index() {
   const [dropActive, setDropActive] = useState(false);
   const [pendingPaths, setPendingPaths] = useState<string[]>([]);
   useEffect(() => {
-    const updatePlaylistCover = (event: Event) => {
-      const { id, previousCover, cover } = (event as CustomEvent<{ id: number; previousCover: string; cover: string }>).detail;
-      setPlaylists(previous => previous.map(item => item.trackIds[0] === id && item.cover === previousCover ? { ...item, cover } : item));
-    };
-    window.addEventListener('lumatune-track-cover-updated', updatePlaylistCover);
-    return () => window.removeEventListener('lumatune-track-cover-updated', updatePlaylistCover);
-  }, []);
-
-  useEffect(() => {
     backend.state().then(state => {
       setLibraryTracks(state.tracks); setPlaylists(state.playlists); setLiked(state.liked); setFolders(state.folders);
       setTheme(state.settings.theme); setAppearance(state.settings.appearance); setVisual(state.settings.visual);
@@ -156,7 +147,7 @@ export default function Index() {
   const chooseFiles = () => { void backend.chooseFiles().then(result => handlePaths(result.paths)).catch(error => toast.error(error.message)); };
   const chooseFolder = () => { void backend.chooseFolder().then(result => handlePaths(result.paths.filter(Boolean))).catch(error => toast.error(error.message)); };
   useEffect(() => {
-    const offDrop = Events.On('luma:files-dropped', event => handlePaths(event.data as string[]));
+    const offDrop = Events.On('luma:files-dropped', event => { dragDepth.current = 0; setDropActive(false); handlePaths(event.data as string[]); });
     const offScan = Events.On('luma:scan-complete', () => void reloadLibrary());
     return () => { offDrop(); offScan(); };
   }, [storedSettings]);
@@ -277,10 +268,11 @@ export default function Index() {
   const openArtist = (name: string) => { setDetailTrack(null); navigate(`/artists/${encodeURIComponent(artistKey(name, mappings))}`); };
   const openAlbum = (track: Track) => { setDetailTrack(null); navigate(`/albums/${encodeURIComponent(artistKey(track.artist, mappings))}/${encodeURIComponent(normalizeName(track.album))}`); };
   const visibleTracks = view === '我喜欢的' ? allTracks.filter(t => liked.includes(t.id)) : view === '最近播放' ? p.recent.map(id => allTracks.find(t => t.id === id)).filter((t): t is Track => Boolean(t)) : allTracks;
+  const displayPlaylists = useMemo(() => playlists.map(item => ({ ...item, cover: playlistCover(item, allTracks) })), [playlists, allTracks]);
   const activePlaylist = playlists.find(item => item.id === playlistId);
-  const recentPlaylists = [...recentPlaylistIds.map(id => playlists.find(item => item.id === id)).filter((item): item is Playlist => Boolean(item)), ...playlists.filter(item => !recentPlaylistIds.includes(item.id))];
+  const recentPlaylists = [...recentPlaylistIds.map(id => displayPlaylists.find(item => item.id === id)).filter((item): item is Playlist => Boolean(item)), ...displayPlaylists.filter(item => !recentPlaylistIds.includes(item.id))];
   const sidebarPlaylists = recentPlaylists.slice(0, playlistNavExpanded ? 10 : 2);
-  const overviewPlaylists = [...playlists].sort((a, b) => a.id === (playlistId ?? recentPlaylistIds[0]) ? -1 : b.id === (playlistId ?? recentPlaylistIds[0]) ? 1 : 0);
+  const overviewPlaylists = [...displayPlaylists].sort((a, b) => a.id === (playlistId ?? recentPlaylistIds[0]) ? -1 : b.id === (playlistId ?? recentPlaylistIds[0]) ? 1 : 0);
   const openPlaylist = (id: string) => {
     setRecentPlaylistIds(previous => [id, ...previous.filter(item => item !== id)]);
     navigate(`/playlists/${id}`);
@@ -289,7 +281,7 @@ export default function Index() {
     const name = playlistName.trim();
     if (!name) return;
     const id = crypto.randomUUID();
-    setPlaylists(prev => [...prev, { id, name, description: '我的歌单', trackIds: [], cover: '/covers/local.svg' }]);
+    setPlaylists(prev => [...prev, { id, name, description: '我的歌单', trackIds: [], cover: '', coverMode: 'first-track' }]);
     setPlaylistName(''); setCreatePlaylistOpen(false);
     navigate(`/playlists/${id}`);
     toast.success('歌单已创建');
@@ -299,7 +291,7 @@ export default function Index() {
     if (!playlist) return;
     const additions = ids.filter(trackId => !playlist.trackIds.includes(trackId));
     if (!additions.length) { toast.info('歌曲已在歌单中'); return; }
-    setPlaylists(prev => prev.map(item => item.id === id ? { ...item, trackIds: [...item.trackIds, ...additions], cover: item.trackIds.length ? item.cover : allTracks.find(track => track.id === additions[0])?.cover ?? item.cover } : item));
+    setPlaylists(prev => prev.map(item => item.id === id ? { ...item, trackIds: [...item.trackIds, ...additions] } : item));
     toast.success(`已添加 ${additions.length} 首到「${playlist.name}」`);
   };
   const removeFromPlaylist = (id: string, ids: number[]) => {
@@ -313,7 +305,7 @@ export default function Index() {
     navigate('/playlists');
     toast.success('歌单已删除');
   };
-  return <div ref={appRef} className={`music-app theme-${theme} mode-${appearance} ${focus ? 'focus-mode' : ''} sidebar-${sidebarMode}`} onDragEnter={event => { if (event.dataTransfer.types.includes('Files')) { dragDepth.current++; setDropActive(true); } }} onDragLeave={event => { if (event.dataTransfer.types.includes('Files') && --dragDepth.current <= 0) { dragDepth.current = 0; setDropActive(false); } }} onDragOver={event => { if (event.dataTransfer.types.includes('Files')) event.preventDefault(); }} onDrop={event => { void dropFiles(event); }}>
+  return <div ref={appRef} data-file-drop-target className={`music-app theme-${theme} mode-${appearance} ${focus ? 'focus-mode' : ''} sidebar-${sidebarMode}`} onDragEnter={event => { if (event.dataTransfer.types.includes('Files')) { dragDepth.current++; setDropActive(true); } }} onDragLeave={event => { if (event.dataTransfer.types.includes('Files') && --dragDepth.current <= 0) { dragDepth.current = 0; setDropActive(false); } }} onDragOver={event => { if (event.dataTransfer.types.includes('Files')) event.preventDefault(); }} onDrop={event => { void dropFiles(event); }}>
     <aside className="sidebar flex flex-col">
       
       <div className="nav-label">音乐库</div><nav className="space-y-1">{[{ title: '正在播放', path: '/', icon: AudioLines }, { title: '我的音乐', path: '/music', icon: Disc3 }, { title: '歌手', path: '/artists', icon: Mic2 }, { title: '专辑', path: '/albums', icon: Disc3 }, { title: '我喜欢的', path: '/liked', icon: Heart }, { title: '最近播放', path: '/recent', icon: ListMusic }].map(({ title, path, icon: Icon }) => <button key={title} title={title} onClick={() => navigate(path)} className={`nav-item ${!isSettings && (pathname === path || (path === '/artists' && isArtists) || (path === '/albums' && isAlbums)) ? 'selected' : ''}`}><Icon size={18} />{title}{title === '正在播放' && p.playing && <span className="tiny-bars" aria-hidden="true"><i /><i /><i /></span>}{title === '我喜欢的' && <small>{liked.length}</small>}</button>)}</nav>
@@ -325,7 +317,7 @@ export default function Index() {
     </aside>
     {sidebarMode === 'hidden' && <button type="button" className="sidebar-restore" title="展开侧栏" aria-label="展开侧栏" onClick={() => setSidebarMode('expanded')}><PanelLeftOpen size={19} /></button>}
     <main className={`workspace min-w-0 ${isSettings ? 'settings-workspace' : ''} ${isArtists || isAlbums ? 'catalog-workspace' : ''} ${isPlaylists || pathname === '/music' || pathname === '/liked' || pathname === '/recent' ? 'scrolling-workspace' : ''}`}>
-      {isSettings ? <PlayerSettings theme={theme} setTheme={setTheme} appearance={appearance} setAppearance={setAppearance} visual={visual} setVisual={setVisual} lyricEffect={lyricEffect} setLyricEffect={setLyricEffect} lyricScroll={lyricScroll} setLyricScroll={setLyricScroll} showTranslation={showTranslation} setShowTranslation={setShowTranslation} sleep={sleep} setSleep={setSleep} effect={p.effect} setEffect={p.setEffect} equalizer={p.equalizer} setBand={p.setBand} resetEqualizer={p.resetEqualizer} mappings={mappings} setMappings={setMappings} lyricAppearance={lyricAppearance} setLyricAppearance={setLyricAppearance} artistNames={[...new Set(allTracks.map(track => track.artist))]} /> : isArtists || isAlbums ? <CatalogView onRefreshInfo={refreshInfo} kind={isArtists ? 'artists' : 'albums'} artists={catalog.artists} albums={catalog.albums} artist={selectedArtist} album={selectedAlbum} currentId={p.trackId} liked={liked} playlists={playlists} onPlay={id => { p.select(id); navigate('/'); }} onToggleLike={toggleTrackLike} onViewInfo={setDetailTrack} onAddToPlaylist={addToPlaylist} onArtist={openArtist} onAlbum={openAlbum} /> : isPlaylists ? <PlaylistView onRefreshInfo={refreshInfo} playlists={overviewPlaylists} playlist={activePlaylist} tracks={allTracks} currentId={p.trackId} liked={liked} onCreate={() => setCreatePlaylistOpen(true)} onDelete={setDeletePlaylistId} onPlay={id => { p.select(id); navigate('/'); }} onToggleLike={toggleTrackLike} onViewInfo={setDetailTrack} onArtist={openArtist} onAlbum={openAlbum} onAddToPlaylist={addToPlaylist} onRemoveFromPlaylist={removeFromPlaylist} onEditPlaylist={edited => setPlaylists(prev => prev.map(item => item.id === edited.id ? edited : item))} /> : view !== '正在播放' ? <LibraryView onRefreshInfo={refreshInfo} key={view} title={view} tracks={visibleTracks} currentId={p.trackId} liked={liked} onToggleLike={toggleTrackLike} onViewInfo={setDetailTrack} onArtist={openArtist} onAlbum={openAlbum} playlists={playlists} onAddToPlaylist={addToPlaylist} onPlay={id => { p.select(id); navigate('/'); }} /> : <>
+      {isSettings ? <PlayerSettings theme={theme} setTheme={setTheme} appearance={appearance} setAppearance={setAppearance} visual={visual} setVisual={setVisual} lyricEffect={lyricEffect} setLyricEffect={setLyricEffect} lyricScroll={lyricScroll} setLyricScroll={setLyricScroll} showTranslation={showTranslation} setShowTranslation={setShowTranslation} sleep={sleep} setSleep={setSleep} effect={p.effect} setEffect={p.setEffect} equalizer={p.equalizer} setBand={p.setBand} resetEqualizer={p.resetEqualizer} mappings={mappings} setMappings={setMappings} lyricAppearance={lyricAppearance} setLyricAppearance={setLyricAppearance} artistNames={[...new Set(allTracks.map(track => track.artist))]} /> : isArtists || isAlbums ? <CatalogView onRefreshInfo={refreshInfo} kind={isArtists ? 'artists' : 'albums'} artists={catalog.artists} albums={catalog.albums} artist={selectedArtist} album={selectedAlbum} currentId={p.trackId} liked={liked} playlists={displayPlaylists} onPlay={id => { p.select(id); navigate('/'); }} onToggleLike={toggleTrackLike} onViewInfo={setDetailTrack} onAddToPlaylist={addToPlaylist} onArtist={openArtist} onAlbum={openAlbum} /> : isPlaylists ? <PlaylistView onRefreshInfo={refreshInfo} playlists={overviewPlaylists} playlist={activePlaylist} displayCover={activePlaylist ? playlistCover(activePlaylist, allTracks) : undefined} tracks={allTracks} currentId={p.trackId} liked={liked} onCreate={() => setCreatePlaylistOpen(true)} onDelete={setDeletePlaylistId} onPlay={id => { p.select(id); navigate('/'); }} onToggleLike={toggleTrackLike} onViewInfo={setDetailTrack} onArtist={openArtist} onAlbum={openAlbum} onAddToPlaylist={addToPlaylist} onRemoveFromPlaylist={removeFromPlaylist} onEditPlaylist={edited => setPlaylists(prev => prev.map(item => item.id === edited.id ? edited : item))} /> : view !== '正在播放' ? <LibraryView onRefreshInfo={refreshInfo} key={view} title={view} tracks={visibleTracks} currentId={p.trackId} liked={liked} onToggleLike={toggleTrackLike} onViewInfo={setDetailTrack} onArtist={openArtist} onAlbum={openAlbum} playlists={displayPlaylists} onAddToPlaylist={addToPlaylist} onPlay={id => { p.select(id); navigate('/'); }} /> : <>
       <div className="main-columns"><section className="listening-stage">
         {p.hasTrack ? <div className={`listening-content ${!hasLyrics ? 'without-lyrics' : ''}`}><div className="album-column"><div className={`album-art ${visual === '唱片' ? 'vinyl' : ''}`}><img src={cover} alt={`${p.track.album}专辑封面`} /></div><div className="album-title flex items-center justify-between"><h2>{p.track.title}</h2>{!p.track.temporary && <IconButton label={favorite ? '取消喜欢' : '喜欢这首歌'} active={favorite} onClick={toggleLike}><Heart size={21} fill={favorite ? 'currentColor' : 'none'} /></IconButton>}</div><p className="artist-name"><button type="button" className="track-meta-link" onClick={() => openArtist(p.track.artist)}>{p.track.artist}</button><span> · </span><button type="button" className="track-meta-link" onClick={() => openAlbum(p.track)}>{p.track.album}</button></p><div className="track-tags"><span>{p.track.temporary ? '本次播放' : '本地文件'}</span>{p.track.genre && <span>{p.track.genre.split(' / ')[0]}</span>}</div><div className={`visualizer ${p.playing ? 'animated' : ''} ${visual === '呼吸' ? 'breathing' : ''}`} aria-label="音乐频谱">{visual === '频谱' ? <Spectrum analyser={p.analyser} active={p.playing} /> : Array.from({ length: 48 }, (_, i) => <i key={i} style={{ height: `${8 + Math.sin(i * .65) ** 2 * 23 + Math.sin(i * .2) ** 2 * 13}px`, animationDelay: `${i * -.13}s`, animationDuration: `${.65 + i % 5 * .2}s` }} />)}</div></div>
           {hasLyrics && (

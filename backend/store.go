@@ -39,6 +39,7 @@ type Playlist struct {
 	Name        string  `json:"name"`
 	Description string  `json:"description"`
 	Cover       string  `json:"cover"`
+	CoverMode   string  `json:"coverMode"`
 	TrackIDs    []int64 `json:"trackIds"`
 }
 
@@ -155,6 +156,23 @@ func (s *Store) migrate() error {
 		if _, err = tx.Exec(`UPDATE schema_version SET version=2`); err != nil {
 			return err
 		}
+		if err = tx.Commit(); err != nil {
+			return err
+		}
+		version = 2
+	}
+	if version < 3 {
+		tx, beginErr := s.DB.Begin()
+		if beginErr != nil {
+			return beginErr
+		}
+		defer tx.Rollback()
+		if _, err = tx.Exec(`ALTER TABLE playlists ADD COLUMN cover_mode TEXT NOT NULL DEFAULT 'first-track'`); err != nil {
+			return err
+		}
+		if _, err = tx.Exec(`UPDATE schema_version SET version=3`); err != nil {
+			return err
+		}
 		return tx.Commit()
 	}
 	return nil
@@ -223,13 +241,13 @@ func (s *Store) State() (State, error) {
 	if err != nil {
 		return state, err
 	}
-	rows, err = s.DB.Query(`SELECT id,name,description,cover FROM playlists ORDER BY rowid`)
+	rows, err = s.DB.Query(`SELECT id,name,description,cover,cover_mode FROM playlists ORDER BY rowid`)
 	if err != nil {
 		return state, err
 	}
 	for rows.Next() {
 		var p Playlist
-		if err = rows.Scan(&p.ID, &p.Name, &p.Description, &p.Cover); err != nil {
+		if err = rows.Scan(&p.ID, &p.Name, &p.Description, &p.Cover, &p.CoverMode); err != nil {
 			rows.Close()
 			return state, err
 		}
@@ -342,7 +360,13 @@ func (s *Store) SavePlaylists(playlists []Playlist) error {
 		if p.ID == "" || p.Name == "" {
 			return errors.New("invalid playlist")
 		}
-		if _, err = tx.Exec(`INSERT INTO playlists(id,name,description,cover) VALUES(?,?,?,?)`, p.ID, p.Name, p.Description, p.Cover); err != nil {
+		if p.CoverMode == "" {
+			p.CoverMode = "first-track"
+		}
+		if p.CoverMode != "first-track" && p.CoverMode != "upload" {
+			return errors.New("invalid playlist cover mode")
+		}
+		if _, err = tx.Exec(`INSERT INTO playlists(id,name,description,cover,cover_mode) VALUES(?,?,?,?,?)`, p.ID, p.Name, p.Description, p.Cover, p.CoverMode); err != nil {
 			return err
 		}
 		for pos, id := range p.TrackIDs {

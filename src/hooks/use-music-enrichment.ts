@@ -5,7 +5,6 @@ import { backend } from '@/lib/backend';
 export type TimedLine = { time: number; text: string; translation?: string };
 type Enrichment = { cover?: string; lyric?: string; translation?: string };
 const current = new Map<string, Enrichment>();
-const requested = new Set<string>();
 const keyOf = (track: Track) => `${track.title.trim().normalize('NFKC').toLowerCase()}\u0000${track.artist.trim().normalize('NFKC').toLowerCase()}`;
 
 export async function refreshMusicInfo(track: Track) {
@@ -17,7 +16,7 @@ export async function refreshMusicInfo(track: Track) {
   if (!value.cover && !value.lyric) throw new Error('未找到与曲名和歌手匹配的资料');
   if (track.id > 0) { await backend.enrichment(track.id, value.cover ?? '', value.lyric ?? '', value.translation ?? ''); window.dispatchEvent(new Event('luma-library-changed')); }
   const key = keyOf(track); current.set(key, value);
-  window.dispatchEvent(new CustomEvent('lumatune-music-refreshed', { detail: { key, value, title: track.title, artist: track.artist } }));
+  window.dispatchEvent(new CustomEvent('lumatune-music-refreshed', { detail: { id: track.id, key, value } }));
   return value;
 }
 
@@ -47,16 +46,15 @@ export function useMusicEnrichment(track: Track, playing: boolean) {
   const needCover = track.cover === '/covers/local.svg';
   const needLyrics = !track.lyrics;
   useEffect(() => {
-    if (!key || !playing || (!needCover && !needLyrics) || track.artist === '未知歌手' || requested.has(key)) return;
-    requested.add(key);
+    if (!key || !playing || (!needCover && !needLyrics) || track.artist === '未知歌手') return;
     const controller = new AbortController();
     const params = new URLSearchParams({ title: track.title, artist: track.artist, cover: needCover ? '1' : '0', lyric: needLyrics ? '1' : '0' });
     fetch(`/api/music/enrich?${params}`, { signal: controller.signal })
       .then(response => { if (!response.ok) throw new Error('补全失败'); return response.json() as Promise<Enrichment>; })
-      .then(async value => { if (!controller.signal.aborted) { if (track.id > 0 && (value.cover || value.lyric || value.translation)) { await backend.enrichment(track.id, value.cover ?? '', value.lyric ?? '', value.translation ?? ''); window.dispatchEvent(new Event('luma-library-changed')); } current.set(key, value); setResult({ key, value }); window.dispatchEvent(new CustomEvent('lumatune-music-refreshed', { detail: { key, value, title: track.title, artist: track.artist } })); } })
-      .catch(() => { requested.delete(key); });
+      .then(async value => { if (!controller.signal.aborted) { if (track.id > 0 && (value.cover || value.lyric || value.translation)) { await backend.enrichment(track.id, value.cover ?? '', value.lyric ?? '', value.translation ?? ''); window.dispatchEvent(new Event('luma-library-changed')); } current.set(key, value); setResult({ key, value }); window.dispatchEvent(new CustomEvent('lumatune-music-refreshed', { detail: { id: track.id, key, value } })); } })
+      .catch(() => {});
     return () => controller.abort();
-  }, [key, playing, needCover, needLyrics, track.title, track.artist]);
+  }, [key, playing, needCover, needLyrics, track.id, track.title, track.artist]);
   const value = result?.key === key ? result.value : current.get(key);
   const lines = parseLrc(track.lyrics || value?.lyric || '');
   const translations = parseLrc(track.translation || value?.translation || '');
