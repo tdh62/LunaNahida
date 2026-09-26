@@ -167,6 +167,52 @@ export async function getArtistDescription(name: string): Promise<ArtistDescript
   };
 }
 
+export type AlbumDescription = { id: string; name: string; picture?: string; description: string; artist: string; type: string; company: string; publishTime?: number; size: number };
+
+export async function getAlbumDescription(name: string, artistName: string): Promise<AlbumDescription | null> {
+  const targetName = normalized(name);
+  const targetArtist = normalized(artistName);
+  const lookup = async (query: string) => {
+    const result = await ncm('https://music.163.com/weapi/search/get', { s: query, type: 10, limit: 30, offset: 0 });
+    if (!Array.isArray(result.result?.albums)) {
+      if (result.result?.albumCount === 0) return [];
+      throw new Error('网易云专辑搜索缺少结果');
+    }
+    return result.result.albums as Array<{ id: number; name: string; artist?: { name: string; alias?: string[] }; artists?: { name: string; alias?: string[] }[]; alias?: string[] }>;
+  };
+  const candidates = await lookup(toSimplified(name));
+  const belongsToArtist = (item: (typeof candidates)[number]) =>
+    [item.artist, ...(item.artists ?? [])].some(person => person && [person.name, ...(person.alias ?? [])].some(value => normalized(value) === targetArtist));
+  let matches = candidates.filter(belongsToArtist);
+  let exact = matches.find(item => [item.name, ...(item.alias ?? [])].some(value => normalized(value) === targetName));
+  if (!exact) {
+    const combined = await lookup(`${toSimplified(name)} ${toSimplified(artistName)}`);
+    matches = [...matches, ...combined.filter(item => !matches.some(existing => existing.id === item.id) && belongsToArtist(item))];
+    exact = matches.find(item => [item.name, ...(item.alias ?? [])].some(value => normalized(value) === targetName));
+  }
+  const close = matches.filter(item => {
+    const candidate = normalized(item.name);
+    return targetName.length >= 4 && candidate.length >= 4 &&
+      (candidate.includes(targetName) || targetName.includes(candidate)) &&
+      Math.min(candidate.length, targetName.length) / Math.max(candidate.length, targetName.length) >= 0.8;
+  });
+  const album = exact ?? (close.length === 1 ? close[0] : undefined);
+  if (!album || !Number.isSafeInteger(album.id) || album.id <= 0) return null;
+  const result = await ncm(`https://music.163.com/weapi/v1/album/${album.id}`, {});
+  const detail = result.album;
+  if (!detail || String(detail.id) !== String(album.id) || normalized(String(detail.name ?? '')) !== normalized(album.name)) throw new Error('网易云专辑详情无效');
+  const picture = detail.picUrl;
+  return {
+    id: String(detail.id), name: String(detail.name ?? album.name),
+    picture: typeof picture === 'string' && /^https?:\/\/p\d+\.music\.126\.net\//.test(picture) ? picture.replace(/^http:\/\//, 'https://') : undefined,
+    description: String(detail.description ?? detail.briefDesc ?? ''),
+    artist: String(detail.artist?.name ?? album.artist?.name ?? artistName),
+    type: String(detail.type ?? ''), company: String(detail.company ?? ''),
+    publishTime: typeof detail.publishTime === 'number' && detail.publishTime > 0 ? detail.publishTime : undefined,
+    size: Array.isArray(result.songs) ? result.songs.length : Number(detail.size) || 0,
+  };
+}
+
 export async function enrich(title: string, artist: string, needCover: boolean, needLyrics: boolean, force = false): Promise<Enrichment> {
   const found: Enrichment = {};
   let failed = false;

@@ -1,5 +1,5 @@
 import { ArrowDownAZ, ArrowLeft, Disc3, ListMusic, Mic2, Play, RefreshCw, Search, Users } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import LibraryView from '@/components/LibraryView';
 import type { AlbumEntry, ArtistEntry } from '@/lib/catalog';
@@ -7,7 +7,9 @@ import type { Track } from '@/lib/music';
 import type { Playlist } from '@/lib/playlists';
 
 type ArtistDescription = { id: string; name: string; picture?: string; briefDesc: string; introduction: { ti: string; txt: string }[] };
+type AlbumDescription = { id: string; name: string; picture?: string; description: string; artist: string; type: string; company: string; publishTime?: number; size: number };
 const artistDescriptionStorageKey = 'lumatune-artist-descriptions-v1';
+const albumDescriptionStorageKey = 'lumatune-album-descriptions-v1';
 
 function readArtistDescriptionCache(name: string) {
   try {
@@ -32,6 +34,33 @@ async function fetchArtistDescription(name: string, refresh = false, signal?: Ab
   if (response.status === 404) throw new Error('暂未收录歌手介绍');
   if (!response.ok) throw new Error('歌手介绍暂时不可用');
   return response.json() as Promise<ArtistDescription>;
+}
+
+function albumCacheKey(album: AlbumEntry) {
+  return `${album.artistKey}\u0000${album.key}`;
+}
+
+function readAlbumDescriptionCache(key: string): AlbumDescription | undefined {
+  try {
+    return JSON.parse(localStorage.getItem(albumDescriptionStorageKey) ?? '{}')[key] as AlbumDescription | undefined;
+  } catch { return undefined; }
+}
+
+function saveAlbumDescriptionCache(key: string, data: AlbumDescription) {
+  try {
+    const cache = JSON.parse(localStorage.getItem(albumDescriptionStorageKey) ?? '{}');
+    const entries = Object.entries(cache).filter(([existing]) => existing !== key).slice(-19);
+    localStorage.setItem(albumDescriptionStorageKey, JSON.stringify(Object.fromEntries([...entries, [key, data]])));
+  } catch { /* Storage may be unavailable. */ }
+}
+
+async function fetchAlbumDescription(album: AlbumEntry, refresh = false, signal?: AbortSignal) {
+  const params = new URLSearchParams({ name: album.name, artist: album.artistName });
+  if (refresh) params.set('refresh', '1');
+  const response = await fetch(`/api/music/album?${params}`, { signal });
+  if (response.status === 404) throw new Error('暂未找到匹配的专辑资料');
+  if (!response.ok) throw new Error('专辑资料暂时不可用');
+  return response.json() as Promise<AlbumDescription>;
 }
 
 type Props = {
@@ -68,6 +97,32 @@ export default function CatalogView({ kind, artists, albums, artist, album, curr
   const [artistDescription, setArtistDescription] = useState<{ name: string; data: ArtistDescription } | null>(null);
   const [artistDescriptionError, setArtistDescriptionError] = useState('');
   const [artistDescriptionLoading, setArtistDescriptionLoading] = useState(false);
+  const [albumDescription, setAlbumDescription] = useState<{ key: string; data: AlbumDescription } | null>(null);
+  const [albumDescriptionError, setAlbumDescriptionError] = useState('');
+  const [albumDescriptionLoading, setAlbumDescriptionLoading] = useState(false);
+  const albumRequest = useRef<AbortController | null>(null);
+  const selectedAlbumKey = album && kind === 'albums' ? albumCacheKey(album) : '';
+  const selectedAlbumKeyRef = useRef(selectedAlbumKey);
+  selectedAlbumKeyRef.current = selectedAlbumKey;
+  useEffect(() => {
+    if (!album || kind !== 'albums') return;
+    const key = albumCacheKey(album);
+    const cached = readAlbumDescriptionCache(key);
+    setAlbumDescriptionError('');
+    if (cached) {
+      setAlbumDescription({ key, data: cached });
+      setAlbumDescriptionLoading(false);
+      return () => albumRequest.current?.abort();
+    }
+    const controller = new AbortController();
+    albumRequest.current = controller;
+    setAlbumDescriptionLoading(true);
+    fetchAlbumDescription(album, false, controller.signal)
+      .then(data => { if (!controller.signal.aborted) { saveAlbumDescriptionCache(key, data); setAlbumDescription({ key, data }); } })
+      .catch(error => { if (!controller.signal.aborted) setAlbumDescriptionError(error instanceof Error ? error.message : '专辑资料暂时不可用'); })
+      .finally(() => { if (!controller.signal.aborted) setAlbumDescriptionLoading(false); });
+    return () => { controller.abort(); albumRequest.current?.abort(); };
+  }, [selectedAlbumKey, album?.name, album?.artistName, kind]);
   useEffect(() => {
     if (!artist || kind !== 'artists') return;
     const controller = new AbortController();
@@ -121,18 +176,47 @@ export default function CatalogView({ kind, artists, albums, artist, album, curr
       setArtistDescriptionLoading(false);
     }
   };
+  const refreshAlbumDescription = async () => {
+    if (!album) return;
+    albumRequest.current?.abort();
+    const controller = new AbortController();
+    albumRequest.current = controller;
+    const key = albumCacheKey(album);
+    setAlbumDescriptionLoading(true);
+    setAlbumDescriptionError('');
+    try {
+      const data = await fetchAlbumDescription(album, true, controller.signal);
+      if (controller.signal.aborted || selectedAlbumKeyRef.current !== key) return;
+      saveAlbumDescriptionCache(key, data);
+      setAlbumDescription({ key, data });
+    } catch (error) {
+      if (!controller.signal.aborted && selectedAlbumKeyRef.current === key) setAlbumDescriptionError(error instanceof Error ? error.message : '专辑资料暂时不可用');
+    } finally {
+      if (!controller.signal.aborted && selectedAlbumKeyRef.current === key) setAlbumDescriptionLoading(false);
+    }
+  };
+  const currentAlbumDescription = albumDescription?.key === selectedAlbumKey ? albumDescription.data : undefined;
   const artistCover = artist
     ? (artistDescription?.name === artist.name ? artistDescription.data.picture : undefined) ?? artist.tracks.find(track => track.cover !== '/covers/local.svg')?.cover ?? artist.cover
     : detail?.cover ?? '/covers/local.svg';
   return <section className="catalog-page">
     {detail ? <>
       <Link className="playlist-back" to={kind === 'artists' ? '/artists' : '/albums'}><ArrowLeft size={16} /> 返回{label}</Link>
-      <header className="catalog-hero"><img src={kind === 'artists' ? artistCover : detail.cover} alt="" /><div><span className="eyebrow"><span /> {kind === 'artists' ? 'ARTIST' : 'ALBUM'}</span><h1>{detail.name}</h1>
+      <header className="catalog-hero"><img src={kind === 'artists' ? artistCover : currentAlbumDescription?.picture ?? detail.cover} alt="" /><div><span className="eyebrow"><span /> {kind === 'artists' ? 'ARTIST' : 'ALBUM'}</span><h1>{detail.name}</h1>
         {album && kind === 'albums' && <button className="catalog-text-link" onClick={() => onArtist(album.artistName)}>{album.artistName}</button>}
         {artist && kind === 'artists' && artist.aliases.length > 1 && <p>收录名称：{artist.aliases.join(' / ')}</p>}
         <p>{detail.tracks.length} 首歌曲{album && kind === 'albums' ? ` · ${yearValue(album.year) === null ? '未知年份' : album.year}` : ''}</p>
         <button type="button" className="playlist-primary" onClick={() => onPlay(detail.tracks[0].id)}><Play size={16} fill="currentColor" /> 播放</button>
       </div></header>
+      {album && kind === 'albums' && <section className="artist-description" aria-label="专辑信息">
+        <div className="artist-description-heading"><h2>专辑信息</h2><button type="button" className="artist-description-refresh" onClick={() => void refreshAlbumDescription()} disabled={albumDescriptionLoading}><RefreshCw size={14} className={albumDescriptionLoading ? 'animate-spin' : ''} />刷新资料</button></div>
+        {albumDescriptionLoading && <p className="artist-description-status">正在加载专辑信息…</p>}
+        {albumDescriptionError && !albumDescriptionLoading && <p className="artist-description-status">{albumDescriptionError}</p>}
+        {currentAlbumDescription && <>
+          <p className="album-description-meta">{[currentAlbumDescription.type, currentAlbumDescription.publishTime ? new Date(currentAlbumDescription.publishTime).toLocaleDateString('zh-CN') : '', currentAlbumDescription.company, currentAlbumDescription.size ? `全 ${currentAlbumDescription.size} 首` : ''].filter(Boolean).join(' · ')}</p>
+          {currentAlbumDescription.description && <p className="artist-description-brief">{currentAlbumDescription.description}</p>}
+        </>}
+      </section>}
       {artist && kind === 'artists' && <section className="artist-description" aria-label="歌手介绍">
         <div className="artist-description-heading"><h2>歌手介绍</h2><button type="button" className="artist-description-refresh" onClick={() => void refreshArtistDescription()} disabled={artistDescriptionLoading}><RefreshCw size={14} className={artistDescriptionLoading ? 'animate-spin' : ''} />刷新资料</button></div>
         {artistDescriptionLoading && <p className="artist-description-status">正在加载歌手介绍…</p>}
