@@ -11,6 +11,9 @@ node_modules
 dist
 dist-ssr
 *.local
+.corepack/
+.output/
+/bin/
 
 # Editor directories and files
 .vscode/*
