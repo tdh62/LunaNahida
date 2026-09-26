@@ -5,11 +5,12 @@ import { backend } from '@/lib/backend';
 export type TimedLine = { time: number; text: string; translation?: string };
 type Enrichment = { cover?: string; lyric?: string; translation?: string };
 const current = new Map<string, Enrichment>();
-const keyOf = (track: Track) => `${track.title.trim().normalize('NFKC').toLowerCase()}\u0000${track.artist.trim().normalize('NFKC').toLowerCase()}`;
+const keyOf = (track: Track) => `${track.title.trim().normalize('NFKC').toLowerCase()}\u0000${track.artist.trim().normalize('NFKC').toLowerCase()}\u0000${track.album.trim().normalize('NFKC').toLowerCase()}`;
+const albumOf = (track: Track) => track.album.trim() === '未知专辑' ? '' : track.album.trim();
 
 export async function refreshMusicInfo(track: Track) {
   if (!track.source || !track.title.trim() || !track.artist.trim()) throw new Error('歌曲缺少可匹配的曲名或歌手');
-  const params = new URLSearchParams({ title: track.title, artist: track.artist, cover: '1', lyric: '1', refresh: '1' });
+  const params = new URLSearchParams({ title: track.title, artist: track.artist, album: albumOf(track), cover: '1', lyric: '1', refresh: '1' });
   const response = await fetch(`/api/music/enrich?${params}`);
   if (!response.ok) throw new Error('音乐源暂时不可用，请稍后重试');
   const value = await response.json() as Enrichment;
@@ -48,13 +49,13 @@ export function useMusicEnrichment(track: Track, playing: boolean) {
   useEffect(() => {
     if (!key || !playing || (!needCover && !needLyrics) || track.artist === '未知歌手') return;
     const controller = new AbortController();
-    const params = new URLSearchParams({ title: track.title, artist: track.artist, cover: needCover ? '1' : '0', lyric: needLyrics ? '1' : '0' });
+    const params = new URLSearchParams({ title: track.title, artist: track.artist, album: albumOf(track), cover: needCover ? '1' : '0', lyric: needLyrics ? '1' : '0' });
     fetch(`/api/music/enrich?${params}`, { signal: controller.signal })
       .then(response => { if (!response.ok) throw new Error('补全失败'); return response.json() as Promise<Enrichment>; })
       .then(async value => { if (!controller.signal.aborted) { if (track.id > 0 && (value.cover || value.lyric || value.translation)) { await backend.enrichment(track.id, value.cover ?? '', value.lyric ?? '', value.translation ?? ''); window.dispatchEvent(new Event('luma-library-changed')); } current.set(key, value); setResult({ key, value }); window.dispatchEvent(new CustomEvent('lumatune-music-refreshed', { detail: { id: track.id, key, value } })); } })
       .catch(() => {});
     return () => controller.abort();
-  }, [key, playing, needCover, needLyrics, track.id, track.title, track.artist]);
+  }, [key, playing, needCover, needLyrics, track.id, track.title, track.artist, track.album]);
   const value = result?.key === key ? result.value : current.get(key);
   const lines = parseLrc(track.lyrics || value?.lyric || '');
   const translations = parseLrc(track.translation || value?.translation || '');

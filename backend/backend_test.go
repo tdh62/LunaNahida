@@ -3,12 +3,15 @@ package backend
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestLiveMusicSources(t *testing.T) {
@@ -16,9 +19,85 @@ func TestLiveMusicSources(t *testing.T) {
 		t.Skip("set LUMA_TUNE_LIVE_TEST=1 for upstream diagnostics")
 	}
 	music := NewMusic(testStore(t))
-	result, err := music.enrich(context.Background(), "奇妙能力歌", "陈粒", true, true, true)
+	result, err := music.enrich(context.Background(), "奇妙能力歌", "陈粒", "", true, true, true)
 	if err != nil || result.Cover == "" || result.Lyric == "" {
 		t.Fatalf("live enrichment incomplete: cover=%t lyric=%t error=%v", result.Cover != "", result.Lyric != "", err)
+	}
+}
+
+func TestAlbumArtworkFallback(t *testing.T) {
+	music := NewMusic(testStore(t))
+	title, artist := "Same Song", "Singer"
+	seed := func(key string, value any) {
+		t.Helper()
+		if _, err := music.cached(key, time.Hour, false, func() (any, error) { return value, nil }); err != nil {
+			t.Fatal(err)
+		}
+	}
+	seed("search:v6:ncm:"+music.normalized(title), []song{{ID: "1", Title: title, Artist: artist, Artwork: "invalid"}})
+	for _, query := range []string{title, title + " " + artist} {
+		seed("search:v6:qq:"+music.normalized(query), []song{})
+	}
+	for _, album := range []string{"First Album", "Second Album"} {
+		seed("album-description:v2:"+music.normalized(album)+":"+music.normalized(artist), map[string]any{"picture": "/api/media/cover/" + url.PathEscape(album) + ".jpg"})
+		query := url.Values{"title": {title}, "artist": {artist}, "album": {album}, "cover": {"1"}, "lyric": {"0"}}
+		response := httptest.NewRecorder()
+		music.Enrich(response, httptest.NewRequest(http.MethodGet, "/api/music/enrich?"+query.Encode(), nil))
+		want := "/api/media/cover/" + url.PathEscape(album) + ".jpg"
+		if response.Code != 200 || !strings.Contains(response.Body.String(), want) {
+			t.Fatalf("album %q fallback: %d %s", album, response.Code, response.Body.String())
+		}
+	}
+	result, err := music.enrich(context.Background(), title, artist, "", true, false, false)
+	if err != nil || result.Cover != "" {
+		t.Fatalf("unknown album gained artwork: %+v, %v", result, err)
+	}
+}
+
+func TestAlbumArtworkDoesNotReplaceSongArtwork(t *testing.T) {
+	store := testStore(t)
+	path := filepath.Join(t.TempDir(), "song.wav")
+	if err := os.WriteFile(path, []byte("RIFFsample audio"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	tracks, err := store.Import([]string{path}, "library")
+	if err != nil {
+		t.Fatal(err)
+	}
+	songCover, err := store.SaveCover(strings.NewReader("song image"), ".jpg")
+	if err != nil {
+		t.Fatal(err)
+	}
+	albumCover, err := store.SaveCover(strings.NewReader("album image"), ".jpg")
+	if err != nil {
+		t.Fatal(err)
+	}
+	api := NewAPI(store, Dialogs{}).Handler()
+	update := func(cover string, fallback bool) {
+		t.Helper()
+		path := fmt.Sprintf("/api/tracks/%d/enrichment", tracks[0].ID)
+		if fallback {
+			path += "?fallback=1"
+		}
+		response := httptest.NewRecorder()
+		api.ServeHTTP(response, httptest.NewRequest(http.MethodPut, path, strings.NewReader(fmt.Sprintf(`{"cover":%q}`, cover))))
+		if response.Code != 200 {
+			t.Fatalf("cover update returned %d: %s", response.Code, response.Body.String())
+		}
+	}
+	update(songCover, false)
+	update(albumCover, true)
+	track, err := store.GetTrack(tracks[0].ID)
+	if err != nil || track.Cover != songCover {
+		t.Fatalf("album artwork replaced song artwork: %+v, %v", track, err)
+	}
+	if _, err = store.DB.Exec(`UPDATE tracks SET cover='/covers/local.svg' WHERE id=?`, tracks[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	update(albumCover, true)
+	track, err = store.GetTrack(tracks[0].ID)
+	if err != nil || track.Cover != albumCover {
+		t.Fatalf("album artwork did not replace placeholder: %+v, %v", track, err)
 	}
 }
 

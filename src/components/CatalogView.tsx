@@ -2,6 +2,7 @@ import { ArrowDownAZ, ArrowLeft, Disc3, Info, ListMusic, Mic2, Play, RefreshCw, 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import LibraryView from '@/components/LibraryView';
+import { backend } from '@/lib/backend';
 import type { AlbumEntry, ArtistEntry } from '@/lib/catalog';
 import { formatTime, type Track } from '@/lib/music';
 import type { Playlist } from '@/lib/playlists';
@@ -189,6 +190,19 @@ export default function CatalogView({ kind, artists, albums, artist, album, curr
     }
   };
   const currentAlbumDescription = albumDescription?.key === selectedAlbumKey ? albumDescription.data : undefined;
+  const albumPicture = currentAlbumDescription?.picture;
+  useEffect(() => {
+    if (!album || !albumPicture?.startsWith('/api/media/cover/')) return;
+    const missing = album.tracks.filter(track => track.id > 0 && track.cover === '/covers/local.svg');
+    if (!missing.length) return;
+    let active = true;
+    void Promise.allSettled(missing.map(track => backend.enrichment(track.id, albumPicture, '', '', true)))
+      .then(results => {
+        if (active && results.some(result => result.status === 'fulfilled')) window.dispatchEvent(new Event('luma-library-changed'));
+      });
+    return () => { active = false; };
+  }, [album, albumPicture]);
+  const albumTracks = album?.tracks.map(track => albumPicture && track.cover === '/covers/local.svg' ? { ...track, cover: albumPicture } : track);
   const currentArtistDescription = artist && artistDescription?.name === artist.name ? artistDescription.data : undefined;
   const hasLongArtistDescription = !!currentArtistDescription && Array.from([
     currentArtistDescription.briefDesc,
@@ -229,7 +243,7 @@ export default function CatalogView({ kind, artists, albums, artist, album, curr
           <button type="button" role="tab" aria-selected={albumTab === 'songs'} className={albumTab === 'songs' ? 'active' : ''} onClick={() => setAlbumTab('songs')}><ListMusic size={15} />歌曲<span>{album.tracks.length}</span></button>
           <button type="button" role="tab" aria-selected={albumTab === 'info'} className={albumTab === 'info' ? 'active' : ''} onClick={() => setAlbumTab('info')}><Info size={15} />专辑信息</button>
         </div>
-        {albumTab === 'songs' ? <div className="catalog-songs"><LibraryView key={`${album.artistKey}-${album.key}`} title="歌曲" tracks={album.tracks} currentId={currentId} liked={liked} playlists={playlists} onPlay={onPlay} onToggleLike={onToggleLike} onViewInfo={onViewInfo} onRefreshInfo={onRefreshInfo} onAddToPlaylist={onAddToPlaylist} onArtist={onArtist} onAlbum={onAlbum} /></div> : <section className="album-info" aria-label="专辑信息">
+        {albumTab === 'songs' ? <div className="catalog-songs"><LibraryView key={`${album.artistKey}-${album.key}`} title="歌曲" tracks={albumTracks ?? album.tracks} currentId={currentId} liked={liked} playlists={playlists} onPlay={onPlay} onToggleLike={onToggleLike} onViewInfo={onViewInfo} onRefreshInfo={onRefreshInfo} onAddToPlaylist={onAddToPlaylist} onArtist={onArtist} onAlbum={onAlbum} /></div> : <section className="album-info" aria-label="专辑信息">
           <div className="artist-description-heading"><h2>专辑信息</h2><button type="button" className="artist-description-refresh" onClick={() => void refreshAlbumDescription()} disabled={albumDescriptionLoading}><RefreshCw size={14} className={albumDescriptionLoading ? 'animate-spin' : ''} />刷新资料</button></div>
           {albumDescriptionLoading && <p className="artist-description-status">正在加载专辑信息…</p>}
           {albumDescriptionError && !albumDescriptionLoading && <p className="artist-description-status">{albumDescriptionError}</p>}

@@ -403,7 +403,7 @@ func (m *Music) localArtwork(ctx context.Context, source string) string {
 	return saved
 }
 
-func (m *Music) enrich(ctx context.Context, title, artist string, cover, lyric, force bool) (enrichment, error) {
+func (m *Music) enrich(ctx context.Context, title, artist, album string, cover, lyric, force bool) (enrichment, error) {
 	result := enrichment{}
 	failed := false
 	matched := false
@@ -465,6 +465,14 @@ func (m *Music) enrich(ctx context.Context, title, artist string, cover, lyric, 
 			}
 		}
 	}
+	if cover && result.Cover == "" && album != "" && m.normalized(album) != m.normalized("未知专辑") {
+		value, err := m.albumDetails(ctx, album, artist, force)
+		if err != nil {
+			log.Printf("music album cover: %v", err)
+		} else {
+			result.Cover = str(obj(value)["picture"])
+		}
+	}
 	if failed && result.Cover == "" && result.Lyric == "" {
 		return result, errors.New("music source unavailable")
 	}
@@ -489,13 +497,18 @@ func (m *Music) Enrich(w http.ResponseWriter, r *http.Request) {
 		fail(w, 400, errors.New("无效的曲目信息"))
 		return
 	}
+	if len(q.Get("album")) > 120 {
+		fail(w, 400, errors.New("无效的专辑信息"))
+		return
+	}
 	title := strings.TrimSpace(q.Get("title"))
 	artist := strings.TrimSpace(q.Get("artist"))
+	album := strings.TrimSpace(q.Get("album"))
 	cover := q.Get("cover") == "1"
 	lyric := q.Get("lyric") == "1"
 	force := q.Get("refresh") == "1"
-	key := fmt.Sprintf("enrich:v7:%s:%s:%t:%t", m.normalized(title), m.normalized(artist), cover, lyric)
-	value, err := m.cached(key, 30*time.Minute, force, func() (any, error) { return m.enrich(r.Context(), title, artist, cover, lyric, force) })
+	key := fmt.Sprintf("enrich:v8:%s:%s:%s:%t:%t", m.normalized(title), m.normalized(artist), m.normalized(album), cover, lyric)
+	value, err := m.cached(key, 30*time.Minute, force, func() (any, error) { return m.enrich(r.Context(), title, artist, album, cover, lyric, force) })
 	if err != nil {
 		fail(w, 502, errors.New("音乐资料暂时不可用"))
 		return
@@ -565,7 +578,7 @@ func (m *Music) Album(w http.ResponseWriter, r *http.Request) {
 	}
 	name := strings.TrimSpace(r.URL.Query().Get("name"))
 	artist := strings.TrimSpace(r.URL.Query().Get("artist"))
-	value, err := m.cached("album-description:v2:"+m.normalized(name)+":"+m.normalized(artist), 10*365*24*time.Hour, r.URL.Query().Get("refresh") == "1", func() (any, error) { return m.album(r.Context(), name, artist) })
+	value, err := m.albumDetails(r.Context(), name, artist, r.URL.Query().Get("refresh") == "1")
 	if err != nil {
 		fail(w, 502, errors.New("专辑资料暂时不可用"))
 		return
@@ -575,6 +588,9 @@ func (m *Music) Album(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond(w, 200, value)
+}
+func (m *Music) albumDetails(ctx context.Context, name, artist string, refresh bool) (any, error) {
+	return m.cached("album-description:v2:"+m.normalized(name)+":"+m.normalized(artist), 10*365*24*time.Hour, refresh, func() (any, error) { return m.album(ctx, name, artist) })
 }
 func (m *Music) album(ctx context.Context, name, artist string) (any, error) {
 	search := func(query string) ([]any, error) {

@@ -40,7 +40,7 @@ export const backend = {
   queue: (value: number[]) => request<{ ok: boolean }>('/api/queue', 'PUT', value),
   history: (id: number) => request<{ ok: boolean }>('/api/history', 'POST', { id }),
   duration: (id: number, duration: number) => request<{ ok: boolean }>(`/api/tracks/${id}/duration`, 'PUT', { duration }),
-  enrichment: (id: number, cover: string, lyric: string, translation: string) => request<{ ok: boolean }>(`/api/tracks/${id}/enrichment`, 'PUT', { cover, lyric, translation }),
+  enrichment: (id: number, cover: string, lyric: string, translation: string, fallbackOnly = false) => request<{ ok: boolean }>(`/api/tracks/${id}/enrichment${fallbackOnly ? '?fallback=1' : ''}`, 'PUT', { cover, lyric, translation }),
   import: (paths: string[], mode: 'temporary' | 'library' | 'watch') => request<Track[]>('/api/import', 'POST', { paths, mode }),
   scan: () => request<ScanResult>('/api/scan', 'POST'),
   addFolder: (path: string) => request<{ ok: boolean }>('/api/folders', 'POST', { path }),
