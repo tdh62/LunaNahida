@@ -81,6 +81,7 @@ type Store struct {
 	DB            *sql.DB
 	Root          string
 	mu            sync.Mutex
+	coverMu       sync.Mutex
 	temporary     map[int64]Track
 	nextTemporary int64
 	scanning      bool
@@ -372,6 +373,8 @@ func (s *Store) RecordPlay(id int64) error {
 }
 
 func (s *Store) SavePlaylists(playlists []Playlist) error {
+	s.coverMu.Lock()
+	defer s.coverMu.Unlock()
 	tx, err := s.DB.Begin()
 	if err != nil {
 		return err

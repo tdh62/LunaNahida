@@ -3,8 +3,10 @@ package backend
 import (
 	"bytes"
 	"context"
+	"crypto/md5"
 	"database/sql"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -204,6 +206,150 @@ func TestExistingLibraryRechecksEmbeddedMetadata(t *testing.T) {
 	state, err := store.State()
 	if err != nil || len(state.Tracks) != 1 || state.Tracks[0].ID != tracks[0].ID || !state.Tracks[0].EmbeddedCover || !state.Tracks[0].EmbeddedLyrics || state.Tracks[0].Lyrics != "[00:01.00]Embedded lyric" || state.Tracks[0].Translation != "" {
 		t.Fatalf("legacy embedded metadata not restored: %+v, %v", state.Tracks, err)
+	}
+}
+
+func TestCoverMD5Deduplication(t *testing.T) {
+	store := testStore(t)
+	content := []byte("same image bytes")
+	first, err := store.SaveCover(bytes.NewReader(content), ".jpg")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum := md5.Sum(content)
+	if first != fmt.Sprintf("/api/media/cover/%x.jpg", sum) {
+		t.Fatalf("unexpected cover name: %s", first)
+	}
+	path, err := store.CoverPath(coverName(first))
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := store.SaveCover(bytes.NewReader(content), ".png")
+	if err != nil || second != first {
+		t.Fatalf("duplicate image was saved again: %s, %v", second, err)
+	}
+	after, err := os.Stat(path)
+	if err != nil || !after.ModTime().Equal(before.ModTime()) {
+		t.Fatalf("duplicate image was rewritten: %v", err)
+	}
+	entries, err := os.ReadDir(filepath.Join(store.Root, "cache", "covers"))
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("unexpected cover files: %+v, %v", entries, err)
+	}
+}
+
+func TestClearCachePreservesLocalArtworkAndLibrary(t *testing.T) {
+	root := t.TempDir()
+	store, err := Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	embeddedPath := filepath.Join(t.TempDir(), "embedded.mp3")
+	embeddedMP3(t, embeddedPath)
+	embeddedTracks, err := store.Import([]string{embeddedPath}, "library")
+	if err != nil {
+		t.Fatal(err)
+	}
+	plainPath := filepath.Join(t.TempDir(), "plain.wav")
+	if err = os.WriteFile(plainPath, []byte("RIFFsample audio"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	plainTracks, err := store.Import([]string{plainPath}, "library")
+	if err != nil {
+		t.Fatal(err)
+	}
+	networkCover, err := store.SaveCover(strings.NewReader("network image"), ".jpg")
+	if err != nil {
+		t.Fatal(err)
+	}
+	uploadCover, err := store.SaveCover(strings.NewReader("custom image"), ".png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.DB.Exec(`UPDATE tracks SET cover=? WHERE id=?`, networkCover, plainTracks[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	if err = store.SavePlaylists([]Playlist{{ID: "custom", Name: "Custom", CoverMode: "upload", Cover: uploadCover, TrackIDs: []int64{plainTracks[0].ID}}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.DB.Exec(`INSERT INTO metadata_cache(key,value,expires_at) VALUES('artist','cached data',9999999999)`); err != nil {
+		t.Fatal(err)
+	}
+	webviewPath := filepath.Join(root, "cache", "webview", "Default", "Cache")
+	if err = os.MkdirAll(webviewPath, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(filepath.Join(webviewPath, "entry"), []byte("webview cache"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	before, err := store.CacheStats()
+	if err != nil || before.CoverBytes == 0 || before.WebviewBytes == 0 || before.MetadataBytes == 0 {
+		t.Fatalf("cache statistics incomplete: %+v, %v", before, err)
+	}
+	api := NewAPI(store, Dialogs{}).Handler()
+	response := httptest.NewRecorder()
+	api.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/cache", nil))
+	if response.Code != 200 || !strings.Contains(response.Body.String(), `"coverBytes"`) {
+		t.Fatalf("cache statistics endpoint: %d %s", response.Code, response.Body.String())
+	}
+	response = httptest.NewRecorder()
+	api.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/cache/clear", nil))
+	if response.Code != 200 || !strings.Contains(response.Body.String(), `"webviewClearPending":true`) {
+		t.Fatalf("cache cleanup endpoint: %d %s", response.Code, response.Body.String())
+	}
+	after, err := store.CacheStats()
+	if err != nil || !after.WebviewClearPending || after.MetadataBytes != 0 || after.CoverBytes >= before.CoverBytes {
+		t.Fatalf("cache was not cleared: %+v, %v", after, err)
+	}
+	state, err := store.State()
+	if err != nil || len(state.Tracks) != 2 || len(state.Playlists) != 1 || state.Playlists[0].Cover != uploadCover {
+		t.Fatalf("library changed during cache cleanup: %+v, %v", state, err)
+	}
+	embedded, err := store.GetTrack(embeddedTracks[0].ID)
+	if err != nil || embedded.Cover != embeddedTracks[0].Cover || !embedded.EmbeddedCover {
+		t.Fatalf("embedded artwork removed: %+v, %v", embedded, err)
+	}
+	plain, err := store.GetTrack(plainTracks[0].ID)
+	if err != nil || plain.Cover != "/covers/local.svg" {
+		t.Fatalf("online artwork reference survived cleanup: %+v, %v", plain, err)
+	}
+	for _, reference := range []string{embedded.Cover, uploadCover} {
+		path, pathErr := store.CoverPath(coverName(reference))
+		if pathErr != nil {
+			t.Fatal(pathErr)
+		}
+		if _, pathErr = os.Stat(path); pathErr != nil {
+			t.Fatalf("retained cover missing: %s, %v", reference, pathErr)
+		}
+	}
+	path, err := store.CoverPath(coverName(networkCover))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("network cover still present: %v", err)
+	}
+	if err = store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	store, err = Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if err = store.ClearPendingWebviewCache(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = os.Stat(filepath.Join(root, "cache", "webview")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("webview cache survived restart: %v", err)
+	}
+	stats, err := store.CacheStats()
+	if err != nil || stats.WebviewClearPending || stats.WebviewBytes != 0 {
+		t.Fatalf("webview cleanup still pending: %+v, %v", stats, err)
 	}
 }
 

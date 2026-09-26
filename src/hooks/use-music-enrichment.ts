@@ -42,8 +42,10 @@ export function useMusicEnrichment(track: Track, playing: boolean) {
   const [result, setResult] = useState<{ key: string; value: Enrichment } | null>(null);
   useEffect(() => {
     const refresh = (event: Event) => { const detail = (event as CustomEvent<{ key: string; value: Enrichment }>).detail; if (detail.key === key) setResult(detail); };
+    const clear = () => { current.clear(); setResult(null); };
     window.addEventListener('lumatune-music-refreshed', refresh);
-    return () => window.removeEventListener('lumatune-music-refreshed', refresh);
+    window.addEventListener('luma-cache-cleared', clear);
+    return () => { window.removeEventListener('lumatune-music-refreshed', refresh); window.removeEventListener('luma-cache-cleared', clear); };
   }, [key]);
   const needCover = !track.embeddedCover && track.cover === '/covers/local.svg';
   const needLyrics = !track.embeddedLyrics && !track.lyrics;

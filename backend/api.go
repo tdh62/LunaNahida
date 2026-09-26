@@ -74,6 +74,22 @@ func (a *API) Handler() http.Handler {
 		}
 		respond(w, 200, settings)
 	})
+	mux.HandleFunc("GET /api/cache", func(w http.ResponseWriter, r *http.Request) {
+		stats, err := a.Store.CacheStats()
+		if err != nil {
+			fail(w, 500, err)
+			return
+		}
+		respond(w, 200, stats)
+	})
+	mux.HandleFunc("POST /api/cache/clear", func(w http.ResponseWriter, r *http.Request) {
+		stats, err := a.Store.ClearCache()
+		if err != nil {
+			fail(w, 500, err)
+			return
+		}
+		respond(w, 200, stats)
+	})
 	mux.HandleFunc("PUT /api/playlists", func(w http.ResponseWriter, r *http.Request) {
 		var playlists []Playlist
 		if err := decode(r, &playlists); err != nil {
@@ -154,6 +170,8 @@ func (a *API) Handler() http.Handler {
 			fail(w, 400, errors.New("lyric too large"))
 			return
 		}
+		a.Store.coverMu.Lock()
+		defer a.Store.coverMu.Unlock()
 		if input.Cover != "" {
 			if !strings.HasPrefix(input.Cover, "/api/media/cover/") {
 				fail(w, 400, errors.New("invalid cover"))

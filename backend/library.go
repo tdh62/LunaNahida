@@ -3,10 +3,10 @@ package backend
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
+	"crypto/md5"
 	"database/sql"
+	"encoding/hex"
 	"errors"
-	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
@@ -491,9 +491,38 @@ func (s *Store) SaveCover(reader io.Reader, extension string) (string, error) {
 	if len(data) > 15<<20 {
 		return "", errors.New("image too large")
 	}
-	sum := sha256.Sum256(data)
-	name := fmt.Sprintf("%x%s", sum, extension)
-	if err = os.WriteFile(filepath.Join(s.Root, "cache", "covers", name), data, 0600); err != nil {
+	sum := md5.Sum(data)
+	base := hex.EncodeToString(sum[:])
+	s.coverMu.Lock()
+	defer s.coverMu.Unlock()
+	directory := filepath.Join(s.Root, "cache", "covers")
+	for _, ext := range []string{".jpg", ".png", ".webp", ".gif"} {
+		name := base + ext
+		existing, readErr := os.ReadFile(filepath.Join(directory, name))
+		if readErr == nil {
+			if bytes.Equal(existing, data) {
+				return "/api/media/cover/" + name, nil
+			}
+			return "", errors.New("cover hash collision")
+		}
+		if !errors.Is(readErr, os.ErrNotExist) {
+			return "", readErr
+		}
+	}
+	file, err := os.CreateTemp(directory, ".cover-*")
+	if err != nil {
+		return "", err
+	}
+	defer os.Remove(file.Name())
+	if _, err = file.Write(data); err != nil {
+		file.Close()
+		return "", err
+	}
+	if err = file.Close(); err != nil {
+		return "", err
+	}
+	name := base + extension
+	if err = os.Rename(file.Name(), filepath.Join(directory, name)); err != nil {
 		return "", err
 	}
 	return "/api/media/cover/" + name, nil

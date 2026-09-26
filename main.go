@@ -22,6 +22,9 @@ func main() {
 		log.Fatal(err)
 	}
 	defer store.Close()
+	if err := store.ClearPendingWebviewCache(); err != nil {
+		log.Printf("webview cache cleanup pending: %v", err)
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	var api *backend.API

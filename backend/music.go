@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"bytes"
 	"context"
 	"crypto/md5"
 	"crypto/rand"
@@ -396,7 +397,7 @@ func (m *Music) localArtwork(ctx context.Context, source string) string {
 	case strings.Contains(headers.Get("Content-Type"), "webp"):
 		ext = ".webp"
 	}
-	saved, err := m.store.SaveCover(strings.NewReader(string(payload)), ext)
+	saved, err := m.store.SaveCover(bytes.NewReader(payload), ext)
 	if err != nil {
 		return ""
 	}

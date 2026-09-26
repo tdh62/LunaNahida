@@ -1,8 +1,9 @@
-import { Check, FolderOpen, Headphones, Leaf, Moon, Palette, Pencil, Plus, RefreshCw, SlidersHorizontal, Sparkles, Sun, Timer, Trash2, Users, Waves } from 'lucide-react';
+import { Check, FolderOpen, HardDrive, Headphones, Leaf, Moon, Palette, Pencil, Plus, RefreshCw, SlidersHorizontal, Sparkles, Sun, Timer, Trash2, Users, Waves } from 'lucide-react';
 import { useEffect, useState, type FormEvent } from 'react';
 import { normalizeName, type ArtistMapping } from '@/lib/catalog';
 import { formatTime } from '@/lib/music';
-import { backend, type LibraryState, type StoredSettings } from '@/lib/backend';
+import { backend, type CacheStats, type LibraryState, type StoredSettings } from '@/lib/backend';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 
 export const themes = [
@@ -12,6 +13,12 @@ export const themes = [
 ];
 
 const eqNames = ['低音', '低中', '中音', '高中', '高音'];
+const formatBytes = (value: number) => {
+  if (value < 1024) return `${value} B`;
+  const units = ['KB', 'MB', 'GB', 'TB'];
+  const index = Math.min(Math.floor(Math.log(value) / Math.log(1024)) - 1, units.length - 1);
+  return `${(value / 1024 ** (index + 1)).toFixed(1)} ${units[index]}`;
+};
 
 type SettingsProps = {
   theme: string;
@@ -44,7 +51,12 @@ export default function PlayerSettings({ theme, setTheme, appearance, setAppeara
   const [library, setLibrary] = useState<LibraryState | null>(null);
   const [newFolder, setNewFolder] = useState('');
   const [scanning, setScanning] = useState(false);
+  const [cache, setCache] = useState<CacheStats | null>(null);
+  const [cacheError, setCacheError] = useState(false);
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+  const [clearing, setClearing] = useState(false);
   useEffect(() => { void backend.state().then(setLibrary).catch(error => toast.error(error.message)); }, []);
+  useEffect(() => { void backend.cacheStats().then(setCache).catch(error => { setCacheError(true); toast.error(error.message); }); }, []);
   const saveLibrarySettings = (change: Partial<StoredSettings>) => {
     if (!library) return;
     const settings = { ...library.settings, ...change };
@@ -55,6 +67,26 @@ export default function PlayerSettings({ theme, setTheme, appearance, setAppeara
   const refreshLibrary = () => { void backend.state().then(setLibrary).catch(error => toast.error(error.message)); };
   const addFolder = async (path: string) => { if (!path.trim()) return; try { await backend.addFolder(path.trim()); setNewFolder(''); refreshLibrary(); toast.success('已添加监听文件夹'); } catch (error) { toast.error(error instanceof Error ? error.message : '添加失败'); } };
   const scan = async () => { setScanning(true); try { const result = await backend.scan(); refreshLibrary(); window.dispatchEvent(new Event('luma-library-changed')); toast.success(`扫描完成：新增 ${result.added} 首，缺失 ${result.missing} 首`); if (result.errors.length) toast.warning(`${result.errors.length} 个路径暂不可访问`); } catch (error) { toast.error(error instanceof Error ? error.message : '扫描失败'); } finally { setScanning(false); } };
+  const clearCache = async () => {
+    setClearing(true);
+    try {
+      const stats = await backend.clearCache();
+      setCache(stats);
+      setCacheError(false);
+      setClearConfirmOpen(false);
+      window.dispatchEvent(new Event('luma-cache-cleared'));
+      window.dispatchEvent(new Event('luma-library-changed'));
+      toast.success('缓存已清理，WebView 缓存将在下次启动时清理');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '清理缓存失败');
+      void backend.cacheStats().then(stats => { setCache(stats); setCacheError(false); }).catch(() => setCacheError(true));
+      refreshLibrary();
+      window.dispatchEvent(new Event('luma-cache-cleared'));
+      window.dispatchEvent(new Event('luma-library-changed'));
+    } finally {
+      setClearing(false);
+    }
+  };
   const [root, setRoot] = useState('');
   const [aliases, setAliases] = useState('');
   const [editing, setEditing] = useState<number | null>(null);
@@ -80,6 +112,9 @@ export default function PlayerSettings({ theme, setTheme, appearance, setAppeara
       <form className="artist-mapping-form" onSubmit={event => { event.preventDefault(); void addFolder(newFolder); }}><label>路径<input value={newFolder} onChange={event => setNewFolder(event.target.value)} placeholder="本地文件夹绝对路径" /></label><button type="submit" className="playlist-primary" disabled={!newFolder.trim()}><Plus size={15} />添加路径</button></form>
       <div className="artist-mapping-list">{library?.folders.map(path => <div className="artist-mapping-item" key={path}><div><strong>{path}</strong></div><button type="button" title="移除监听" aria-label={`移除 ${path}`} onClick={() => void backend.removeFolder(path).then(refreshLibrary).catch(error => toast.error(error.message))}><Trash2 size={15} /></button></div>)}</div>
       <div className="settings-row"><div><strong>扫描音乐库</strong></div><button type="button" className="playlist-primary" disabled={scanning} onClick={() => void scan()}><RefreshCw size={15} />{scanning ? '扫描中' : '立即扫描'}</button></div>
+    </section>
+    <section className="settings-group"><div className="settings-group-title"><HardDrive size={19} /><div><h2>缓存空间</h2></div></div>
+      <div className="settings-row"><div><strong>{cache ? formatBytes(cache.totalBytes) : cacheError ? '统计失败' : '正在统计'}</strong>{cache && <small>图片 {formatBytes(cache.coverBytes)} · WebView {formatBytes(cache.webviewBytes)} · 在线资料 {formatBytes(cache.metadataBytes)}</small>}{cache?.webviewClearPending && <small>WebView 缓存将在下次启动时清理</small>}</div><button type="button" className="playlist-primary" disabled={clearing || (!cache && !cacheError)} onClick={() => { if (cache) setClearConfirmOpen(true); else void backend.cacheStats().then(stats => { setCache(stats); setCacheError(false); }).catch(error => toast.error(error.message)); }}>{cache ? <Trash2 size={15} /> : <RefreshCw size={15} />}{cache ? '清理缓存' : '重试统计'}</button></div>
     </section>
     <section className="settings-group"><div className="settings-group-title"><Sun size={19} /><div><h2>外观</h2><p>明暗外观与下方色调可自由组合。</p></div></div>
       <div className="settings-options appearance-options" role="group" aria-label="外观模式">{([{ id: 'dark', label: '深色', icon: Moon }, { id: 'light', label: '浅色', icon: Sun }] as const).map(option => <button key={option.id} type="button" aria-pressed={appearance === option.id} className={appearance === option.id ? 'active' : ''} onClick={() => setAppearance(option.id)}><option.icon size={15} />{option.label}</button>)}</div>
@@ -108,5 +143,6 @@ export default function PlayerSettings({ theme, setTheme, appearance, setAppeara
       <form className="artist-mapping-form" onSubmit={saveMapping}><label>展示名称（映射根）<input value={root} onChange={event => setRoot(event.target.value)} placeholder="例如：青木" list="artist-name-options" maxLength={80} /></label><label>其他名称（用逗号分隔）<input value={aliases} onChange={event => setAliases(event.target.value)} placeholder="例如：青木 · Aoki，青木 Aoki" maxLength={500} /></label><datalist id="artist-name-options">{artistNames.map(name => <option key={name} value={name} />)}</datalist>{error && <p role="alert">{error}</p>}<div><button type="submit" className="playlist-primary"><Plus size={15} />{editing === null ? '添加映射' : '保存映射'}</button>{editing !== null && <button type="button" className="artist-mapping-cancel" onClick={() => { setEditing(null); setRoot(''); setAliases(''); setError(''); }}>取消</button>}</div></form>
     </section>
     <section className="settings-group"><div className="settings-group-title"><Timer size={19} /><div><h2>睡眠定时</h2><p>到时间后自动暂停音乐。</p></div></div><div className="settings-row"><div><strong>暂停时间</strong><small>{sleep > 0 ? `剩余 ${formatTime(sleep)}` : '未设置定时'}</small></div><div className="settings-options">{[0, 15, 30, 60].map(v => <button key={v} aria-pressed={v === 0 ? sleep === 0 : sleep > 0 && Math.ceil(sleep / 60) === v} className={(v === 0 ? sleep === 0 : sleep > 0 && Math.ceil(sleep / 60) === v) ? 'active' : ''} onClick={() => setSleep(v * 60)}>{v ? `${v} 分钟` : '关闭'}</button>)}</div></div><div className="settings-row"><div><strong>精细设定</strong><small>以分钟为单位，最多 24 小时</small></div><form className="sleep-settings-form" onSubmit={event => { event.preventDefault(); const minutes = Number(new FormData(event.currentTarget).get('minutes')); if (Number.isFinite(minutes) && minutes > 0) setSleep(Math.round(minutes * 60)); }}><input name="minutes" type="number" min="1" max="1440" step="1" aria-label="睡眠定时分钟数" defaultValue={sleep > 0 ? Math.ceil(sleep / 60) : 20} /><span>分钟</span><button type="submit">设置</button></form></div></section>
+    <Dialog open={clearConfirmOpen} onOpenChange={setClearConfirmOpen}><DialogContent className="music-dialog playlist-dialog"><DialogTitle>清理缓存？</DialogTitle><DialogDescription>在线图片和资料缓存将被清除；音乐库、收藏、内嵌封面及自定义歌单封面会保留。WebView 缓存在下次启动时清理。</DialogDescription><div className="playlist-dialog-actions"><button type="button" disabled={clearing} onClick={() => setClearConfirmOpen(false)}>取消</button><button type="button" className="playlist-danger" disabled={clearing} onClick={() => void clearCache()}>{clearing ? '清理中' : '清理缓存'}</button></div></DialogContent></Dialog>
   </div>;
 }

@@ -22,6 +22,7 @@ export type StoredSettings = {
 
 export type LibraryState = { tracks: Track[]; playlists: Playlist[]; liked: number[]; recent: number[]; queue: number[]; folders: string[]; settings: StoredSettings };
 export type ScanResult = { added: number; updated: number; missing: number; folders: number; errors: string[] };
+export type CacheStats = { coverBytes: number; webviewBytes: number; metadataBytes: number; totalBytes: number; webviewClearPending: boolean };
 
 async function request<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
   const response = await fetch(path, { method, headers: body === undefined ? undefined : { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
@@ -43,6 +44,8 @@ export const backend = {
   enrichment: (id: number, cover: string, lyric: string, translation: string, fallbackOnly = false) => request<{ ok: boolean }>(`/api/tracks/${id}/enrichment${fallbackOnly ? '?fallback=1' : ''}`, 'PUT', { cover, lyric, translation }),
   import: (paths: string[], mode: 'temporary' | 'library' | 'watch') => request<Track[]>('/api/import', 'POST', { paths, mode }),
   scan: () => request<ScanResult>('/api/scan', 'POST'),
+  cacheStats: () => request<CacheStats>('/api/cache'),
+  clearCache: () => request<CacheStats>('/api/cache/clear', 'POST'),
   addFolder: (path: string) => request<{ ok: boolean }>('/api/folders', 'POST', { path }),
   removeFolder: (path: string) => request<{ ok: boolean }>('/api/folders', 'DELETE', { path }),
   chooseFiles: () => request<{ paths: string[] }>('/api/dialog/files'),

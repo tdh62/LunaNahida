@@ -16,6 +16,7 @@ type AlbumDescription = {
 };
 const artistDescriptions = new Map<string, ArtistDescription>();
 const albumDescriptions = new Map<string, AlbumDescription>();
+if (typeof window !== 'undefined') window.addEventListener('luma-cache-cleared', () => { artistDescriptions.clear(); albumDescriptions.clear(); });
 
 function readArtistDescriptionCache(name: string) {
   return artistDescriptions.get(name.trim().normalize('NFKC').toLowerCase());

@@ -24,4 +24,6 @@ On first launch the library is empty. Add files through the desktop dialog or dr
 
 Embedded artwork and lyrics are read from supported audio tags during import and scanning, and take priority over online metadata. Existing library entries are checked once after this upgrade. A sidecar `.lrc` file is used when the audio file has no embedded lyrics.
 
+Cover files use their MD5 digest as the cache key, so identical downloads reuse one file. Settings shows image, WebView, and online metadata cache sizes. Clearing cache removes downloadable artwork and metadata, retains embedded and custom playlist artwork, and clears the WebView profile on the next launch.
+
 Playlist covers can follow the first track's current artwork or use a fixed uploaded image. Existing playlists are upgraded to the first-track mode so refreshed artwork appears immediately; their previously saved cover path remains available in the playlist editor for selection as a fixed image.
