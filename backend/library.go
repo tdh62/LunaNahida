@@ -1,14 +1,15 @@
 package backend
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -57,15 +58,22 @@ func (s *Store) readTrack(path string, info fs.FileInfo) (Track, error) {
 			t.Album = v
 		}
 		t.Genre = strings.TrimSpace(metadata.Genre())
-		t.Lyrics = metadata.Lyrics()
+		if lyrics := strings.TrimSpace(metadata.Lyrics()); lyrics != "" && len(lyrics) <= 2<<20 {
+			t.Lyrics = lyrics
+			t.EmbeddedLyrics = true
+		}
 		if metadata.Year() > 0 {
 			t.Year = strconv.Itoa(metadata.Year())
 		}
 		if pic := metadata.Picture(); pic != nil && len(pic.Data) > 0 && len(pic.Data) <= 15<<20 {
-			sum := sha256.Sum256(pic.Data)
-			name := hex.EncodeToString(sum[:])
-			ext := ".jpg"
-			switch pic.MIMEType {
+			imageType := http.DetectContentType(pic.Data)
+			if imageType == "application/octet-stream" {
+				imageType = pic.MIMEType
+			}
+			ext := ""
+			switch imageType {
+			case "image/jpeg":
+				ext = ".jpg"
 			case "image/png":
 				ext = ".png"
 			case "image/webp":
@@ -73,12 +81,12 @@ func (s *Store) readTrack(path string, info fs.FileInfo) (Track, error) {
 			case "image/gif":
 				ext = ".gif"
 			}
-			name += ext
-			target := filepath.Join(s.Root, "cache", "covers", name)
-			if _, err = os.Stat(target); errors.Is(err, os.ErrNotExist) {
-				_ = os.WriteFile(target, pic.Data, 0600)
+			if ext != "" {
+				if saved, saveErr := s.SaveCover(bytes.NewReader(pic.Data), ext); saveErr == nil {
+					t.Cover = saved
+					t.EmbeddedCover = true
+				}
 			}
-			t.Cover = "/api/media/cover/" + name
 		}
 	}
 	if t.Lyrics == "" {
@@ -106,8 +114,9 @@ func (s *Store) upsert(path string) (Track, error) {
 		return Track{}, errors.New("expected audio file")
 	}
 	var old Track
-	err = s.DB.QueryRow(`SELECT id,size,modified,duration,cover FROM tracks WHERE path=?`, path).Scan(&old.ID, &old.Size, &old.Modified, &old.Duration, &old.Cover)
-	if err == nil && old.Size == info.Size() && old.Modified == info.ModTime().UnixNano() {
+	var tagsChecked int
+	err = s.DB.QueryRow(`SELECT id,size,modified,duration,cover,tags_checked FROM tracks WHERE path=?`, path).Scan(&old.ID, &old.Size, &old.Modified, &old.Duration, &old.Cover, &tagsChecked)
+	if err == nil && old.Size == info.Size() && old.Modified == info.ModTime().UnixNano() && tagsChecked == 1 {
 		_, err = s.DB.Exec(`UPDATE tracks SET available=1 WHERE id=?`, old.ID)
 		if err != nil {
 			return Track{}, err
@@ -124,7 +133,7 @@ func (s *Store) upsert(path string) (Track, error) {
 	if old.ID != 0 {
 		t.Duration = old.Duration
 	}
-	_, err = s.DB.Exec(`INSERT INTO tracks(path,title,artist,album,duration,cover,genre,year,lyrics,size,modified,available,added_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,1,?) ON CONFLICT(path) DO UPDATE SET title=excluded.title,artist=excluded.artist,album=excluded.album,cover=CASE WHEN excluded.cover='/covers/local.svg' THEN tracks.cover ELSE excluded.cover END,genre=excluded.genre,year=excluded.year,lyrics=CASE WHEN excluded.lyrics='' THEN tracks.lyrics ELSE excluded.lyrics END,size=excluded.size,modified=excluded.modified,available=1`, path, t.Title, t.Artist, t.Album, t.Duration, t.Cover, t.Genre, t.Year, t.Lyrics, t.Size, t.Modified, time.Now().Unix())
+	_, err = s.DB.Exec(`INSERT INTO tracks(path,title,artist,album,duration,cover,genre,year,lyrics,size,modified,available,added_at,embedded_cover,embedded_lyrics,tags_checked) VALUES(?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,1) ON CONFLICT(path) DO UPDATE SET title=excluded.title,artist=excluded.artist,album=excluded.album,cover=CASE WHEN excluded.embedded_cover=1 OR tracks.embedded_cover=1 THEN excluded.cover WHEN excluded.cover='/covers/local.svg' THEN tracks.cover ELSE excluded.cover END,genre=excluded.genre,year=excluded.year,lyrics=CASE WHEN excluded.embedded_lyrics=1 OR tracks.embedded_lyrics=1 THEN excluded.lyrics WHEN excluded.lyrics='' THEN tracks.lyrics ELSE excluded.lyrics END,translation=CASE WHEN excluded.embedded_lyrics=1 OR tracks.embedded_lyrics=1 THEN '' ELSE tracks.translation END,size=excluded.size,modified=excluded.modified,available=1,embedded_cover=excluded.embedded_cover,embedded_lyrics=excluded.embedded_lyrics,tags_checked=1`, path, t.Title, t.Artist, t.Album, t.Duration, t.Cover, t.Genre, t.Year, t.Lyrics, t.Size, t.Modified, time.Now().Unix(), t.EmbeddedCover, t.EmbeddedLyrics)
 	if err != nil {
 		return Track{}, err
 	}
@@ -145,16 +154,44 @@ func (s *Store) GetTrack(id int64) (Track, error) {
 		return t, nil
 	}
 	var t Track
-	var available int
-	err := s.DB.QueryRow(`SELECT id,path,title,artist,album,duration,cover,genre,year,lyrics,translation,size,modified,available FROM tracks WHERE id=?`, id).Scan(&t.ID, &t.Path, &t.Title, &t.Artist, &t.Album, &t.Duration, &t.Cover, &t.Genre, &t.Year, &t.Lyrics, &t.Translation, &t.Size, &t.Modified, &available)
+	var available, embeddedCover, embeddedLyrics int
+	err := s.DB.QueryRow(`SELECT id,path,title,artist,album,duration,cover,genre,year,lyrics,translation,size,modified,available,embedded_cover,embedded_lyrics FROM tracks WHERE id=?`, id).Scan(&t.ID, &t.Path, &t.Title, &t.Artist, &t.Album, &t.Duration, &t.Cover, &t.Genre, &t.Year, &t.Lyrics, &t.Translation, &t.Size, &t.Modified, &available, &embeddedCover, &embeddedLyrics)
 	if err != nil {
 		return t, err
 	}
 	t.Available = available == 1
+	t.EmbeddedCover = embeddedCover == 1
+	t.EmbeddedLyrics = embeddedLyrics == 1
 	t.Source = "/api/media/audio/" + formatID(t.ID)
 	t.FileName = filepath.Base(t.Path)
 	t.Color = "#8daab0"
 	return t, nil
+}
+
+func (s *Store) recheckLegacyTags() error {
+	rows, err := s.DB.Query(`SELECT path FROM tracks WHERE tags_checked=0`)
+	if err != nil {
+		return err
+	}
+	paths := []string{}
+	for rows.Next() {
+		var path string
+		if err = rows.Scan(&path); err != nil {
+			break
+		}
+		paths = append(paths, path)
+	}
+	if readErr := rows.Err(); err == nil {
+		err = readErr
+	}
+	rows.Close()
+	if err != nil {
+		return err
+	}
+	for _, path := range paths {
+		_, _ = s.upsert(path)
+	}
+	return nil
 }
 
 func (s *Store) Import(paths []string, mode string) ([]Track, error) {

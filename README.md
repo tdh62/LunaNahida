@@ -22,4 +22,6 @@ By default, data is stored in the local user cache directory under `LumaTune/dat
 
 On first launch the library is empty. Add files through the desktop dialog or drop them into the window. The default action asks whether to play only this time, add to the library, or watch the containing folder. Settings include startup scans, manual scans, and optional scheduled scans. Missing files remain in the library and can be rediscovered when they return.
 
+Embedded artwork and lyrics are read from supported audio tags during import and scanning, and take priority over online metadata. Existing library entries are checked once after this upgrade. A sidecar `.lrc` file is used when the audio file has no embedded lyrics.
+
 Playlist covers can follow the first track's current artwork or use a fixed uploaded image. Existing playlists are upgraded to the first-track mode so refreshed artwork appears immediately; their previously saved cover path remains available in the playlist editor for selection as a fixed image.

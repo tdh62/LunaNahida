@@ -1,4 +1,4 @@
 export type AudioQuality = { sampleRate?: number; bitDepth?: number; bitrate?: number; lossless?: boolean; codec?: string };
-export type Track = { id: number; path?: string; title: string; english: string; artist: string; album: string; duration: number; cover: string; genre: string; year: string; color: string; source: string; fileName?: string; lyrics?: string; translation?: string; quality?: AudioQuality; available?: boolean; temporary?: boolean };
+export type Track = { id: number; path?: string; title: string; english: string; artist: string; album: string; duration: number; cover: string; genre: string; year: string; color: string; source: string; fileName?: string; lyrics?: string; translation?: string; embeddedCover?: boolean; embeddedLyrics?: boolean; quality?: AudioQuality; available?: boolean; temporary?: boolean };
 export type LyricWord = { text: string; start: number; end: number };
 export const formatTime = (seconds: number) => `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${Math.floor(seconds % 60).toString().padStart(2, '0')}`;

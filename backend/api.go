@@ -169,7 +169,7 @@ func (a *API) Handler() http.Handler {
 				return
 			}
 		}
-		changed, err := a.Store.DB.Exec(`UPDATE tracks SET cover=CASE WHEN ?='' OR (?='1' AND cover<>'/covers/local.svg') THEN cover ELSE ? END,lyrics=CASE WHEN ?='' THEN lyrics ELSE ? END,translation=CASE WHEN ?='' THEN translation ELSE ? END WHERE id=?`, input.Cover, r.URL.Query().Get("fallback"), input.Cover, input.Lyric, input.Lyric, input.Translation, input.Translation, id)
+		changed, err := a.Store.DB.Exec(`UPDATE tracks SET cover=CASE WHEN embedded_cover=1 OR ?='' OR (?='1' AND cover<>'/covers/local.svg') THEN cover ELSE ? END,lyrics=CASE WHEN embedded_lyrics=1 OR ?='' THEN lyrics ELSE ? END,translation=CASE WHEN embedded_lyrics=1 OR ?='' THEN translation ELSE ? END WHERE id=?`, input.Cover, r.URL.Query().Get("fallback"), input.Cover, input.Lyric, input.Lyric, input.Translation, input.Translation, id)
 		if err != nil {
 			fail(w, 500, err)
 			return

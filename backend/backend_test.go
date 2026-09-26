@@ -1,9 +1,14 @@
 package backend
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/binary"
 	"fmt"
+	"image"
+	"image/color"
+	"image/png"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -98,6 +103,107 @@ func TestAlbumArtworkDoesNotReplaceSongArtwork(t *testing.T) {
 	track, err = store.GetTrack(tracks[0].ID)
 	if err != nil || track.Cover != albumCover {
 		t.Fatalf("album artwork did not replace placeholder: %+v, %v", track, err)
+	}
+}
+
+func embeddedMP3(t *testing.T, path string) {
+	t.Helper()
+	var picture bytes.Buffer
+	pixel := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	pixel.Set(0, 0, color.RGBA{R: 220, G: 70, B: 90, A: 255})
+	if err := png.Encode(&picture, pixel); err != nil {
+		t.Fatal(err)
+	}
+	frame := func(name string, payload []byte) []byte {
+		value := make([]byte, 10+len(payload))
+		copy(value, name)
+		binary.BigEndian.PutUint32(value[4:8], uint32(len(payload)))
+		copy(value[10:], payload)
+		return value
+	}
+	frames := bytes.Join([][]byte{
+		frame("TIT2", append([]byte{3}, []byte("Embedded Track")...)),
+		frame("TPE1", append([]byte{3}, []byte("Singer")...)),
+		frame("TALB", append([]byte{3}, []byte("Album")...)),
+		frame("USLT", append([]byte{3, 'e', 'n', 'g', 0}, []byte("[00:01.00]Embedded lyric")...)),
+		frame("APIC", append([]byte{3}, append([]byte("image/png\x00\x03\x00"), picture.Bytes()...)...)),
+	}, nil)
+	size := len(frames)
+	header := []byte{'I', 'D', '3', 3, 0, 0, byte(size >> 21), byte(size >> 14 & 0x7f), byte(size >> 7 & 0x7f), byte(size & 0x7f)}
+	if err := os.WriteFile(path, append(header, frames...), 0600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestEmbeddedMetadataHasPriority(t *testing.T) {
+	store := testStore(t)
+	path := filepath.Join(t.TempDir(), "embedded.mp3")
+	embeddedMP3(t, path)
+	temporary, err := store.Import([]string{path}, "temporary")
+	if err != nil || len(temporary) != 1 || !temporary[0].EmbeddedCover || !temporary[0].EmbeddedLyrics {
+		t.Fatalf("temporary embedded track: %+v, %v", temporary, err)
+	}
+	tracks, err := store.Import([]string{path}, "library")
+	if err != nil || len(tracks) != 1 {
+		t.Fatalf("import embedded track: %+v, %v", tracks, err)
+	}
+	track := tracks[0]
+	if !track.EmbeddedCover || !track.EmbeddedLyrics || !strings.HasSuffix(track.Cover, ".png") || track.Lyrics != "[00:01.00]Embedded lyric" {
+		t.Fatalf("embedded metadata missing: %+v", track)
+	}
+	onlineCover, err := store.SaveCover(strings.NewReader("online image"), ".jpg")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/tracks/%d/enrichment", track.ID), strings.NewReader(fmt.Sprintf(`{"cover":%q,"lyric":"[00:02.00]Online lyric","translation":"Online translation"}`, onlineCover)))
+	response := httptest.NewRecorder()
+	NewAPI(store, Dialogs{}).Handler().ServeHTTP(response, request)
+	if response.Code != 200 {
+		t.Fatalf("online enrichment returned %d: %s", response.Code, response.Body.String())
+	}
+	updated, err := store.GetTrack(track.ID)
+	if err != nil || updated.Cover != track.Cover || updated.Lyrics != track.Lyrics || updated.Translation != "" || !updated.EmbeddedCover || !updated.EmbeddedLyrics {
+		t.Fatalf("online metadata replaced embedded data: %+v, %v", updated, err)
+	}
+}
+
+func TestExistingLibraryRechecksEmbeddedMetadata(t *testing.T) {
+	root := t.TempDir()
+	store, err := Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "existing.mp3")
+	embeddedMP3(t, path)
+	tracks, err := store.Import([]string{path}, "library")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	db, err := sql.Open("sqlite", filepath.Join(root, "data", "library.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = db.Exec(`UPDATE tracks SET cover='/covers/local.svg', lyrics='old online lyric', translation='old translation';
+		ALTER TABLE tracks DROP COLUMN embedded_cover;
+		ALTER TABLE tracks DROP COLUMN embedded_lyrics;
+		ALTER TABLE tracks DROP COLUMN tags_checked;
+		UPDATE schema_version SET version=3`); err != nil {
+		t.Fatal(err)
+	}
+	if err = db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	store, err = Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	state, err := store.State()
+	if err != nil || len(state.Tracks) != 1 || state.Tracks[0].ID != tracks[0].ID || !state.Tracks[0].EmbeddedCover || !state.Tracks[0].EmbeddedLyrics || state.Tracks[0].Lyrics != "[00:01.00]Embedded lyric" || state.Tracks[0].Translation != "" {
+		t.Fatalf("legacy embedded metadata not restored: %+v, %v", state.Tracks, err)
 	}
 }
 
@@ -307,7 +413,11 @@ func TestPlaylistCoverModeMigration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = db.Exec(`ALTER TABLE playlists DROP COLUMN cover_mode; UPDATE schema_version SET version=2`); err != nil {
+	if _, err = db.Exec(`ALTER TABLE playlists DROP COLUMN cover_mode;
+		ALTER TABLE tracks DROP COLUMN embedded_cover;
+		ALTER TABLE tracks DROP COLUMN embedded_lyrics;
+		ALTER TABLE tracks DROP COLUMN tags_checked;
+		UPDATE schema_version SET version=2`); err != nil {
 		t.Fatal(err)
 	}
 	if err = db.Close(); err != nil {

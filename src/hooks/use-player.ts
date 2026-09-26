@@ -48,9 +48,9 @@ export function usePlayer() {
       const { id, value } = (event as CustomEvent<{ id: number; value: { cover?: string; lyric?: string; translation?: string } }>).detail;
       updateQueue(queueRef.current.map(item => item.id === id ? {
         ...item,
-        cover: value.cover || item.cover,
-        lyrics: value.lyric || item.lyrics,
-        translation: value.translation || item.translation,
+        cover: item.embeddedCover ? item.cover : value.cover || item.cover,
+        lyrics: item.embeddedLyrics ? item.lyrics : value.lyric || item.lyrics,
+        translation: item.embeddedLyrics ? item.translation : value.translation || item.translation,
       } : item));
     };
     window.addEventListener('lumatune-music-refreshed', updateEnrichedTrack);

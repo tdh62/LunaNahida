@@ -13,25 +13,27 @@ import (
 )
 
 type Track struct {
-	ID          int64   `json:"id"`
-	Path        string  `json:"path"`
-	Title       string  `json:"title"`
-	English     string  `json:"english"`
-	Artist      string  `json:"artist"`
-	Album       string  `json:"album"`
-	Duration    float64 `json:"duration"`
-	Cover       string  `json:"cover"`
-	Genre       string  `json:"genre"`
-	Year        string  `json:"year"`
-	Color       string  `json:"color"`
-	Source      string  `json:"source"`
-	FileName    string  `json:"fileName"`
-	Lyrics      string  `json:"lyrics,omitempty"`
-	Translation string  `json:"translation,omitempty"`
-	Available   bool    `json:"available"`
-	Temporary   bool    `json:"temporary,omitempty"`
-	Size        int64   `json:"-"`
-	Modified    int64   `json:"-"`
+	ID             int64   `json:"id"`
+	Path           string  `json:"path"`
+	Title          string  `json:"title"`
+	English        string  `json:"english"`
+	Artist         string  `json:"artist"`
+	Album          string  `json:"album"`
+	Duration       float64 `json:"duration"`
+	Cover          string  `json:"cover"`
+	Genre          string  `json:"genre"`
+	Year           string  `json:"year"`
+	Color          string  `json:"color"`
+	Source         string  `json:"source"`
+	FileName       string  `json:"fileName"`
+	Lyrics         string  `json:"lyrics,omitempty"`
+	Translation    string  `json:"translation,omitempty"`
+	EmbeddedCover  bool    `json:"embeddedCover"`
+	EmbeddedLyrics bool    `json:"embeddedLyrics"`
+	Available      bool    `json:"available"`
+	Temporary      bool    `json:"temporary,omitempty"`
+	Size           int64   `json:"-"`
+	Modified       int64   `json:"-"`
 }
 
 type Playlist struct {
@@ -173,6 +175,23 @@ func (s *Store) migrate() error {
 		if _, err = tx.Exec(`UPDATE schema_version SET version=3`); err != nil {
 			return err
 		}
+		if err = tx.Commit(); err != nil {
+			return err
+		}
+		version = 3
+	}
+	if version < 4 {
+		tx, beginErr := s.DB.Begin()
+		if beginErr != nil {
+			return beginErr
+		}
+		defer tx.Rollback()
+		if _, err = tx.Exec(`ALTER TABLE tracks ADD COLUMN embedded_cover INTEGER NOT NULL DEFAULT 0;
+		ALTER TABLE tracks ADD COLUMN embedded_lyrics INTEGER NOT NULL DEFAULT 0;
+		ALTER TABLE tracks ADD COLUMN tags_checked INTEGER NOT NULL DEFAULT 0;
+		UPDATE schema_version SET version=4`); err != nil {
+			return err
+		}
 		return tx.Commit()
 	}
 	return nil
@@ -214,23 +233,28 @@ func (s *Store) SaveSettings(value Settings) error {
 
 func (s *Store) State() (State, error) {
 	state := State{Tracks: []Track{}, Playlists: []Playlist{}, Liked: []int64{}, Recent: []int64{}, Queue: []int64{}, Folders: []string{}}
+	if err := s.recheckLegacyTags(); err != nil {
+		return state, err
+	}
 	var err error
 	state.Settings, err = s.Settings()
 	if err != nil {
 		return state, err
 	}
-	rows, err := s.DB.Query(`SELECT id,path,title,artist,album,duration,cover,genre,year,lyrics,translation,size,modified,available FROM tracks ORDER BY id`)
+	rows, err := s.DB.Query(`SELECT id,path,title,artist,album,duration,cover,genre,year,lyrics,translation,size,modified,available,embedded_cover,embedded_lyrics FROM tracks ORDER BY id`)
 	if err != nil {
 		return state, err
 	}
 	for rows.Next() {
 		var t Track
-		var available int
-		if err = rows.Scan(&t.ID, &t.Path, &t.Title, &t.Artist, &t.Album, &t.Duration, &t.Cover, &t.Genre, &t.Year, &t.Lyrics, &t.Translation, &t.Size, &t.Modified, &available); err != nil {
+		var available, embeddedCover, embeddedLyrics int
+		if err = rows.Scan(&t.ID, &t.Path, &t.Title, &t.Artist, &t.Album, &t.Duration, &t.Cover, &t.Genre, &t.Year, &t.Lyrics, &t.Translation, &t.Size, &t.Modified, &available, &embeddedCover, &embeddedLyrics); err != nil {
 			rows.Close()
 			return state, err
 		}
 		t.Available = available == 1
+		t.EmbeddedCover = embeddedCover == 1
+		t.EmbeddedLyrics = embeddedLyrics == 1
 		t.Source = "/api/media/audio/" + formatID(t.ID)
 		t.FileName = filepath.Base(t.Path)
 		t.Color = "#8daab0"

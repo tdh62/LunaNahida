@@ -160,6 +160,7 @@ export default function Index() {
   }, []);
   const dropFiles = (event: DragEvent) => { event.preventDefault(); dragDepth.current = 0; setDropActive(false); };
   const refreshInfo = (track: Track) => {
+    if (track.embeddedCover && track.embeddedLyrics) { toast.info('已使用音频文件内嵌的封面和歌词'); return; }
     toast.promise(refreshMusicInfo(track), {
       loading: `正在刷新《${track.title}》的信息`,
       success: result => result.cover && result.lyric ? '封面和歌词已更新' : result.cover ? '封面已更新，未找到歌词' : '歌词已更新，未找到封面',

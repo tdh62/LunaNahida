@@ -10,7 +10,8 @@ const albumOf = (track: Track) => track.album.trim() === '未知专辑' ? '' : t
 
 export async function refreshMusicInfo(track: Track) {
   if (!track.source || !track.title.trim() || !track.artist.trim()) throw new Error('歌曲缺少可匹配的曲名或歌手');
-  const params = new URLSearchParams({ title: track.title, artist: track.artist, album: albumOf(track), cover: '1', lyric: '1', refresh: '1' });
+  if (track.embeddedCover && track.embeddedLyrics) return { cover: track.cover, lyric: track.lyrics };
+  const params = new URLSearchParams({ title: track.title, artist: track.artist, album: albumOf(track), cover: track.embeddedCover ? '0' : '1', lyric: track.embeddedLyrics ? '0' : '1', refresh: '1' });
   const response = await fetch(`/api/music/enrich?${params}`);
   if (!response.ok) throw new Error('音乐源暂时不可用，请稍后重试');
   const value = await response.json() as Enrichment;
@@ -44,8 +45,8 @@ export function useMusicEnrichment(track: Track, playing: boolean) {
     window.addEventListener('lumatune-music-refreshed', refresh);
     return () => window.removeEventListener('lumatune-music-refreshed', refresh);
   }, [key]);
-  const needCover = track.cover === '/covers/local.svg';
-  const needLyrics = !track.lyrics;
+  const needCover = !track.embeddedCover && track.cover === '/covers/local.svg';
+  const needLyrics = !track.embeddedLyrics && !track.lyrics;
   useEffect(() => {
     if (!key || !playing || (!needCover && !needLyrics) || track.artist === '未知歌手') return;
     const controller = new AbortController();
@@ -57,8 +58,8 @@ export function useMusicEnrichment(track: Track, playing: boolean) {
     return () => controller.abort();
   }, [key, playing, needCover, needLyrics, track.id, track.title, track.artist, track.album]);
   const value = result?.key === key ? result.value : current.get(key);
-  const lines = parseLrc(track.lyrics || value?.lyric || '');
-  const translations = parseLrc(track.translation || value?.translation || '');
+  const lines = parseLrc(track.lyrics || (track.embeddedLyrics ? '' : value?.lyric) || '');
+  const translations = parseLrc(track.embeddedLyrics ? '' : track.translation || value?.translation || '');
   for (const line of lines) { const translated = translations.find(item => Math.abs(item.time - line.time) < 0.5); if (translated) line.translation = translated.text; }
-  return { cover: value?.cover || track.cover, lines };
+  return { cover: track.embeddedCover ? track.cover : value?.cover || track.cover, lines };
 }
