@@ -454,7 +454,7 @@ func (m *Music) enrich(ctx context.Context, title, artist string, cover, lyric, 
 			key := "lyric:" + source + ":" + found.ID + ":" + found.Mid
 			value, err := m.cached(key, 24*time.Hour, force, func() (any, error) {
 				text, translation, err := m.lyrics(ctx, source, *found)
-				return map[string]string{"lyric": text, "translation": translation}, err
+				return map[string]any{"lyric": text, "translation": translation}, err
 			})
 			if err != nil {
 				failed = true

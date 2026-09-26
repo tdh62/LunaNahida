@@ -124,15 +124,14 @@ func (s *Store) upsert(path string) (Track, error) {
 	if old.ID != 0 {
 		t.Duration = old.Duration
 	}
-	_, err = s.DB.Exec(`INSERT INTO tracks(path,title,artist,album,duration,cover,genre,year,lyrics,size,modified,available,added_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,1,?) ON CONFLICT(path) DO UPDATE SET title=excluded.title,artist=excluded.artist,album=excluded.album,cover=excluded.cover,genre=excluded.genre,year=excluded.year,lyrics=excluded.lyrics,size=excluded.size,modified=excluded.modified,available=1`, path, t.Title, t.Artist, t.Album, t.Duration, t.Cover, t.Genre, t.Year, t.Lyrics, t.Size, t.Modified, time.Now().Unix())
+	_, err = s.DB.Exec(`INSERT INTO tracks(path,title,artist,album,duration,cover,genre,year,lyrics,size,modified,available,added_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,1,?) ON CONFLICT(path) DO UPDATE SET title=excluded.title,artist=excluded.artist,album=excluded.album,cover=CASE WHEN excluded.cover='/covers/local.svg' THEN tracks.cover ELSE excluded.cover END,genre=excluded.genre,year=excluded.year,lyrics=CASE WHEN excluded.lyrics='' THEN tracks.lyrics ELSE excluded.lyrics END,size=excluded.size,modified=excluded.modified,available=1`, path, t.Title, t.Artist, t.Album, t.Duration, t.Cover, t.Genre, t.Year, t.Lyrics, t.Size, t.Modified, time.Now().Unix())
 	if err != nil {
 		return Track{}, err
 	}
 	if err = s.DB.QueryRow(`SELECT id FROM tracks WHERE path=?`, path).Scan(&t.ID); err != nil {
 		return Track{}, err
 	}
-	t.Source = "/api/media/audio/" + formatID(t.ID)
-	return t, nil
+	return s.GetTrack(t.ID)
 }
 
 func (s *Store) GetTrack(id int64) (Track, error) {
@@ -147,7 +146,7 @@ func (s *Store) GetTrack(id int64) (Track, error) {
 	}
 	var t Track
 	var available int
-	err := s.DB.QueryRow(`SELECT id,path,title,artist,album,duration,cover,genre,year,lyrics,size,modified,available FROM tracks WHERE id=?`, id).Scan(&t.ID, &t.Path, &t.Title, &t.Artist, &t.Album, &t.Duration, &t.Cover, &t.Genre, &t.Year, &t.Lyrics, &t.Size, &t.Modified, &available)
+	err := s.DB.QueryRow(`SELECT id,path,title,artist,album,duration,cover,genre,year,lyrics,translation,size,modified,available FROM tracks WHERE id=?`, id).Scan(&t.ID, &t.Path, &t.Title, &t.Artist, &t.Album, &t.Duration, &t.Cover, &t.Genre, &t.Year, &t.Lyrics, &t.Translation, &t.Size, &t.Modified, &available)
 	if err != nil {
 		return t, err
 	}
@@ -365,8 +364,54 @@ func (s *Store) Scan(ctx context.Context) (ScanResult, error) {
 			if relErr != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) || seen[v.path] {
 				continue
 			}
-			if _, err = s.DB.Exec(`UPDATE tracks SET available=0 WHERE id=? AND available=1`, v.id); err == nil {
+			changed, updateErr := s.DB.Exec(`UPDATE tracks SET available=0 WHERE id=? AND available=1`, v.id)
+			if updateErr != nil {
+				return result, updateErr
+			}
+			if count, _ := changed.RowsAffected(); count > 0 {
 				result.Missing++
+			}
+		}
+	}
+	rows, err = s.DB.Query(`SELECT id,path,available FROM tracks`)
+	if err != nil {
+		return result, err
+	}
+	type existingTrack struct {
+		id        int64
+		path      string
+		available bool
+	}
+	existing := []existingTrack{}
+	for rows.Next() {
+		var item existingTrack
+		if err = rows.Scan(&item.id, &item.path, &item.available); err != nil {
+			break
+		}
+		existing = append(existing, item)
+	}
+	rows.Close()
+	if err != nil {
+		return result, err
+	}
+	for _, item := range existing {
+		if err = ctx.Err(); err != nil {
+			return result, err
+		}
+		info, statErr := os.Stat(item.path)
+		if statErr != nil || info.IsDir() {
+			if item.available {
+				_, err = s.DB.Exec(`UPDATE tracks SET available=0 WHERE id=?`, item.id)
+				if err != nil {
+					return result, err
+				}
+				result.Missing++
+			}
+		} else if !item.available {
+			if _, err = s.upsert(item.path); err == nil {
+				result.Updated++
+			} else {
+				result.Errors = append(result.Errors, item.path+": "+err.Error())
 			}
 		}
 	}

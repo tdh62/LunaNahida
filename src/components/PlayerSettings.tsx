@@ -1,7 +1,9 @@
-import { Check, Headphones, Leaf, Moon, Palette, Pencil, Plus, SlidersHorizontal, Sparkles, Sun, Timer, Trash2, Users, Waves } from 'lucide-react';
-import { useState, type FormEvent } from 'react';
+import { Check, FolderOpen, Headphones, Leaf, Moon, Palette, Pencil, Plus, RefreshCw, SlidersHorizontal, Sparkles, Sun, Timer, Trash2, Users, Waves } from 'lucide-react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { normalizeName, type ArtistMapping } from '@/lib/catalog';
 import { formatTime } from '@/lib/music';
+import { backend, type LibraryState, type StoredSettings } from '@/lib/backend';
+import { toast } from 'sonner';
 
 export const themes = [
   { id: 'dusk', name: '山间暮色', desc: '柔和的暮蓝', icon: Moon },
@@ -39,6 +41,20 @@ type SettingsProps = {
 };
 
 export default function PlayerSettings({ theme, setTheme, appearance, setAppearance, visual, setVisual, lyricEffect, setLyricEffect, lyricScroll, setLyricScroll, showTranslation, setShowTranslation, sleep, setSleep, effect, setEffect, equalizer, setBand, resetEqualizer, mappings, setMappings, lyricAppearance, setLyricAppearance, artistNames }: SettingsProps) {
+  const [library, setLibrary] = useState<LibraryState | null>(null);
+  const [newFolder, setNewFolder] = useState('');
+  const [scanning, setScanning] = useState(false);
+  useEffect(() => { void backend.state().then(setLibrary).catch(error => toast.error(error.message)); }, []);
+  const saveLibrarySettings = (change: Partial<StoredSettings>) => {
+    if (!library) return;
+    const settings = { ...library.settings, ...change };
+    setLibrary({ ...library, settings });
+    window.dispatchEvent(new CustomEvent('luma-settings-updated', { detail: settings }));
+    void backend.settings(settings).catch(error => toast.error(error.message));
+  };
+  const refreshLibrary = () => { void backend.state().then(setLibrary).catch(error => toast.error(error.message)); };
+  const addFolder = async (path: string) => { if (!path.trim()) return; try { await backend.addFolder(path.trim()); setNewFolder(''); refreshLibrary(); toast.success('已添加监听文件夹'); } catch (error) { toast.error(error instanceof Error ? error.message : '添加失败'); } };
+  const scan = async () => { setScanning(true); try { const result = await backend.scan(); refreshLibrary(); window.dispatchEvent(new Event('luma-library-changed')); toast.success(`扫描完成：新增 ${result.added} 首，缺失 ${result.missing} 首`); if (result.errors.length) toast.warning(`${result.errors.length} 个路径暂不可访问`); } catch (error) { toast.error(error instanceof Error ? error.message : '扫描失败'); } finally { setScanning(false); } };
   const [root, setRoot] = useState('');
   const [aliases, setAliases] = useState('');
   const [editing, setEditing] = useState<number | null>(null);
@@ -56,6 +72,15 @@ export default function PlayerSettings({ theme, setTheme, appearance, setAppeara
   };
   return <div className="settings-page">
     <header className="settings-heading"><h1>设置</h1></header>
+    <section className="settings-group"><div className="settings-group-title"><FolderOpen size={19} /><div><h2>本地音乐库</h2></div></div>
+      <div className="settings-row"><div><strong>拖入文件</strong></div><select className="lyric-font-select" aria-label="拖入文件处理方式" value={library?.settings.dropAction ?? 'ask'} onChange={event => saveLibrarySettings({ dropAction: event.target.value as StoredSettings['dropAction'] })}><option value="ask">每次询问</option><option value="temporary">仅本次播放</option><option value="library">加入音乐库</option><option value="watch">监听所在文件夹</option></select></div>
+      <div className="settings-row"><div><strong>启动时扫描</strong></div><button type="button" role="switch" aria-checked={library?.settings.scanOnStart ?? true} aria-label="启动时扫描" className={`settings-switch ${library?.settings.scanOnStart ? 'on' : ''}`} onClick={() => saveLibrarySettings({ scanOnStart: !library?.settings.scanOnStart })}><span /></button></div>
+      <div className="settings-row"><div><strong>定时扫描</strong></div><select className="lyric-font-select" aria-label="定时扫描间隔" value={library?.settings.scanIntervalMinutes ?? 0} onChange={event => saveLibrarySettings({ scanIntervalMinutes: Number(event.target.value) })}><option value={0}>关闭</option><option value={15}>每 15 分钟</option><option value={30}>每 30 分钟</option><option value={60}>每小时</option><option value={360}>每 6 小时</option><option value={1440}>每天</option></select></div>
+      <div className="settings-row"><div><strong>监听文件夹</strong><small>{library?.folders.length ?? 0} 个路径</small></div><button type="button" className="playlist-primary" onClick={() => void backend.chooseFolder().then(result => addFolder(result.paths[0])).catch(error => toast.error(error.message))}><Plus size={15} />添加文件夹</button></div>
+      <form className="artist-mapping-form" onSubmit={event => { event.preventDefault(); void addFolder(newFolder); }}><label>路径<input value={newFolder} onChange={event => setNewFolder(event.target.value)} placeholder="本地文件夹绝对路径" /></label><button type="submit" className="playlist-primary" disabled={!newFolder.trim()}><Plus size={15} />添加路径</button></form>
+      <div className="artist-mapping-list">{library?.folders.map(path => <div className="artist-mapping-item" key={path}><div><strong>{path}</strong></div><button type="button" title="移除监听" aria-label={`移除 ${path}`} onClick={() => void backend.removeFolder(path).then(refreshLibrary).catch(error => toast.error(error.message))}><Trash2 size={15} /></button></div>)}</div>
+      <div className="settings-row"><div><strong>扫描音乐库</strong></div><button type="button" className="playlist-primary" disabled={scanning} onClick={() => void scan()}><RefreshCw size={15} />{scanning ? '扫描中' : '立即扫描'}</button></div>
+    </section>
     <section className="settings-group"><div className="settings-group-title"><Sun size={19} /><div><h2>外观</h2><p>明暗外观与下方色调可自由组合。</p></div></div>
       <div className="settings-options appearance-options" role="group" aria-label="外观模式">{([{ id: 'dark', label: '深色', icon: Moon }, { id: 'light', label: '浅色', icon: Sun }] as const).map(option => <button key={option.id} type="button" aria-pressed={appearance === option.id} className={appearance === option.id ? 'active' : ''} onClick={() => setAppearance(option.id)}><option.icon size={15} />{option.label}</button>)}</div>
     </section>

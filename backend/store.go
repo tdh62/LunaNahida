@@ -13,24 +13,25 @@ import (
 )
 
 type Track struct {
-	ID        int64   `json:"id"`
-	Path      string  `json:"path"`
-	Title     string  `json:"title"`
-	English   string  `json:"english"`
-	Artist    string  `json:"artist"`
-	Album     string  `json:"album"`
-	Duration  float64 `json:"duration"`
-	Cover     string  `json:"cover"`
-	Genre     string  `json:"genre"`
-	Year      string  `json:"year"`
-	Color     string  `json:"color"`
-	Source    string  `json:"source"`
-	FileName  string  `json:"fileName"`
-	Lyrics    string  `json:"lyrics,omitempty"`
-	Available bool    `json:"available"`
-	Temporary bool    `json:"temporary,omitempty"`
-	Size      int64   `json:"-"`
-	Modified  int64   `json:"-"`
+	ID          int64   `json:"id"`
+	Path        string  `json:"path"`
+	Title       string  `json:"title"`
+	English     string  `json:"english"`
+	Artist      string  `json:"artist"`
+	Album       string  `json:"album"`
+	Duration    float64 `json:"duration"`
+	Cover       string  `json:"cover"`
+	Genre       string  `json:"genre"`
+	Year        string  `json:"year"`
+	Color       string  `json:"color"`
+	Source      string  `json:"source"`
+	FileName    string  `json:"fileName"`
+	Lyrics      string  `json:"lyrics,omitempty"`
+	Translation string  `json:"translation,omitempty"`
+	Available   bool    `json:"available"`
+	Temporary   bool    `json:"temporary,omitempty"`
+	Size        int64   `json:"-"`
+	Modified    int64   `json:"-"`
 }
 
 type Playlist struct {
@@ -125,17 +126,38 @@ func (s *Store) Close() error { return s.DB.Close() }
 func (s *Store) migrate() error {
 	_, err := s.DB.Exec(`CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL);
 	INSERT INTO schema_version(version) SELECT 1 WHERE NOT EXISTS(SELECT 1 FROM schema_version);
-	CREATE TABLE IF NOT EXISTS tracks(id INTEGER PRIMARY KEY,path TEXT NOT NULL UNIQUE,title TEXT NOT NULL,artist TEXT NOT NULL,album TEXT NOT NULL,duration REAL NOT NULL DEFAULT 0,cover TEXT NOT NULL DEFAULT '',genre TEXT NOT NULL DEFAULT '',year TEXT NOT NULL DEFAULT '',lyrics TEXT NOT NULL DEFAULT '',size INTEGER NOT NULL,modified INTEGER NOT NULL,available INTEGER NOT NULL DEFAULT 1,added_at INTEGER NOT NULL);
+	CREATE TABLE IF NOT EXISTS tracks(id INTEGER PRIMARY KEY,path TEXT NOT NULL COLLATE NOCASE UNIQUE,title TEXT NOT NULL,artist TEXT NOT NULL,album TEXT NOT NULL,duration REAL NOT NULL DEFAULT 0,cover TEXT NOT NULL DEFAULT '',genre TEXT NOT NULL DEFAULT '',year TEXT NOT NULL DEFAULT '',lyrics TEXT NOT NULL DEFAULT '',size INTEGER NOT NULL,modified INTEGER NOT NULL,available INTEGER NOT NULL DEFAULT 1,added_at INTEGER NOT NULL);
 	CREATE TABLE IF NOT EXISTS playlists(id TEXT PRIMARY KEY,name TEXT NOT NULL,description TEXT NOT NULL DEFAULT '',cover TEXT NOT NULL DEFAULT '');
 	CREATE TABLE IF NOT EXISTS playlist_tracks(playlist_id TEXT NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,track_id INTEGER NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,position INTEGER NOT NULL,PRIMARY KEY(playlist_id,track_id));
 	CREATE TABLE IF NOT EXISTS liked(track_id INTEGER PRIMARY KEY REFERENCES tracks(id) ON DELETE CASCADE);
 	CREATE TABLE IF NOT EXISTS history(track_id INTEGER PRIMARY KEY REFERENCES tracks(id) ON DELETE CASCADE,played_at INTEGER NOT NULL);
 	CREATE TABLE IF NOT EXISTS queue(track_id INTEGER PRIMARY KEY REFERENCES tracks(id) ON DELETE CASCADE,position INTEGER NOT NULL);
-	CREATE TABLE IF NOT EXISTS folders(path TEXT PRIMARY KEY);
+	CREATE TABLE IF NOT EXISTS folders(path TEXT PRIMARY KEY COLLATE NOCASE);
 	CREATE TABLE IF NOT EXISTS preferences(key TEXT PRIMARY KEY,value TEXT NOT NULL);
 	CREATE TABLE IF NOT EXISTS metadata_cache(key TEXT PRIMARY KEY,value TEXT NOT NULL,expires_at INTEGER NOT NULL);
 	CREATE INDEX IF NOT EXISTS tracks_artist ON tracks(artist); CREATE INDEX IF NOT EXISTS history_played_at ON history(played_at DESC);`)
-	return err
+	if err != nil {
+		return err
+	}
+	var version int
+	if err = s.DB.QueryRow(`SELECT version FROM schema_version LIMIT 1`).Scan(&version); err != nil {
+		return err
+	}
+	if version < 2 {
+		tx, beginErr := s.DB.Begin()
+		if beginErr != nil {
+			return beginErr
+		}
+		defer tx.Rollback()
+		if _, err = tx.Exec(`ALTER TABLE tracks ADD COLUMN translation TEXT NOT NULL DEFAULT ''`); err != nil {
+			return err
+		}
+		if _, err = tx.Exec(`UPDATE schema_version SET version=2`); err != nil {
+			return err
+		}
+		return tx.Commit()
+	}
+	return nil
 }
 
 func (s *Store) Settings() (Settings, error) {
@@ -179,14 +201,14 @@ func (s *Store) State() (State, error) {
 	if err != nil {
 		return state, err
 	}
-	rows, err := s.DB.Query(`SELECT id,path,title,artist,album,duration,cover,genre,year,lyrics,size,modified,available FROM tracks ORDER BY id`)
+	rows, err := s.DB.Query(`SELECT id,path,title,artist,album,duration,cover,genre,year,lyrics,translation,size,modified,available FROM tracks ORDER BY id`)
 	if err != nil {
 		return state, err
 	}
 	for rows.Next() {
 		var t Track
 		var available int
-		if err = rows.Scan(&t.ID, &t.Path, &t.Title, &t.Artist, &t.Album, &t.Duration, &t.Cover, &t.Genre, &t.Year, &t.Lyrics, &t.Size, &t.Modified, &available); err != nil {
+		if err = rows.Scan(&t.ID, &t.Path, &t.Title, &t.Artist, &t.Album, &t.Duration, &t.Cover, &t.Genre, &t.Year, &t.Lyrics, &t.Translation, &t.Size, &t.Modified, &available); err != nil {
 			rows.Close()
 			return state, err
 		}

@@ -13,23 +13,15 @@ type AlbumDescription = {
   aliases: string[]; tags: string[]; commentCount?: number; shareCount?: number;
   songs: { id: string; name: string; artist: string; duration: number; number: number; disc: string }[];
 };
-const artistDescriptionStorageKey = 'lumatune-artist-descriptions-v1';
-const albumDescriptionStorageKey = 'lumatune-album-descriptions-v2';
+const artistDescriptions = new Map<string, ArtistDescription>();
+const albumDescriptions = new Map<string, AlbumDescription>();
 
 function readArtistDescriptionCache(name: string) {
-  try {
-    const cache = JSON.parse(localStorage.getItem(artistDescriptionStorageKey) ?? '{}');
-    return cache[name.trim().normalize('NFKC').toLowerCase()] as ArtistDescription | undefined;
-  } catch { return undefined; }
+  return artistDescriptions.get(name.trim().normalize('NFKC').toLowerCase());
 }
 
 function saveArtistDescriptionCache(name: string, data: ArtistDescription) {
-  try {
-    const cache = JSON.parse(localStorage.getItem(artistDescriptionStorageKey) ?? '{}');
-    const key = name.trim().normalize('NFKC').toLowerCase();
-    const entries = Object.entries(cache).filter(([existing]) => existing !== key).slice(-19);
-    localStorage.setItem(artistDescriptionStorageKey, JSON.stringify(Object.fromEntries([...entries, [key, data]])));
-  } catch { /* Keep artist details available for the current session if storage is full. */ }
+  artistDescriptions.set(name.trim().normalize('NFKC').toLowerCase(), data);
 }
 
 async function fetchArtistDescription(name: string, refresh = false, signal?: AbortSignal) {
@@ -46,17 +38,11 @@ function albumCacheKey(album: AlbumEntry) {
 }
 
 function readAlbumDescriptionCache(key: string): AlbumDescription | undefined {
-  try {
-    return JSON.parse(localStorage.getItem(albumDescriptionStorageKey) ?? '{}')[key] as AlbumDescription | undefined;
-  } catch { return undefined; }
+  return albumDescriptions.get(key);
 }
 
 function saveAlbumDescriptionCache(key: string, data: AlbumDescription) {
-  try {
-    const cache = JSON.parse(localStorage.getItem(albumDescriptionStorageKey) ?? '{}');
-    const entries = Object.entries(cache).filter(([existing]) => existing !== key).slice(-19);
-    localStorage.setItem(albumDescriptionStorageKey, JSON.stringify(Object.fromEntries([...entries, [key, data]])));
-  } catch { /* Storage may be unavailable. */ }
+  albumDescriptions.set(key, data);
 }
 
 async function fetchAlbumDescription(album: AlbumEntry, refresh = false, signal?: AbortSignal) {

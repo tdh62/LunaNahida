@@ -135,6 +135,51 @@ func (a *API) Handler() http.Handler {
 		}
 		respond(w, 200, map[string]bool{"ok": true})
 	})
+	mux.HandleFunc("PUT /api/tracks/{id}/enrichment", func(w http.ResponseWriter, r *http.Request) {
+		id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+		if err != nil || id <= 0 {
+			fail(w, 400, errors.New("invalid track"))
+			return
+		}
+		var input struct {
+			Cover       string `json:"cover"`
+			Lyric       string `json:"lyric"`
+			Translation string `json:"translation"`
+		}
+		if err = decode(r, &input); err != nil {
+			fail(w, 400, err)
+			return
+		}
+		if len(input.Lyric) > 2<<20 || len(input.Translation) > 2<<20 {
+			fail(w, 400, errors.New("lyric too large"))
+			return
+		}
+		if input.Cover != "" {
+			if !strings.HasPrefix(input.Cover, "/api/media/cover/") {
+				fail(w, 400, errors.New("invalid cover"))
+				return
+			}
+			coverPath, pathErr := a.Store.CoverPath(strings.TrimPrefix(input.Cover, "/api/media/cover/"))
+			if pathErr != nil {
+				fail(w, 400, pathErr)
+				return
+			}
+			if _, pathErr = os.Stat(coverPath); pathErr != nil {
+				fail(w, 400, pathErr)
+				return
+			}
+		}
+		changed, err := a.Store.DB.Exec(`UPDATE tracks SET cover=CASE WHEN ?='' THEN cover ELSE ? END,lyrics=CASE WHEN ?='' THEN lyrics ELSE ? END,translation=CASE WHEN ?='' THEN translation ELSE ? END WHERE id=?`, input.Cover, input.Cover, input.Lyric, input.Lyric, input.Translation, input.Translation, id)
+		if err != nil {
+			fail(w, 500, err)
+			return
+		}
+		if count, _ := changed.RowsAffected(); count == 0 {
+			fail(w, 404, errors.New("track not found"))
+			return
+		}
+		respond(w, 200, map[string]bool{"ok": true})
+	})
 	mux.HandleFunc("POST /api/import", func(w http.ResponseWriter, r *http.Request) {
 		var input struct {
 			Paths []string `json:"paths"`
