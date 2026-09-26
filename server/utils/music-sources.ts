@@ -167,7 +167,12 @@ export async function getArtistDescription(name: string): Promise<ArtistDescript
   };
 }
 
-export type AlbumDescription = { id: string; name: string; picture?: string; description: string; artist: string; type: string; company: string; publishTime?: number; size: number };
+export type AlbumDescription = {
+  id: string; name: string; picture?: string; description: string; artist: string;
+  type: string; subType: string; company: string; publishTime?: number; size: number;
+  aliases: string[]; tags: string[]; commentCount?: number; shareCount?: number;
+  songs: { id: string; name: string; artist: string; duration: number; number: number; disc: string }[];
+};
 
 export async function getAlbumDescription(name: string, artistName: string): Promise<AlbumDescription | null> {
   const targetName = normalized(name);
@@ -205,11 +210,22 @@ export async function getAlbumDescription(name: string, artistName: string): Pro
   return {
     id: String(detail.id), name: String(detail.name ?? album.name),
     picture: typeof picture === 'string' && /^https?:\/\/p\d+\.music\.126\.net\//.test(picture) ? picture.replace(/^http:\/\//, 'https://') : undefined,
-    description: String(detail.description ?? detail.briefDesc ?? ''),
+    description: String(detail.description || detail.briefDesc || ''),
     artist: String(detail.artist?.name ?? album.artist?.name ?? artistName),
-    type: String(detail.type ?? ''), company: String(detail.company ?? ''),
+    type: String(detail.type ?? ''), subType: String(detail.subType ?? ''), company: String(detail.company ?? ''),
     publishTime: typeof detail.publishTime === 'number' && detail.publishTime > 0 ? detail.publishTime : undefined,
-    size: Array.isArray(result.songs) ? result.songs.length : Number(detail.size) || 0,
+    size: Number(detail.size) || (Array.isArray(result.songs) ? result.songs.length : 0),
+    aliases: Array.isArray(detail.alias) ? detail.alias.filter((item: unknown): item is string => typeof item === 'string') : [],
+    tags: typeof detail.tags === 'string' ? detail.tags.split(/[,，、]+/).map((tag: string) => tag.trim()).filter(Boolean) : [],
+    commentCount: typeof detail.info?.commentCount === 'number' ? detail.info.commentCount : undefined,
+    shareCount: typeof detail.info?.shareCount === 'number' ? detail.info.shareCount : undefined,
+    songs: Array.isArray(result.songs) ? result.songs.map((song: any) => ({
+      id: String(song.id), name: String(song.name ?? ''),
+      artist: Array.isArray(song.ar) ? song.ar.map((item: any) => String(item.name ?? '')).filter(Boolean).join(' / ') : '',
+      duration: typeof song.dt === 'number' ? song.dt : 0,
+      number: typeof song.no === 'number' ? song.no : 0,
+      disc: String(song.cd ?? '1'),
+    })) : [],
   };
 }
 

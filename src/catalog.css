@@ -30,7 +30,22 @@
 .artist-description-refresh:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
 .artist-description-refresh:disabled { cursor: wait; opacity: .65; }
 .artist-description-status { color: #aaa9ad; font-size: 12px; }
-.album-description-meta { margin: 0 0 10px; color: #aaa9ad; font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+.album-info { max-width: 920px; color: #d0d0d2; }
+.album-info-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 28px; margin: 0 0 28px; }
+.album-info-facts > div { display: flex; gap: 16px; min-width: 0; padding: 11px 0; border-bottom: 1px solid #383a3c; font-size: 13px; }
+.album-info-facts dt { flex: 0 0 64px; color: #aaa9ad; }
+.album-info-facts dd { min-width: 0; margin: 0; color: #f1f0ed; overflow-wrap: anywhere; }
+.album-info h3 { margin: 0 0 14px; color: #f1f0ed; font-size: 15px; font-weight: 600; }
+.album-info-description { margin-bottom: 32px; }
+.album-info-description p { margin: 0; color: #c4c4c7; font-size: 13px; line-height: 1.9; white-space: pre-line; overflow-wrap: anywhere; }
+.album-info-tracks ol { margin: 0; padding: 0; list-style: none; }
+.album-info-tracks li { display: flex; align-items: center; gap: 16px; min-height: 54px; padding: 8px 4px; border-bottom: 1px solid #383a3c; }
+.album-info-track-number { flex: 0 0 28px; color: #aaa9ad; font-size: 12px; text-align: center; }
+.album-info-track-name { flex: 1; min-width: 0; }
+.album-info-track-name strong { display: block; color: #f1f0ed; font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
+.album-info-track-name small { display: block; margin-top: 3px; color: #aaa9ad; font-size: 11px; overflow-wrap: anywhere; }
+.album-info-track-time { flex: none; color: #aaa9ad; font-size: 12px; }
+@media (max-width: 760px) { .album-info-facts { grid-template-columns: 1fr; } }
 .artist-description-brief, .artist-description-section p { margin: 0; color: #c4c4c7; font-size: 13px; line-height: 1.85; white-space: pre-line; overflow-wrap: anywhere; }
 .artist-description-section { margin-top: 20px; }
 .artist-description-section h2 { margin: 0 0 8px; color: #f1f0ed; font-size: 15px; font-weight: 600; }
