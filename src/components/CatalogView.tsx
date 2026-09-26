@@ -95,7 +95,7 @@ export default function CatalogView({ kind, artists, albums, artist, album, curr
   const items = kind === 'artists' ? artists : albums;
   const label = kind === 'artists' ? '歌手' : '专辑';
   const relatedAlbums = artist ? albums.filter(item => item.artistKey === artist.key) : [];
-  const [artistTab, setArtistTab] = useState<'albums' | 'songs'>('albums');
+  const [artistTab, setArtistTab] = useState<'albums' | 'songs' | 'info'>('albums');
   const [albumTab, setAlbumTab] = useState<'songs' | 'info'>('songs');
   const [search, setSearch] = useState('');
   const [artistSort, setArtistSort] = useState<'added' | 'name' | 'tracks'>('added');
@@ -110,6 +110,7 @@ export default function CatalogView({ kind, artists, albums, artist, album, curr
   const selectedAlbumKey = album && kind === 'albums' ? albumCacheKey(album) : '';
   const selectedAlbumKeyRef = useRef(selectedAlbumKey);
   selectedAlbumKeyRef.current = selectedAlbumKey;
+  useEffect(() => { setArtistTab('albums'); }, [artist?.key]);
   useEffect(() => {
     if (!album || kind !== 'albums') return;
     const key = albumCacheKey(album);
@@ -202,9 +203,24 @@ export default function CatalogView({ kind, artists, albums, artist, album, curr
     }
   };
   const currentAlbumDescription = albumDescription?.key === selectedAlbumKey ? albumDescription.data : undefined;
+  const currentArtistDescription = artist && artistDescription?.name === artist.name ? artistDescription.data : undefined;
+  const hasLongArtistDescription = !!currentArtistDescription && Array.from([
+    currentArtistDescription.briefDesc,
+    ...currentArtistDescription.introduction.map(section => section.txt),
+  ].join('').trim()).length > 200;
+  const visibleArtistTab = artistTab === 'info' && !hasLongArtistDescription ? 'albums' : artistTab;
   const artistCover = artist
-    ? (artistDescription?.name === artist.name ? artistDescription.data.picture : undefined) ?? artist.tracks.find(track => track.cover !== '/covers/local.svg')?.cover ?? artist.cover
+    ? currentArtistDescription?.picture ?? artist.tracks.find(track => track.cover !== '/covers/local.svg')?.cover ?? artist.cover
     : detail?.cover ?? '/covers/local.svg';
+  const artistInfo = artist && <section className="artist-description" aria-label="歌手介绍">
+    <div className="artist-description-heading"><h2>歌手介绍</h2><button type="button" className="artist-description-refresh" onClick={() => void refreshArtistDescription()} disabled={artistDescriptionLoading}><RefreshCw size={14} className={artistDescriptionLoading ? 'animate-spin' : ''} />刷新资料</button></div>
+    {artistDescriptionLoading && <p className="artist-description-status">正在加载歌手介绍…</p>}
+    {artistDescriptionError && !artistDescriptionLoading && <p className="artist-description-status">{artistDescriptionError}</p>}
+    {currentArtistDescription && <>
+      {currentArtistDescription.briefDesc && <p className="artist-description-brief">{currentArtistDescription.briefDesc}</p>}
+      {currentArtistDescription.introduction.map((section, index) => <section className="artist-description-section" key={`${section.ti}-${index}`}><h2>{section.ti}</h2><p>{section.txt}</p></section>)}
+    </>}
+  </section>;
   return <section className="catalog-page">
     {detail ? <>
       <Link className="playlist-back" to={kind === 'artists' ? '/artists' : '/albums'}><ArrowLeft size={16} /> 返回{label}</Link>
@@ -214,21 +230,14 @@ export default function CatalogView({ kind, artists, albums, artist, album, curr
         <p>{detail.tracks.length} 首歌曲{album && kind === 'albums' ? ` · ${yearValue(album.year) === null ? '未知年份' : album.year}` : ''}</p>
         <button type="button" className="playlist-primary" onClick={() => onPlay(detail.tracks[0].id)}><Play size={16} fill="currentColor" /> 播放</button>
       </div></header>
-      {artist && kind === 'artists' && <section className="artist-description" aria-label="歌手介绍">
-        <div className="artist-description-heading"><h2>歌手介绍</h2><button type="button" className="artist-description-refresh" onClick={() => void refreshArtistDescription()} disabled={artistDescriptionLoading}><RefreshCw size={14} className={artistDescriptionLoading ? 'animate-spin' : ''} />刷新资料</button></div>
-        {artistDescriptionLoading && <p className="artist-description-status">正在加载歌手介绍…</p>}
-        {artistDescriptionError && !artistDescriptionLoading && <p className="artist-description-status">{artistDescriptionError}</p>}
-        {artistDescription?.name === artist.name && <>
-          {artistDescription.data.briefDesc && <p className="artist-description-brief">{artistDescription.data.briefDesc}</p>}
-          {artistDescription.data.introduction.map((section, index) => <section className="artist-description-section" key={`${section.ti}-${index}`}><h2>{section.ti}</h2><p>{section.txt}</p></section>)}
-        </>}
-      </section>}
+      {artist && kind === 'artists' && !hasLongArtistDescription && artistInfo}
       {artist && kind === 'artists' ? <>
         <div className="catalog-tabs" role="tablist" aria-label="歌手内容">
-          <button type="button" role="tab" aria-selected={artistTab === 'albums'} className={artistTab === 'albums' ? 'active' : ''} onClick={() => setArtistTab('albums')}><Disc3 size={15} />专辑<span>{relatedAlbums.length}</span></button>
-          <button type="button" role="tab" aria-selected={artistTab === 'songs'} className={artistTab === 'songs' ? 'active' : ''} onClick={() => setArtistTab('songs')}><ListMusic size={15} />歌曲<span>{artist.tracks.length}</span></button>
+          <button type="button" role="tab" aria-selected={visibleArtistTab === 'albums'} className={visibleArtistTab === 'albums' ? 'active' : ''} onClick={() => setArtistTab('albums')}><Disc3 size={15} />专辑<span>{relatedAlbums.length}</span></button>
+          <button type="button" role="tab" aria-selected={visibleArtistTab === 'songs'} className={visibleArtistTab === 'songs' ? 'active' : ''} onClick={() => setArtistTab('songs')}><ListMusic size={15} />歌曲<span>{artist.tracks.length}</span></button>
+          {hasLongArtistDescription && <button type="button" role="tab" aria-selected={visibleArtistTab === 'info'} className={visibleArtistTab === 'info' ? 'active' : ''} onClick={() => setArtistTab('info')}><Info size={15} />歌手信息</button>}
         </div>
-        {artistTab === 'albums' ? <div className="catalog-related"><div className="catalog-grid">{relatedAlbums.map(item => <button type="button" className="catalog-card" key={item.key} onClick={() => navigate(`/albums/${encodeURIComponent(item.artistKey)}/${encodeURIComponent(item.key)}`)}><span className="catalog-cover"><img src={item.cover} alt="" /><small className="catalog-cover-badge">{item.tracks.length} 首</small></span><strong>{item.name}</strong>{yearValue(item.year) !== null && <small>{item.year}</small>}</button>)}</div>{!relatedAlbums.length && <div className="library-empty"><Disc3 size={28} /><p>暂无专辑</p></div>}</div> : <div className="catalog-songs"><LibraryView key={`artist-${artist.key}`} title="歌曲" tracks={artist.tracks} currentId={currentId} liked={liked} playlists={playlists} onPlay={onPlay} onToggleLike={onToggleLike} onViewInfo={onViewInfo} onRefreshInfo={onRefreshInfo} onAddToPlaylist={onAddToPlaylist} onArtist={onArtist} onAlbum={onAlbum} /></div>}
+        {visibleArtistTab === 'albums' ? <div className="catalog-related"><div className="catalog-grid">{relatedAlbums.map(item => <button type="button" className="catalog-card" key={item.key} onClick={() => navigate(`/albums/${encodeURIComponent(item.artistKey)}/${encodeURIComponent(item.key)}`)}><span className="catalog-cover"><img src={item.cover} alt="" /><small className="catalog-cover-badge">{item.tracks.length} 首</small></span><strong>{item.name}</strong>{yearValue(item.year) !== null && <small>{item.year}</small>}</button>)}</div>{!relatedAlbums.length && <div className="library-empty"><Disc3 size={28} /><p>暂无专辑</p></div>}</div> : visibleArtistTab === 'songs' ? <div className="catalog-songs"><LibraryView key={`artist-${artist.key}`} title="歌曲" tracks={artist.tracks} currentId={currentId} liked={liked} playlists={playlists} onPlay={onPlay} onToggleLike={onToggleLike} onViewInfo={onViewInfo} onRefreshInfo={onRefreshInfo} onAddToPlaylist={onAddToPlaylist} onArtist={onArtist} onAlbum={onAlbum} /></div> : artistInfo}
       </> : album && kind === 'albums' ? <>
         <div className="catalog-tabs" role="tablist" aria-label="专辑内容">
           <button type="button" role="tab" aria-selected={albumTab === 'songs'} className={albumTab === 'songs' ? 'active' : ''} onClick={() => setAlbumTab('songs')}><ListMusic size={15} />歌曲<span>{album.tracks.length}</span></button>
