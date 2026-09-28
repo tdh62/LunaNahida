@@ -1,0 +1,15 @@
+.music-dialog { --track-detail-muted: #b3bbb5; --track-detail-line: #626e66; --track-detail-surface: #292e2b; --track-detail-action: #394d40; --track-detail-action-hover: #48614f; --track-detail-action-text: #f4fff5; }
+html.mode-light .music-dialog { --track-detail-muted: #52675b; --track-detail-line: #a5bbaa; --track-detail-surface: #fff; --track-detail-action: #e1f0e6; --track-detail-action-hover: #cfe7d7; --track-detail-action-text: #205b38; }
+.track-details-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.track-details-heading .eyebrow { margin: 0 !important; }
+.track-details-edit { min-width: 96px; height: 36px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; flex: none; padding: 0 10px; border: 1px solid var(--track-detail-line); border-radius: 5px; background: var(--track-detail-action); color: var(--track-detail-action-text); font-size: 12px; font-weight: 600; }
+.track-details-edit:hover { background: var(--track-detail-action-hover); }
+.track-details-edit:focus-visible { outline: 2px solid var(--track-detail-action-text); outline-offset: 2px; }
+.track-details-form { display: grid; gap: 12px; min-width: 0; }
+.track-details-form label { display: grid; gap: 5px; font-size: 11px; color: var(--track-detail-muted); }
+.track-details-form input { width: 100%; min-width: 0; height: 36px; padding: 0 10px; border: 1px solid var(--track-detail-line); border-radius: 5px; outline: none; background: var(--track-detail-surface); color: inherit; font-size: 12px; }
+.track-details-form input:focus { border-color: var(--track-detail-action-text); }
+.track-details-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 3px; }
+.track-details-actions .playlist-primary { background: var(--track-detail-action); color: var(--track-detail-action-text); border: 1px solid var(--track-detail-line); }
+.track-details-actions .playlist-primary:hover { background: var(--track-detail-action-hover); }
+@media (max-width: 520px) { .detail-modal.is-editing { grid-template-columns: 1fr; } .detail-modal.is-editing > img { width: 96px; } }

@@ -60,9 +60,17 @@
 .playlist-delete:hover { color: #f6a9a9; border-color: #a76565; }
 .playlist-detail .library-view { min-height: 0; padding: 0; }
 .playlist-detail .library-heading { display: none; }
-.playlist-dialog form { display: flex; flex-direction: column; gap: 14px; margin-top: 18px; }
+.playlist-dialog { --accent: #a5b5ff; }
+.playlist-dialog.theme-anime { --accent: #e4a9da; }
+.playlist-dialog.theme-forest { --accent: #a5cdb0; }
+html.mode-light .playlist-dialog { --accent: #435db8; }
+html.mode-light .playlist-dialog.theme-anime { --accent: #a63d8b; }
+html.mode-light .playlist-dialog.theme-forest { --accent: #2b7651; }
+.playlist-dialog form { margin-top: 18px; }
+.playlist-create-row { display: flex; align-items: center; gap: 10px; }
+.playlist-create-row input { min-width: 0; flex: 1; }
+.playlist-create-row .playlist-primary { flex: none; }
 .playlist-dialog input { border-color: #45464a; background: #191b1d; color: #f1f0ed; }
-.playlist-dialog form .playlist-primary { align-self: flex-end; }
 .playlist-dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
 .playlist-dialog-actions button { min-height: 36px; padding: 0 15px; border: 1px solid #48494c; border-radius: 7px; color: #ddd; background: transparent; font-size: 12px; }
 .playlist-dialog-actions .playlist-danger { border-color: #ab6b6b; background: #ab6b6b; color: #fff; }
@@ -109,10 +117,7 @@
 .cover-mode-tabs { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 6px; }
 .cover-mode-tabs button { min-width: 0; min-height: 40px; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 5px 7px; border: 1px solid #424347; border-radius: 6px; background: #191a1c; color: #b1b0b3; font-size: 11px; }
 .cover-mode-tabs button.active { border-color: var(--accent); background: var(--tint); color: var(--accent); }
-.cover-upload { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
-.cover-upload button { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 12px; border: 1px solid #45464a; border-radius: 6px; background: #292a2c; color: #e5e4e2; font-size: 11px; }
-.cover-upload button:hover { border-color: var(--accent); color: var(--accent); }
-.cover-upload small, .cover-hint { color: #99989d; font-size: 11px; }
+.cover-hint { color: #99989d; font-size: 11px; }
 .cover-url-field { margin-top: 12px; }
 .cover-presets { display: flex; gap: 10px; margin-top: 12px; }
 .cover-presets button { position: relative; width: 64px; height: 64px; overflow: hidden; padding: 0; border: 2px solid transparent; border-radius: 6px; background: #18191b; color: white; }

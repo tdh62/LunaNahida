@@ -363,6 +363,20 @@ func (s *Store) migrate() error {
 			return err
 		}
 	}
+	if version < 11 {
+		var hasColumn int
+		if err = s.DB.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('tracks') WHERE name='manual_metadata'`).Scan(&hasColumn); err != nil {
+			return err
+		}
+		if hasColumn == 0 {
+			if _, err = s.DB.Exec(`ALTER TABLE tracks ADD COLUMN manual_metadata INTEGER NOT NULL DEFAULT 0`); err != nil {
+				return err
+			}
+		}
+		if _, err = s.DB.Exec(`UPDATE schema_version SET version=11`); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

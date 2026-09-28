@@ -187,7 +187,9 @@ func (s *Store) upsert(path string) (Track, error) {
 	_, err = s.DB.Exec(`INSERT INTO tracks(path,title,artist,album,duration,cover,genre,year,lyrics,size,modified,available,added_at,embedded_cover,embedded_lyrics,local_lyrics,tags_checked,embedded_tags,playback_status)
 		VALUES(?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,?,1,?,?)
 		ON CONFLICT(path) DO UPDATE SET
-		title=excluded.title,artist=excluded.artist,album=excluded.album,
+		title=CASE WHEN tracks.manual_metadata=1 THEN tracks.title ELSE excluded.title END,
+		artist=CASE WHEN tracks.manual_metadata=1 THEN tracks.artist ELSE excluded.artist END,
+		album=CASE WHEN tracks.manual_metadata=1 THEN tracks.album ELSE excluded.album END,
 		cover=CASE WHEN excluded.embedded_cover=1 OR tracks.embedded_cover=1 THEN excluded.cover WHEN excluded.cover='/covers/local.svg' THEN tracks.cover ELSE excluded.cover END,
 		genre=excluded.genre,year=excluded.year,
 		lyrics=CASE WHEN excluded.local_lyrics=1 OR excluded.embedded_lyrics=1 THEN excluded.lyrics WHEN tracks.local_lyrics=1 OR tracks.embedded_lyrics=1 THEN '' ELSE tracks.lyrics END,
@@ -254,6 +256,30 @@ func (s *Store) GetTrack(id int64) (Track, error) {
 	t.EmbeddedTags = decodeTags(embeddedJSON)
 	t.CustomTags, err = s.trackCustomTags(id)
 	return t, err
+}
+
+func (s *Store) UpdateTrackMetadata(id int64, title, artist, album string) (Track, error) {
+	if id < 0 {
+		s.mu.Lock()
+		track, ok := s.temporary[id]
+		if ok {
+			track.Title, track.Artist, track.Album = title, artist, album
+			s.temporary[id] = track
+		}
+		s.mu.Unlock()
+		if !ok {
+			return Track{}, sql.ErrNoRows
+		}
+		return track, nil
+	}
+	changed, err := s.DB.Exec(`UPDATE tracks SET title=?,artist=?,album=?,manual_metadata=1 WHERE id=?`, title, artist, album, id)
+	if err != nil {
+		return Track{}, err
+	}
+	if count, _ := changed.RowsAffected(); count == 0 {
+		return Track{}, sql.ErrNoRows
+	}
+	return s.GetTrack(id)
 }
 
 func (s *Store) recheckLegacyTags() error {
@@ -688,6 +714,9 @@ func (s *Store) CoverPath(name string) (string, error) {
 }
 
 func (s *Store) SaveCover(reader io.Reader, extension string) (string, error) {
+	if extension == ".jpeg" {
+		extension = ".jpg"
+	}
 	if extension != ".png" && extension != ".jpg" && extension != ".webp" && extension != ".gif" {
 		return "", errors.New("invalid image type")
 	}

@@ -72,6 +72,9 @@ func main() {
 		Folder: func() (string, error) {
 			return app.Dialog.OpenFile().CanChooseFiles(false).CanChooseDirectories(true).PromptForSingleSelection()
 		},
+		Cover: func() (string, error) {
+			return app.Dialog.OpenFile().CanChooseFiles(true).CanChooseDirectories(false).SetTitle("选择歌单封面").AddFilter("图片文件", "*.jpg;*.jpeg;*.png;*.webp;*.gif").PromptForSingleSelection()
+		},
 	})
 	apiHandler = api.Handler()
 	window := app.Window.NewWithOptions(application.WebviewWindowOptions{

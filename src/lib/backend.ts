@@ -55,6 +55,7 @@ export const backend = {
   queue: (value: number[]) => request<{ ok: boolean }>('/api/queue', 'PUT', value),
   history: (id: number) => request<{ ok: boolean }>('/api/history', 'POST', { id }),
   duration: (id: number, duration: number) => request<{ ok: boolean }>(`/api/tracks/${id}/duration`, 'PUT', { duration }),
+  updateTrackMetadata: (id: number, title: string, artist: string, album: string) => request<Track>(`/api/tracks/${id}/metadata`, 'PUT', { title, artist, album }),
   enrichment: (id: number, cover: string, lyric: string, translation: string, fallbackOnly = false) => request<{ ok: boolean }>(`/api/tracks/${id}/enrichment${fallbackOnly ? '?fallback=1' : ''}`, 'PUT', { cover, lyric, translation }),
   saveLyrics: (track: Track) => request<Track>(`/api/tracks/${track.id}/lyrics`, 'POST', { lyrics: track.lyrics }),
   import: (paths: string[], mode: 'temporary' | 'library' | 'watch') => request<Track[]>('/api/import', 'POST', { paths, mode }),
@@ -68,6 +69,7 @@ export const backend = {
   removeFolder: (path: string) => request<{ ok: boolean }>('/api/folders', 'DELETE', { path }),
   chooseFiles: () => request<{ paths: string[] }>('/api/dialog/files'),
   chooseFolder: () => request<{ paths: string[] }>('/api/dialog/folder'),
+  chooseCover: () => request<{ cover: string }>('/api/dialog/cover'),
   uploadCover: async (file: File) => {
     const form = new FormData(); form.append('image', file);
     const response = await fetch('/api/media/cover', { method: 'POST', body: form });

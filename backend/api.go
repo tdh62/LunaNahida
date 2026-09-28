@@ -13,11 +13,13 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 type Dialogs struct {
 	Files  func() ([]string, error)
 	Folder func() (string, error)
+	Cover  func() (string, error)
 }
 
 type API struct {
@@ -219,6 +221,39 @@ func (a *API) Handler() http.Handler {
 			return
 		}
 		respond(w, 200, map[string]bool{"ok": true})
+	})
+	mux.HandleFunc("PUT /api/tracks/{id}/metadata", func(w http.ResponseWriter, r *http.Request) {
+		id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+		if err != nil || id == 0 {
+			fail(w, 400, errors.New("无效的歌曲"))
+			return
+		}
+		var input struct {
+			Title  string `json:"title"`
+			Artist string `json:"artist"`
+			Album  string `json:"album"`
+		}
+		if err = decode(r, &input); err != nil {
+			fail(w, 400, err)
+			return
+		}
+		input.Title = strings.TrimSpace(input.Title)
+		input.Artist = strings.TrimSpace(input.Artist)
+		input.Album = strings.TrimSpace(input.Album)
+		if input.Title == "" || input.Artist == "" || input.Album == "" || utf8.RuneCountInString(input.Title) > 120 || utf8.RuneCountInString(input.Artist) > 120 || utf8.RuneCountInString(input.Album) > 120 {
+			fail(w, 400, errors.New("歌曲名称、歌手和专辑均需填写，且不能超过 120 个字符"))
+			return
+		}
+		track, err := a.Store.UpdateTrackMetadata(id, input.Title, input.Artist, input.Album)
+		if errors.Is(err, sql.ErrNoRows) {
+			fail(w, 404, errors.New("歌曲不存在"))
+			return
+		}
+		if err != nil {
+			fail(w, 500, err)
+			return
+		}
+		respond(w, 200, track)
 	})
 	mux.HandleFunc("PUT /api/tracks/{id}/duration", func(w http.ResponseWriter, r *http.Request) {
 		id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
@@ -474,6 +509,33 @@ func (a *API) Handler() http.Handler {
 			return
 		}
 		respond(w, 200, map[string]any{"paths": []string{path}})
+	})
+	mux.HandleFunc("GET /api/dialog/cover", func(w http.ResponseWriter, r *http.Request) {
+		if a.Dialogs.Cover == nil {
+			fail(w, 501, errors.New("native file dialog requires Wails"))
+			return
+		}
+		path, err := a.Dialogs.Cover()
+		if err != nil {
+			fail(w, 500, err)
+			return
+		}
+		if path == "" {
+			respond(w, 200, map[string]string{"cover": ""})
+			return
+		}
+		file, err := os.Open(path)
+		if err != nil {
+			fail(w, 400, err)
+			return
+		}
+		defer file.Close()
+		cover, err := a.Store.SaveCover(file, strings.ToLower(filepath.Ext(path)))
+		if err != nil {
+			fail(w, 400, err)
+			return
+		}
+		respond(w, 200, map[string]string{"cover": cover})
 	})
 	mux.HandleFunc("GET /api/media/audio/{id}", func(w http.ResponseWriter, r *http.Request) {
 		id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)

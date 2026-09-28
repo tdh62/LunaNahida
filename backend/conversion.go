@@ -486,7 +486,7 @@ func (s *Store) applyConvertedMeta(track Track, meta common.AudioMeta, cover []b
 			coverPath, embedded = saved, true
 		}
 	}
-	_, err := s.DB.Exec(`UPDATE tracks SET title=?,artist=?,album=?,cover=?,embedded_cover=? WHERE id=?`, title, artist, album, coverPath, embedded, track.ID)
+	_, err := s.DB.Exec(`UPDATE tracks SET title=CASE WHEN manual_metadata=1 THEN title ELSE ? END,artist=CASE WHEN manual_metadata=1 THEN artist ELSE ? END,album=CASE WHEN manual_metadata=1 THEN album ELSE ? END,cover=?,embedded_cover=? WHERE id=?`, title, artist, album, coverPath, embedded, track.ID)
 	if err != nil {
 		return track, err
 	}

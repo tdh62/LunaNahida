@@ -6,10 +6,12 @@ import (
 	"crypto/md5"
 	"database/sql"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"image"
 	"image/color"
+	"image/jpeg"
 	"image/png"
 	"net/http"
 	"net/http/httptest"
@@ -493,6 +495,38 @@ func TestCoverMD5Deduplication(t *testing.T) {
 	entries, err := os.ReadDir(filepath.Join(store.Root, "cache", "covers"))
 	if err != nil || len(entries) != 1 {
 		t.Fatalf("unexpected cover files: %+v, %v", entries, err)
+	}
+}
+
+func TestNativeCoverDialogSavesReadableJPEG(t *testing.T) {
+	store := testStore(t)
+	path := filepath.Join(t.TempDir(), "cover.jpeg")
+	var content bytes.Buffer
+	if err := jpeg.Encode(&content, image.NewRGBA(image.Rect(0, 0, 2, 2)), nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, content.Bytes(), 0600); err != nil {
+		t.Fatal(err)
+	}
+	api := NewAPI(store, Dialogs{Cover: func() (string, error) { return path, nil }}).Handler()
+	response := httptest.NewRecorder()
+	api.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/dialog/cover", nil))
+	var result struct {
+		Cover string `json:"cover"`
+	}
+	if response.Code != 200 || json.Unmarshal(response.Body.Bytes(), &result) != nil || !strings.HasSuffix(result.Cover, ".jpg") {
+		t.Fatalf("native cover selection failed: %d %s", response.Code, response.Body.String())
+	}
+	response = httptest.NewRecorder()
+	api.ServeHTTP(response, httptest.NewRequest(http.MethodGet, result.Cover, nil))
+	if response.Code != 200 || !bytes.Equal(response.Body.Bytes(), content.Bytes()) {
+		t.Fatalf("saved cover could not be read: %d", response.Code)
+	}
+	api = NewAPI(store, Dialogs{Cover: func() (string, error) { return "", nil }}).Handler()
+	response = httptest.NewRecorder()
+	api.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/dialog/cover", nil))
+	if response.Code != 200 || json.Unmarshal(response.Body.Bytes(), &result) != nil || result.Cover != "" {
+		t.Fatalf("cancelled cover selection changed cover: %d %s", response.Code, response.Body.String())
 	}
 }
 
