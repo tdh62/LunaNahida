@@ -1,11 +1,10 @@
 /* Keep the original neutral light surface for the blue and pink themes. */
 html.mode-light { --background: 160 20% 97%; --foreground: 205 22% 17%; --card: 0 0% 100%; --card-foreground: 205 22% 17%; --popover: 0 0% 100%; --popover-foreground: 205 22% 17%; --secondary: 165 13% 91%; --secondary-foreground: 205 22% 17%; --muted: 165 13% 91%; --muted-foreground: 205 12% 38%; --border: 170 13% 82%; --input: 170 13% 82%; --light-text: #25343a; --light-muted: #586968; --light-panel: #fff; --light-soft: #edf3f0; --line: #d8e1dc; }
 html.mode-light body { background: #f6f9f7; color: #25343a; }
-.music-app.mode-light { --accent: #435db8; --tint: rgba(67,93,184,.1); --background: #f6f9f7; --surface: #fff; --line: #d8e1dc; --muted: #5f706f; --cover-glow: rgba(80,115,181,.08); --light-text: #25343a; --light-muted: #586968; --light-panel: #fff; --light-soft: #edf3f0; color: var(--light-text); }
-.music-app.mode-light.theme-anime { --accent: #a63d8b; --tint: rgba(166,61,139,.1); --cover-glow: rgba(166,61,139,.07); }
-.music-app.mode-light.theme-forest { --accent: #2b7651; --tint: rgba(43,118,81,.11); --background: #f7faf5; --line: #d8e5d8; --muted: #5e7163; --cover-glow: rgba(119,167,101,.12); --light-text: #26392f; --light-muted: #596f61; --light-soft: #e9f2e7; }
-.mode-light .sidebar { background: #eff4f1; }
-.mode-light.theme-forest .sidebar { background: #eef5e9; }
+.music-app.mode-light { --accent: #435db8; --tint: rgba(67,93,184,.1); --background: #f6f9f7; --surface: #fff; --line: #d8e1dc; --muted: #5f706f; --cover-glow: rgba(80,115,181,.08); --light-text: #25343a; --light-muted: #586968; --light-panel: #fff; --light-soft: #edf3f0; --sidebar-background: #eef1f9; --sidebar-highlight: #e3e9f6; color: var(--light-text); }
+.music-app.mode-light.theme-anime { --accent: #a63d8b; --tint: rgba(166,61,139,.1); --cover-glow: rgba(166,61,139,.07); --sidebar-background: #f8f0f5; --sidebar-highlight: #f2e5ef; }
+.music-app.mode-light.theme-forest { --accent: #2b7651; --tint: rgba(43,118,81,.11); --background: #f7faf5; --line: #d8e5d8; --muted: #5e7163; --cover-glow: rgba(119,167,101,.12); --light-text: #26392f; --light-muted: #596f61; --light-soft: #e9f2e7; --sidebar-background: #eef5e9; --sidebar-highlight: #e3ebe6; }
+.mode-light .sidebar { background: var(--sidebar-background); }
 .mode-light .brand, .mode-light .collection, .mode-light .profile,
 .mode-light .album-title h2, .mode-light .lyric-line.current,
 .mode-light .queue-tabs > button.active, .mode-light .queue-description,
@@ -56,6 +55,10 @@ html.mode-light body { background: #f6f9f7; color: #25343a; }
 .mode-light .queue-track:hover, .mode-light .library-row:hover,
 .mode-light .library-row.is-current, .mode-light .quick-queue-list .queue-track:hover {
   background: #e3ebe6; color: var(--light-text);
+}
+.mode-light .sidebar .nav-item:hover, .mode-light .sidebar .nav-item.selected,
+.mode-light .sidebar .playlist-nav .nav-item, .mode-light .sidebar .import-actions .nav-item {
+  background: var(--sidebar-highlight);
 }
 .mode-light .header-separator { background: var(--line); }
 .mode-light .stage-top, .mode-light .lyrics-header, .mode-light .stage-toolbar,
