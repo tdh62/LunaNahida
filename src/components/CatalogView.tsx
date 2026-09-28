@@ -1,6 +1,6 @@
 import { ArrowDownAZ, ArrowLeft, Disc3, Info, ListMusic, Mic2, Play, RefreshCw, Search, Users } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router';
 import LibraryView from '@/components/LibraryView';
 import { backend } from '@/lib/backend';
 import type { AlbumEntry, ArtistEntry } from '@/lib/catalog';

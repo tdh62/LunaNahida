@@ -1,6 +1,6 @@
 import { ArrowLeft, ImagePlus, ListMusic, Play, Plus, Trash2, Upload, Disc3 } from 'lucide-react';
 import { useRef, useState, type DragEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import LibraryView from '@/components/LibraryView';
 import { type Track } from '@/lib/music';

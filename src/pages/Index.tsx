@@ -1,5 +1,5 @@
 import { type CSSProperties, type DragEvent, type PointerEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router';
 import PlayerSettings from '@/components/PlayerSettings';
 import ExpandedScope from '@/components/ExpandedScope';
 import AudioProcessor from '@/components/AudioProcessor';
