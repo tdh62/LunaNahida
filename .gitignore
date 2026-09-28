@@ -14,6 +14,8 @@ dist-ssr
 .corepack/
 .output/
 /bin/
+/demo_project/
+/resources/
 
 # Editor directories and files
 .vscode/*

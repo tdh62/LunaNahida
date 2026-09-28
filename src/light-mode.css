@@ -137,6 +137,7 @@ html.mode-light .music-dialog h2, html.mode-light .music-dialog [role=heading] {
 html.mode-light .music-dialog > p[data-description], html.mode-light .music-dialog > button:last-of-type { color: #586968; }
 html.mode-light .music-dialog input { background: #fff; border-color: #d8e1dc; color: #25343a; }
 html.mode-light .music-dialog .demo-note { color: #586968; border-color: #d8e1dc; }
+html.mode-light .folder-dialog-actions button:last-child { border-color: #435db8; background: #435db8; color: #fff; }
 html.mode-light .player-popover, html.mode-light .sleep-quick-popover, html.mode-light .queue-context { background: #fff; border-color: #d8e1dc; color: #25343a; }
 html.mode-light .player-popover .popover-item, html.mode-light .player-popover .option-chip,
 html.mode-light .player-popover .eq-sliders label, html.mode-light .player-popover .eq-sliders small { color: #586968; border-color: #d8e1dc; }

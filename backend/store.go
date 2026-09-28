@@ -4,36 +4,46 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"math"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	_ "modernc.org/sqlite"
 )
 
 type Track struct {
-	ID             int64   `json:"id"`
-	Path           string  `json:"path"`
-	Title          string  `json:"title"`
-	English        string  `json:"english"`
-	Artist         string  `json:"artist"`
-	Album          string  `json:"album"`
-	Duration       float64 `json:"duration"`
-	Cover          string  `json:"cover"`
-	Genre          string  `json:"genre"`
-	Year           string  `json:"year"`
-	Color          string  `json:"color"`
-	Source         string  `json:"source"`
-	FileName       string  `json:"fileName"`
-	Lyrics         string  `json:"lyrics,omitempty"`
-	Translation    string  `json:"translation,omitempty"`
-	EmbeddedCover  bool    `json:"embeddedCover"`
-	EmbeddedLyrics bool    `json:"embeddedLyrics"`
-	Available      bool    `json:"available"`
-	Temporary      bool    `json:"temporary,omitempty"`
-	Size           int64   `json:"-"`
-	Modified       int64   `json:"-"`
+	ID             int64    `json:"id"`
+	Path           string   `json:"path"`
+	Title          string   `json:"title"`
+	English        string   `json:"english"`
+	Artist         string   `json:"artist"`
+	Album          string   `json:"album"`
+	Duration       float64  `json:"duration"`
+	Cover          string   `json:"cover"`
+	Genre          string   `json:"genre"`
+	EmbeddedTags   []string `json:"embeddedTags"`
+	CustomTags     []string `json:"customTags"`
+	Year           string   `json:"year"`
+	Color          string   `json:"color"`
+	Source         string   `json:"source"`
+	FileName       string   `json:"fileName"`
+	Lyrics         string   `json:"lyrics,omitempty"`
+	Translation    string   `json:"translation,omitempty"`
+	EmbeddedCover  bool     `json:"embeddedCover"`
+	EmbeddedLyrics bool     `json:"embeddedLyrics"`
+	LocalLyrics    bool     `json:"localLyrics"`
+	Available      bool     `json:"available"`
+	PlaybackStatus string   `json:"playbackStatus"`
+	Provider       string   `json:"provider,omitempty"`
+	ProviderID     string   `json:"providerId,omitempty"`
+	Converted      bool     `json:"converted,omitempty"`
+	Temporary      bool     `json:"temporary,omitempty"`
+	Deletable      bool     `json:"deletable"`
+	Size           int64    `json:"-"`
+	Modified       int64    `json:"-"`
 }
 
 type Playlist struct {
@@ -49,9 +59,12 @@ type Settings struct {
 	DropAction          string          `json:"dropAction"`
 	ScanOnStart         bool            `json:"scanOnStart"`
 	ScanIntervalMinutes int             `json:"scanIntervalMinutes"`
+	AutoConvert         bool            `json:"autoConvert"`
+	BackupOriginal      bool            `json:"backupOriginal"`
 	Theme               string          `json:"theme"`
 	Appearance          string          `json:"appearance"`
 	Visual              string          `json:"visual"`
+	Scope               ScopeSettings   `json:"scope"`
 	LyricEffect         string          `json:"lyricEffect"`
 	LyricScroll         string          `json:"lyricScroll"`
 	ShowTranslation     bool            `json:"showTranslation"`
@@ -61,14 +74,73 @@ type Settings struct {
 	Mode                string          `json:"mode"`
 	Effect              string          `json:"effect"`
 	Equalizer           []float64       `json:"equalizer"`
+	CustomEffects       []SavedEffect   `json:"customEffects"`
+}
+
+type SavedEffect struct {
+	ID     string       `json:"id"`
+	Name   string       `json:"name"`
+	Filter CustomFilter `json:"filter"`
+}
+
+type CustomFilter struct {
+	FIRSize        int             `json:"firSize"`
+	FrequencyBands []FrequencyBand `json:"frequencyBands"`
+	Time           string          `json:"time"`
+	DurationMs     int             `json:"durationMs"`
+	Delays         []FilterDelay   `json:"delays"`
+}
+
+type FrequencyBand struct {
+	Expression   string   `json:"expression"`
+	StartHz      float64  `json:"startHz"`
+	EndHz        *float64 `json:"endHz"`
+	TransitionHz float64  `json:"transitionHz"`
+}
+
+type FilterDelay struct {
+	Ms   float64 `json:"ms"`
+	Gain float64 `json:"gain"`
+}
+
+func validCustomFilter(filter CustomFilter) bool {
+	if filter.FIRSize != 2048 && filter.FIRSize != 4096 && filter.FIRSize != 8192 && filter.FIRSize != 16384 {
+		return false
+	}
+	if len(filter.FrequencyBands) < 1 || len(filter.FrequencyBands) > 8 || len(filter.Time) < 1 || len(filter.Time) > 200 || filter.DurationMs < 50 || filter.DurationMs > 1000 || len(filter.Delays) > 8 {
+		return false
+	}
+	for _, band := range filter.FrequencyBands {
+		if len(band.Expression) < 1 || len(band.Expression) > 200 || math.IsNaN(band.StartHz) || band.StartHz < 0 || band.StartHz > 192000 || math.IsNaN(band.TransitionHz) || band.TransitionHz < 0 || band.TransitionHz > 10000 {
+			return false
+		}
+		if band.EndHz != nil && (math.IsNaN(*band.EndHz) || *band.EndHz <= band.StartHz || *band.EndHz > 192000) {
+			return false
+		}
+	}
+	for _, delay := range filter.Delays {
+		if math.IsNaN(delay.Ms) || math.IsNaN(delay.Gain) || delay.Ms < 1 || delay.Ms > float64(filter.DurationMs) || math.Abs(delay.Gain) > 1 {
+			return false
+		}
+	}
+	return true
+}
+
+type ScopeSettings struct {
+	Mode         string  `json:"mode"`
+	FFTSize      int     `json:"fftSize"`
+	MinFrequency int     `json:"minFrequency"`
+	MaxFrequency int     `json:"maxFrequency"`
+	Smoothing    float64 `json:"smoothing"`
 }
 
 func DefaultSettings() Settings {
-	return Settings{DropAction: "ask", ScanOnStart: true, Theme: "dusk", Appearance: "dark", Visual: "频谱", LyricEffect: "流动", LyricScroll: "平滑", ShowTranslation: true, LyricAppearance: json.RawMessage(`{"font":"default","size":16,"lineHeight":57,"spacing":0}`), ArtistMappings: json.RawMessage(`[]`), Volume: 65, Mode: "list", Effect: "原声", Equalizer: []float64{0, 0, 0, 0, 0}}
+	return Settings{DropAction: "ask", ScanOnStart: true, BackupOriginal: true, Theme: "dusk", Appearance: "dark", Visual: "频谱", Scope: ScopeSettings{Mode: "spectrum", FFTSize: 8192, MinFrequency: 20, MaxFrequency: 20000, Smoothing: 0.72}, LyricEffect: "流动", LyricScroll: "平滑", ShowTranslation: true, LyricAppearance: json.RawMessage(`{"font":"default","size":16,"lineHeight":57,"spacing":0}`), ArtistMappings: json.RawMessage(`[]`), Volume: 65, Mode: "list", Effect: "原声", Equalizer: []float64{0, 0, 0, 0, 0}, CustomEffects: []SavedEffect{}}
 }
 
 type State struct {
 	Tracks    []Track    `json:"tracks"`
+	Tags      []string   `json:"tags"`
 	Playlists []Playlist `json:"playlists"`
 	Liked     []int64    `json:"liked"`
 	Recent    []int64    `json:"recent"`
@@ -82,6 +154,7 @@ type Store struct {
 	Root          string
 	mu            sync.Mutex
 	coverMu       sync.Mutex
+	convertMu     sync.Mutex
 	temporary     map[int64]Track
 	nextTemporary int64
 	scanning      bool
@@ -193,7 +266,102 @@ func (s *Store) migrate() error {
 		UPDATE schema_version SET version=4`); err != nil {
 			return err
 		}
-		return tx.Commit()
+		if err = tx.Commit(); err != nil {
+			return err
+		}
+		version = 4
+	}
+	if version < 5 {
+		tx, beginErr := s.DB.Begin()
+		if beginErr != nil {
+			return beginErr
+		}
+		defer tx.Rollback()
+		if _, err = tx.Exec(`ALTER TABLE tracks ADD COLUMN local_lyrics INTEGER NOT NULL DEFAULT 0;
+		UPDATE tracks SET tags_checked=0;
+		UPDATE schema_version SET version=5`); err != nil {
+			return err
+		}
+		if err = tx.Commit(); err != nil {
+			return err
+		}
+		version = 5
+	}
+	if version < 6 {
+		var hasColumn int
+		if err = s.DB.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('tracks') WHERE name='embedded_tags'`).Scan(&hasColumn); err != nil {
+			return err
+		}
+		if hasColumn == 0 {
+			if _, err = s.DB.Exec(`ALTER TABLE tracks ADD COLUMN embedded_tags TEXT NOT NULL DEFAULT '[]'`); err != nil {
+				return err
+			}
+		}
+		_, err = s.DB.Exec(`CREATE TABLE IF NOT EXISTS custom_tags(name TEXT PRIMARY KEY COLLATE NOCASE);
+		CREATE TABLE IF NOT EXISTS track_custom_tags(track_id INTEGER NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,name TEXT NOT NULL REFERENCES custom_tags(name) ON UPDATE CASCADE ON DELETE CASCADE,PRIMARY KEY(track_id,name));
+		UPDATE tracks SET tags_checked=0;
+		UPDATE schema_version SET version=6`)
+		if err != nil {
+			return err
+		}
+	}
+	if version < 7 {
+		var hasColumn int
+		if err = s.DB.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('tracks') WHERE name='playback_status'`).Scan(&hasColumn); err != nil {
+			return err
+		}
+		if hasColumn == 0 {
+			if _, err = s.DB.Exec(`ALTER TABLE tracks ADD COLUMN playback_status TEXT NOT NULL DEFAULT 'unknown'`); err != nil {
+				return err
+			}
+		}
+		if _, err = s.DB.Exec(`UPDATE schema_version SET version=7`); err != nil {
+			return err
+		}
+	}
+	if version < 8 {
+		for _, column := range []string{"provider", "provider_id"} {
+			var hasColumn int
+			if err = s.DB.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('tracks') WHERE name=?`, column).Scan(&hasColumn); err != nil {
+				return err
+			}
+			if hasColumn == 0 {
+				if _, err = s.DB.Exec(`ALTER TABLE tracks ADD COLUMN ` + column + ` TEXT NOT NULL DEFAULT ''`); err != nil {
+					return err
+				}
+			}
+		}
+		if _, err = s.DB.Exec(`UPDATE schema_version SET version=8`); err != nil {
+			return err
+		}
+	}
+	if version < 9 {
+		var hasColumn int
+		if err = s.DB.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('tracks') WHERE name='converted'`).Scan(&hasColumn); err != nil {
+			return err
+		}
+		if hasColumn == 0 {
+			if _, err = s.DB.Exec(`ALTER TABLE tracks ADD COLUMN converted INTEGER NOT NULL DEFAULT 0`); err != nil {
+				return err
+			}
+		}
+		if _, err = s.DB.Exec(`UPDATE schema_version SET version=9`); err != nil {
+			return err
+		}
+	}
+	if version < 10 {
+		var hasColumn int
+		if err = s.DB.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('tracks') WHERE name='folder_imported'`).Scan(&hasColumn); err != nil {
+			return err
+		}
+		if hasColumn == 0 {
+			if _, err = s.DB.Exec(`ALTER TABLE tracks ADD COLUMN folder_imported INTEGER NOT NULL DEFAULT 0`); err != nil {
+				return err
+			}
+		}
+		if _, err = s.DB.Exec(`UPDATE schema_version SET version=10`); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -211,6 +379,24 @@ func (s *Store) Settings() (Settings, error) {
 	if err = json.Unmarshal([]byte(raw), &value); err != nil {
 		return DefaultSettings(), err
 	}
+	if value.Scope.Mode != "spectrum" && value.Scope.Mode != "waveform" {
+		value.Scope.Mode = "spectrum"
+	}
+	if value.Scope.FFTSize != 2048 && value.Scope.FFTSize != 4096 && value.Scope.FFTSize != 8192 && value.Scope.FFTSize != 16384 {
+		value.Scope.FFTSize = 8192
+	}
+	if value.Scope.MinFrequency < 20 || value.Scope.MinFrequency >= value.Scope.MaxFrequency {
+		value.Scope.MinFrequency = 20
+	}
+	if value.Scope.MaxFrequency < 100 || value.Scope.MaxFrequency > 192000 {
+		value.Scope.MaxFrequency = 20000
+	}
+	if value.CustomEffects == nil {
+		value.CustomEffects = []SavedEffect{}
+	}
+	if value.Scope.Smoothing < 0 || value.Scope.Smoothing > 0.95 {
+		value.Scope.Smoothing = 0.72
+	}
 	return value, nil
 }
 
@@ -224,6 +410,31 @@ func (s *Store) SaveSettings(value Settings) error {
 	if value.Volume < 0 || value.Volume > 100 {
 		return errors.New("invalid volume")
 	}
+	if value.Scope.Mode != "spectrum" && value.Scope.Mode != "waveform" {
+		return errors.New("invalid scope mode")
+	}
+	if value.Scope.FFTSize != 2048 && value.Scope.FFTSize != 4096 && value.Scope.FFTSize != 8192 && value.Scope.FFTSize != 16384 {
+		return errors.New("invalid scope fft size")
+	}
+	if value.Scope.MinFrequency < 20 || value.Scope.MaxFrequency > 192000 || value.Scope.MaxFrequency < 100 || value.Scope.MinFrequency >= value.Scope.MaxFrequency {
+		return errors.New("invalid scope frequency")
+	}
+	if len(value.CustomEffects) > 40 {
+		return errors.New("too many custom effects")
+	}
+	seenEffects := map[string]bool{}
+	for _, effect := range value.CustomEffects {
+		if len(effect.ID) == 0 || len(effect.ID) > 80 || utf8.RuneCountInString(effect.Name) == 0 || utf8.RuneCountInString(effect.Name) > 60 || seenEffects[effect.ID] {
+			return errors.New("invalid custom effect name or id")
+		}
+		seenEffects[effect.ID] = true
+		if !validCustomFilter(effect.Filter) {
+			return errors.New("invalid custom effect filter")
+		}
+	}
+	if value.Scope.Smoothing < 0 || value.Scope.Smoothing > 0.95 {
+		return errors.New("invalid scope smoothing")
+	}
 	raw, err := json.Marshal(value)
 	if err != nil {
 		return err
@@ -233,7 +444,7 @@ func (s *Store) SaveSettings(value Settings) error {
 }
 
 func (s *Store) State() (State, error) {
-	state := State{Tracks: []Track{}, Playlists: []Playlist{}, Liked: []int64{}, Recent: []int64{}, Queue: []int64{}, Folders: []string{}}
+	state := State{Tracks: []Track{}, Tags: []string{}, Playlists: []Playlist{}, Liked: []int64{}, Recent: []int64{}, Queue: []int64{}, Folders: []string{}}
 	if err := s.recheckLegacyTags(); err != nil {
 		return state, err
 	}
@@ -242,28 +453,37 @@ func (s *Store) State() (State, error) {
 	if err != nil {
 		return state, err
 	}
-	rows, err := s.DB.Query(`SELECT id,path,title,artist,album,duration,cover,genre,year,lyrics,translation,size,modified,available,embedded_cover,embedded_lyrics FROM tracks ORDER BY id`)
+	rows, err := s.DB.Query(`SELECT id,path,title,artist,album,duration,cover,genre,year,lyrics,translation,size,modified,available,embedded_cover,embedded_lyrics,local_lyrics,embedded_tags,playback_status,provider,provider_id,converted,folder_imported FROM tracks ORDER BY id`)
 	if err != nil {
 		return state, err
 	}
 	for rows.Next() {
 		var t Track
-		var available, embeddedCover, embeddedLyrics int
-		if err = rows.Scan(&t.ID, &t.Path, &t.Title, &t.Artist, &t.Album, &t.Duration, &t.Cover, &t.Genre, &t.Year, &t.Lyrics, &t.Translation, &t.Size, &t.Modified, &available, &embeddedCover, &embeddedLyrics); err != nil {
+		var available, embeddedCover, embeddedLyrics, localLyrics, converted, folderImported int
+		var embeddedJSON string
+		if err = rows.Scan(&t.ID, &t.Path, &t.Title, &t.Artist, &t.Album, &t.Duration, &t.Cover, &t.Genre, &t.Year, &t.Lyrics, &t.Translation, &t.Size, &t.Modified, &available, &embeddedCover, &embeddedLyrics, &localLyrics, &embeddedJSON, &t.PlaybackStatus, &t.Provider, &t.ProviderID, &converted, &folderImported); err != nil {
 			rows.Close()
 			return state, err
 		}
 		t.Available = available == 1
+		t.Converted = converted == 1
+		t.Deletable = folderImported == 0
 		t.EmbeddedCover = embeddedCover == 1
 		t.EmbeddedLyrics = embeddedLyrics == 1
+		t.LocalLyrics = localLyrics == 1
 		t.Source = "/api/media/audio/" + formatID(t.ID)
 		t.FileName = filepath.Base(t.Path)
 		t.Color = "#8daab0"
+		t.EmbeddedTags = decodeTags(embeddedJSON)
+		t.CustomTags = []string{}
 		state.Tracks = append(state.Tracks, t)
 	}
 	err = rows.Err()
 	rows.Close()
 	if err != nil {
+		return state, err
+	}
+	if err = s.loadCustomTags(&state); err != nil {
 		return state, err
 	}
 	rows, err = s.DB.Query(`SELECT id,name,description,cover,cover_mode FROM playlists ORDER BY rowid`)
@@ -333,6 +553,16 @@ func (s *Store) State() (State, error) {
 		state.Folders = append(state.Folders, path)
 	}
 	rows.Close()
+	if err == nil {
+		for i := range state.Tracks {
+			for _, folder := range state.Folders {
+				if pathWithin(folder, state.Tracks[i].Path) {
+					state.Tracks[i].Deletable = false
+					break
+				}
+			}
+		}
+	}
 	return state, err
 }
 

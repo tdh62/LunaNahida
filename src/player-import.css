@@ -9,12 +9,18 @@
 .queue-actions { display: flex; align-items: center; gap: 3px; padding: 10px 0; border-top: 1px solid var(--line); }
 .queue-actions button { display: inline-flex; align-items: center; gap: 4px; padding: 5px 4px; border: 0; background: none; color: #c0c0c2; font-size: 10px; white-space: nowrap; }
 .queue-actions button:hover { color: var(--accent); }
-.queue-actions button:last-child:nth-child(3) { margin-left: auto; }
+.queue-actions button:disabled { opacity: .45; cursor: not-allowed; }
+.queue-delete-zone { display: flex; align-items: center; justify-content: center; min-width: 105px; min-height: 34px; margin-left: auto; padding: 0 5px; border: 1px dashed transparent; border-radius: 5px; }
+.is-track-dragging .queue-delete-zone:not(.is-over) { border-color: #a76565; }
+.queue-delete-zone.is-over { border-color: #d86d78; background: rgba(171, 66, 77, .2); }
+.queue-delete-zone.is-over button, .queue-delete-zone.is-over button:hover { color: #ffaeb7; }
+.nav-item.track-drop-target { background: var(--tint); color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.is-track-dragging .nav-item[title="正在播放"], .is-track-dragging .nav-item[title="我喜欢的"], .is-track-dragging .playlist-nav-entry { outline: 1px dashed var(--accent); outline-offset: -3px; }
 .file-drop-overlay { position: fixed; z-index: 90; inset: 16px 16px 104px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 12px; border: 2px dashed var(--accent); border-radius: 10px; background: rgba(25, 32, 33, .92); color: #f4f4f1; pointer-events: none; }
 .file-drop-overlay svg { color: var(--accent); }
 .file-drop-overlay strong { font-size: 18px; font-weight: 500; }
 .folder-dialog-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 21px; }
-.folder-dialog-actions button:last-child { border-color: var(--accent); background: var(--accent); color: #19191b; }
+.folder-dialog-actions button:last-child { border-color: #a5b5ff; background: #a5b5ff; color: #19191b; }
 .folder-dialog-actions button:last-child:hover { color: #19191b; filter: brightness(1.1); }
 .duplicate-dialog-actions { flex-wrap: wrap; }
 .duplicate-dialog-actions button { flex: 1; white-space: nowrap; }
@@ -45,6 +51,7 @@
 .listening-empty { flex: 1; min-height: 0; }
 .stage-top, .stage-toolbar { flex: none; }
 .queue-panel { display: flex; flex-direction: column; min-height: 0; }
+.queue-panel.track-drop-target { outline: 1px dashed var(--accent); outline-offset: -3px; background: var(--tint); }
 .queue-description > div { display: flex; align-items: center; justify-content: space-between; }
 .queue-density { display: grid; place-items: center; width: 28px; height: 28px; border: 0; border-radius: 4px; background: transparent; color: #aaa9ad; }
 .queue-density:hover, .queue-density:focus-visible { background: var(--tint); color: var(--accent); }
@@ -161,6 +168,16 @@
   .music-app:not(.focus-mode) .workspace:not(.settings-workspace) .stage-toolbar { padding-right: 12px; padding-left: 12px; }
   .music-app:not(.focus-mode) .workspace:not(.settings-workspace) .listening-content { padding-right: 12px; padding-left: 12px; }
   .music-app:not(.focus-mode) .workspace:not(.settings-workspace) .queue-panel { padding-right: 12px; padding-left: 12px; }
+}
+
+@media (max-width: 760px) {
+  .playback-extras > button.toolbox-trigger { display: inline-grid; }
+}
+@media (max-width: 480px) {
+  .playback-extras > .quality-badge { display: none; }
+  .playback-extras > button.volume-trigger { display: none; }
+  .playback-extras { position: absolute; right: 10px; bottom: 22px; gap: 2px; }
+  .playback-bar .transport { width: calc(100% - 98px); }
 }
 
 .playback-extras > .quality-badge { flex: none; padding: 4px 7px; border-color: #528e7a; border-radius: 4px; background: rgba(57, 126, 100, .16); color: #8fd2b4; font-size: 9px; }

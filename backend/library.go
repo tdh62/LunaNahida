@@ -6,6 +6,7 @@ import (
 	"crypto/md5"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"io"
 	"io/fs"
@@ -21,7 +22,16 @@ import (
 
 func formatID(id int64) string { return strconv.FormatInt(id, 10) }
 
-var audioTypes = map[string]bool{".mp3": true, ".m4a": true, ".mp4": true, ".aac": true, ".wav": true, ".ogg": true, ".oga": true, ".opus": true, ".flac": true, ".webm": true}
+var audioTypes = map[string]bool{".mp3": true, ".m4a": true, ".mp4": true, ".aac": true, ".wav": true, ".ogg": true, ".oga": true, ".opus": true, ".flac": true, ".webm": true, ".wma": true, ".dff": true, ".ape": true}
+
+func playbackStatus(path string) string {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".wma", ".dff", ".ape":
+		return "unplayable"
+	default:
+		return "unknown"
+	}
+}
 
 func canonical(path string) (string, error) {
 	if !filepath.IsAbs(path) {
@@ -37,8 +47,13 @@ func canonical(path string) (string, error) {
 	return filepath.Clean(path), nil
 }
 
+func pathWithin(folder, path string) bool {
+	relative, err := filepath.Rel(folder, path)
+	return err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator)) && !filepath.IsAbs(relative)
+}
+
 func (s *Store) readTrack(path string, info fs.FileInfo) (Track, error) {
-	t := Track{Path: path, Title: strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)), Artist: "未知歌手", Album: "未知专辑", Genre: "", Year: "", Cover: "/covers/local.svg", Color: "#8daab0", FileName: filepath.Base(path), Available: true, Size: info.Size(), Modified: info.ModTime().UnixNano()}
+	t := Track{Path: path, Title: strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)), Artist: "未知歌手", Album: "未知专辑", Genre: "", Year: "", Cover: "/covers/local.svg", Color: "#8daab0", FileName: filepath.Base(path), Available: true, PlaybackStatus: playbackStatus(path), EmbeddedTags: []string{}, CustomTags: []string{}, Size: info.Size(), Modified: info.ModTime().UnixNano()}
 	file, err := os.Open(path)
 	if err != nil {
 		return t, err
@@ -58,6 +73,39 @@ func (s *Store) readTrack(path string, info fs.FileInfo) (Track, error) {
 			t.Album = v
 		}
 		t.Genre = strings.TrimSpace(metadata.Genre())
+		t.EmbeddedTags = splitAudioTags(t.Genre)
+		seen := map[string]bool{}
+		for _, name := range t.EmbeddedTags {
+			seen[strings.ToLower(name)] = true
+		}
+		for key, value := range metadata.Raw() {
+			field := strings.ToLower(strings.TrimSpace(key))
+			isCustomField := strings.HasPrefix(field, "txxx") || strings.HasPrefix(field, "txx")
+			if field != "tag" && field != "tags" && field != "label" && field != "grouping" && field != "©grp" && !strings.Contains(field, "tagging") && !isCustomField {
+				continue
+			}
+			values := []string{}
+			switch v := value.(type) {
+			case string:
+				values = []string{v}
+			case []string:
+				values = v
+			case []byte:
+				values = []string{string(v)}
+			case *tag.Comm:
+				if strings.EqualFold(v.Description, "tag") || strings.EqualFold(v.Description, "tags") || strings.EqualFold(v.Description, "label") {
+					values = []string{v.Text}
+				}
+			}
+			for _, item := range values {
+				for _, name := range splitAudioTags(item) {
+					if !seen[strings.ToLower(name)] {
+						t.EmbeddedTags = append(t.EmbeddedTags, name)
+						seen[strings.ToLower(name)] = true
+					}
+				}
+			}
+		}
 		if lyrics := strings.TrimSpace(metadata.Lyrics()); lyrics != "" && len(lyrics) <= 2<<20 {
 			t.Lyrics = lyrics
 			t.EmbeddedLyrics = true
@@ -89,11 +137,10 @@ func (s *Store) readTrack(path string, info fs.FileInfo) (Track, error) {
 			}
 		}
 	}
-	if t.Lyrics == "" {
-		sidecar := strings.TrimSuffix(path, filepath.Ext(path)) + ".lrc"
-		if data, err := os.ReadFile(sidecar); err == nil && len(data) < 2<<20 {
-			t.Lyrics = string(data)
-		}
+	if lyrics, ok := sidecarLyrics(path); ok {
+		t.Lyrics = lyrics
+		t.EmbeddedLyrics = false
+		t.LocalLyrics = true
 	}
 	return t, nil
 }
@@ -114,14 +161,17 @@ func (s *Store) upsert(path string) (Track, error) {
 		return Track{}, errors.New("expected audio file")
 	}
 	var old Track
-	var tagsChecked int
-	err = s.DB.QueryRow(`SELECT id,size,modified,duration,cover,tags_checked FROM tracks WHERE path=?`, path).Scan(&old.ID, &old.Size, &old.Modified, &old.Duration, &old.Cover, &tagsChecked)
+	var tagsChecked, oldLocalLyrics int
+	err = s.DB.QueryRow(`SELECT id,size,modified,duration,cover,lyrics,local_lyrics,tags_checked FROM tracks WHERE path=?`, path).Scan(&old.ID, &old.Size, &old.Modified, &old.Duration, &old.Cover, &old.Lyrics, &oldLocalLyrics, &tagsChecked)
 	if err == nil && old.Size == info.Size() && old.Modified == info.ModTime().UnixNano() && tagsChecked == 1 {
-		_, err = s.DB.Exec(`UPDATE tracks SET available=1 WHERE id=?`, old.ID)
-		if err != nil {
-			return Track{}, err
+		lyrics, found := sidecarLyrics(path)
+		if found && oldLocalLyrics == 1 && old.Lyrics == lyrics || !found && oldLocalLyrics == 0 {
+			_, err = s.DB.Exec(`UPDATE tracks SET available=1 WHERE id=?`, old.ID)
+			if err != nil {
+				return Track{}, err
+			}
+			return s.GetTrack(old.ID)
 		}
-		return s.GetTrack(old.ID)
 	}
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return Track{}, err
@@ -133,7 +183,17 @@ func (s *Store) upsert(path string) (Track, error) {
 	if old.ID != 0 {
 		t.Duration = old.Duration
 	}
-	_, err = s.DB.Exec(`INSERT INTO tracks(path,title,artist,album,duration,cover,genre,year,lyrics,size,modified,available,added_at,embedded_cover,embedded_lyrics,tags_checked) VALUES(?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,1) ON CONFLICT(path) DO UPDATE SET title=excluded.title,artist=excluded.artist,album=excluded.album,cover=CASE WHEN excluded.embedded_cover=1 OR tracks.embedded_cover=1 THEN excluded.cover WHEN excluded.cover='/covers/local.svg' THEN tracks.cover ELSE excluded.cover END,genre=excluded.genre,year=excluded.year,lyrics=CASE WHEN excluded.embedded_lyrics=1 OR tracks.embedded_lyrics=1 THEN excluded.lyrics WHEN excluded.lyrics='' THEN tracks.lyrics ELSE excluded.lyrics END,translation=CASE WHEN excluded.embedded_lyrics=1 OR tracks.embedded_lyrics=1 THEN '' ELSE tracks.translation END,size=excluded.size,modified=excluded.modified,available=1,embedded_cover=excluded.embedded_cover,embedded_lyrics=excluded.embedded_lyrics,tags_checked=1`, path, t.Title, t.Artist, t.Album, t.Duration, t.Cover, t.Genre, t.Year, t.Lyrics, t.Size, t.Modified, time.Now().Unix(), t.EmbeddedCover, t.EmbeddedLyrics)
+	embeddedJSON, _ := json.Marshal(t.EmbeddedTags)
+	_, err = s.DB.Exec(`INSERT INTO tracks(path,title,artist,album,duration,cover,genre,year,lyrics,size,modified,available,added_at,embedded_cover,embedded_lyrics,local_lyrics,tags_checked,embedded_tags,playback_status)
+		VALUES(?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,?,1,?,?)
+		ON CONFLICT(path) DO UPDATE SET
+		title=excluded.title,artist=excluded.artist,album=excluded.album,
+		cover=CASE WHEN excluded.embedded_cover=1 OR tracks.embedded_cover=1 THEN excluded.cover WHEN excluded.cover='/covers/local.svg' THEN tracks.cover ELSE excluded.cover END,
+		genre=excluded.genre,year=excluded.year,
+		lyrics=CASE WHEN excluded.local_lyrics=1 OR excluded.embedded_lyrics=1 THEN excluded.lyrics WHEN tracks.local_lyrics=1 OR tracks.embedded_lyrics=1 THEN '' ELSE tracks.lyrics END,
+		translation=CASE WHEN excluded.local_lyrics=1 OR excluded.embedded_lyrics=1 OR tracks.local_lyrics=1 OR tracks.embedded_lyrics=1 THEN '' ELSE tracks.translation END,
+		size=excluded.size,modified=excluded.modified,available=1,embedded_cover=excluded.embedded_cover,embedded_lyrics=excluded.embedded_lyrics,local_lyrics=excluded.local_lyrics,tags_checked=1,embedded_tags=excluded.embedded_tags,playback_status=excluded.playback_status`,
+		path, t.Title, t.Artist, t.Album, t.Duration, t.Cover, t.Genre, t.Year, t.Lyrics, t.Size, t.Modified, time.Now().Unix(), t.EmbeddedCover, t.EmbeddedLyrics, t.LocalLyrics, string(embeddedJSON), t.PlaybackStatus)
 	if err != nil {
 		return Track{}, err
 	}
@@ -154,18 +214,46 @@ func (s *Store) GetTrack(id int64) (Track, error) {
 		return t, nil
 	}
 	var t Track
-	var available, embeddedCover, embeddedLyrics int
-	err := s.DB.QueryRow(`SELECT id,path,title,artist,album,duration,cover,genre,year,lyrics,translation,size,modified,available,embedded_cover,embedded_lyrics FROM tracks WHERE id=?`, id).Scan(&t.ID, &t.Path, &t.Title, &t.Artist, &t.Album, &t.Duration, &t.Cover, &t.Genre, &t.Year, &t.Lyrics, &t.Translation, &t.Size, &t.Modified, &available, &embeddedCover, &embeddedLyrics)
+	var available, embeddedCover, embeddedLyrics, localLyrics, converted, folderImported int
+	var embeddedJSON string
+	err := s.DB.QueryRow(`SELECT id,path,title,artist,album,duration,cover,genre,year,lyrics,translation,size,modified,available,embedded_cover,embedded_lyrics,local_lyrics,embedded_tags,playback_status,provider,provider_id,converted,folder_imported FROM tracks WHERE id=?`, id).Scan(&t.ID, &t.Path, &t.Title, &t.Artist, &t.Album, &t.Duration, &t.Cover, &t.Genre, &t.Year, &t.Lyrics, &t.Translation, &t.Size, &t.Modified, &available, &embeddedCover, &embeddedLyrics, &localLyrics, &embeddedJSON, &t.PlaybackStatus, &t.Provider, &t.ProviderID, &converted, &folderImported)
 	if err != nil {
 		return t, err
 	}
 	t.Available = available == 1
+	t.Converted = converted == 1
+	t.Deletable = folderImported == 0
+	if t.Deletable {
+		rows, queryErr := s.DB.Query(`SELECT path FROM folders`)
+		if queryErr != nil {
+			return t, queryErr
+		}
+		for rows.Next() {
+			var folder string
+			if scanErr := rows.Scan(&folder); scanErr != nil {
+				rows.Close()
+				return t, scanErr
+			}
+			if pathWithin(folder, t.Path) {
+				t.Deletable = false
+				break
+			}
+		}
+		err = rows.Err()
+		rows.Close()
+		if err != nil {
+			return t, err
+		}
+	}
 	t.EmbeddedCover = embeddedCover == 1
 	t.EmbeddedLyrics = embeddedLyrics == 1
+	t.LocalLyrics = localLyrics == 1
 	t.Source = "/api/media/audio/" + formatID(t.ID)
 	t.FileName = filepath.Base(t.Path)
 	t.Color = "#8daab0"
-	return t, nil
+	t.EmbeddedTags = decodeTags(embeddedJSON)
+	t.CustomTags, err = s.trackCustomTags(id)
+	return t, err
 }
 
 func (s *Store) recheckLegacyTags() error {
@@ -200,6 +288,11 @@ func (s *Store) Import(paths []string, mode string) ([]Track, error) {
 	}
 	result := []Track{}
 	seen := map[string]bool{}
+	failures := []error{}
+	settings, err := s.Settings()
+	if err != nil {
+		return nil, err
+	}
 	for _, input := range paths {
 		path, err := canonical(input)
 		if err != nil {
@@ -219,13 +312,24 @@ func (s *Store) Import(paths []string, mode string) ([]Track, error) {
 				if walkErr != nil {
 					return nil
 				}
-				if entry.IsDir() || !audioTypes[strings.ToLower(filepath.Ext(item))] {
+				if entry.IsDir() {
+					if entry.Name() == backupFolder {
+						return filepath.SkipDir
+					}
 					return nil
 				}
-				t, loadErr := s.importFile(item, mode)
+				if !audioTypes[strings.ToLower(filepath.Ext(item))] && !encryptedFile(item) {
+					return nil
+				}
+				t, loadErr := s.importWithConversion(item, mode, settings)
+				if loadErr == nil && mode == "library" {
+					_, loadErr = s.DB.Exec(`UPDATE tracks SET folder_imported=1 WHERE id=?`, t.ID)
+				}
 				if loadErr == nil && !seen[t.Path] {
 					result = append(result, t)
 					seen[t.Path] = true
+				} else if loadErr != nil && settings.AutoConvert && encryptedFile(item) && len(failures) < 5 {
+					failures = append(failures, errors.New(filepath.Base(item)+": "+loadErr.Error()))
 				}
 				return nil
 			})
@@ -239,7 +343,7 @@ func (s *Store) Import(paths []string, mode string) ([]Track, error) {
 				return nil, err
 			}
 		}
-		t, err := s.importFile(path, mode)
+		t, err := s.importWithConversion(path, mode, settings)
 		if err != nil {
 			return nil, err
 		}
@@ -248,7 +352,24 @@ func (s *Store) Import(paths []string, mode string) ([]Track, error) {
 			seen[t.Path] = true
 		}
 	}
-	return result, nil
+	return result, errors.Join(failures...)
+}
+
+func (s *Store) importWithConversion(path, mode string, settings Settings) (Track, error) {
+	if encryptedFile(path) {
+		if !settings.AutoConvert {
+			return Track{}, errors.New("此文件需要先转换，请使用工具箱")
+		}
+		converted := s.Convert(context.Background(), path, settings.BackupOriginal, mode != "temporary")
+		if converted.Status != "converted" {
+			return Track{}, errors.New(converted.Error)
+		}
+		if converted.Track != nil {
+			return *converted.Track, nil
+		}
+		path = converted.Output
+	}
+	return s.importFile(path, mode)
 }
 
 func (s *Store) importFile(path, mode string) (Track, error) {
@@ -304,6 +425,65 @@ func (s *Store) RemoveFolder(path string) error {
 	return err
 }
 
+func (s *Store) DeleteTracks(ids []int64) error {
+	if len(ids) == 0 {
+		return errors.New("请选择要删除的歌曲")
+	}
+	tx, err := s.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	folders := []string{}
+	rows, err := tx.Query(`SELECT path FROM folders`)
+	if err != nil {
+		return err
+	}
+	for rows.Next() {
+		var folder string
+		if err = rows.Scan(&folder); err != nil {
+			break
+		}
+		folders = append(folders, folder)
+	}
+	if err == nil {
+		err = rows.Err()
+	}
+	rows.Close()
+	if err != nil {
+		return err
+	}
+	seen := map[int64]bool{}
+	for _, id := range ids {
+		if id <= 0 {
+			return errors.New("无效的歌曲")
+		}
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		var path string
+		var imported int
+		if err = tx.QueryRow(`SELECT path,folder_imported FROM tracks WHERE id=?`, id).Scan(&path, &imported); err != nil {
+			return err
+		}
+		if imported == 1 {
+			return errors.New("文件夹导入的歌曲不支持单独删除")
+		}
+		for _, folder := range folders {
+			if pathWithin(folder, path) {
+				return errors.New("监听路径下的歌曲不支持单独删除")
+			}
+		}
+	}
+	for id := range seen {
+		if _, err = tx.Exec(`DELETE FROM tracks WHERE id=?`, id); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
 type ScanResult struct {
 	Added   int      `json:"added"`
 	Updated int      `json:"updated"`
@@ -338,6 +518,7 @@ func (s *Store) Scan(ctx context.Context) (ScanResult, error) {
 	if err != nil {
 		return result, err
 	}
+	scanned := map[string]bool{}
 	for _, folder := range folders {
 		if err = ctx.Err(); err != nil {
 			return result, err
@@ -357,19 +538,45 @@ func (s *Store) Scan(ctx context.Context) (ScanResult, error) {
 				result.Errors = append(result.Errors, path+": "+walkErr.Error())
 				return nil
 			}
-			if entry.IsDir() || !audioTypes[strings.ToLower(filepath.Ext(path))] {
+			if entry.IsDir() {
+				if entry.Name() == backupFolder {
+					return filepath.SkipDir
+				}
 				return nil
+			}
+			if !audioTypes[strings.ToLower(filepath.Ext(path))] && !encryptedFile(path) {
+				return nil
+			}
+			convertedNew := false
+			if encryptedFile(path) {
+				var oldID int64
+				convertedNew = errors.Is(s.DB.QueryRow(`SELECT id FROM tracks WHERE path=?`, path).Scan(&oldID), sql.ErrNoRows)
+				settings, settingErr := s.Settings()
+				if settingErr != nil {
+					result.Errors = append(result.Errors, settingErr.Error())
+					return nil
+				}
+				if !settings.AutoConvert {
+					return nil
+				}
+				converted := s.Convert(ctx, path, settings.BackupOriginal, true)
+				if converted.Status != "converted" {
+					result.Errors = append(result.Errors, path+": "+converted.Error)
+					return nil
+				}
+				path = converted.Output
 			}
 			path, canonErr := canonical(path)
 			if canonErr != nil {
 				return nil
 			}
 			seen[path] = true
+			scanned[path] = true
 			var id int64
 			lookupErr := s.DB.QueryRow(`SELECT id FROM tracks WHERE path=?`, path).Scan(&id)
 			if _, upsertErr := s.upsert(path); upsertErr != nil {
 				result.Errors = append(result.Errors, path+": "+upsertErr.Error())
-			} else if errors.Is(lookupErr, sql.ErrNoRows) {
+			} else if convertedNew || errors.Is(lookupErr, sql.ErrNoRows) {
 				result.Added++
 			} else {
 				result.Updated++
@@ -444,7 +651,7 @@ func (s *Store) Scan(ctx context.Context) (ScanResult, error) {
 				}
 				result.Missing++
 			}
-		} else if !item.available {
+		} else if !item.available || !scanned[item.path] {
 			if _, err = s.upsert(item.path); err == nil {
 				result.Updated++
 			} else {

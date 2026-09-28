@@ -1,0 +1,25 @@
+.tags-view { min-height: calc(100vh - 153px); padding: 36px 24px 52px; }
+.tags-heading { margin-bottom: 25px; }
+.tags-heading h1 { margin: 10px 0 5px; color: #f2f0ec; font-size: 27px; font-weight: 600; }
+.tags-heading p { margin: 0; color: #a1a0a3; font-size: 12px; }
+.tags-create { display: flex; gap: 10px; max-width: 460px; margin-bottom: 26px; }
+.tags-create input, .tags-edit input { min-width: 0; height: 38px; flex: 1; padding: 0 11px; border: 1px solid var(--line); border-radius: 5px; outline: none; background: var(--surface); color: inherit; font-size: 12px; }
+.tags-create input:focus, .tags-edit input:focus { border-color: var(--accent); }
+.tags-create button { display: flex; align-items: center; gap: 6px; height: 38px; flex: none; padding: 0 13px; border: 0; border-radius: 5px; background: var(--accent); color: #161718; font-size: 12px; }
+.tags-create button:disabled { opacity: .45; }
+.tags-list { border-top: 1px solid var(--line); }
+.tags-row { position: relative; min-height: 68px; display: flex; align-items: center; gap: 13px; padding: 11px 7px; border-bottom: 1px solid var(--line); }
+.tags-row-icon { flex: none; color: var(--accent); }
+.tags-row-main { min-width: 0; flex: 1; padding: 0; border: 0; background: transparent; text-align: left; }
+.tags-row-main strong, .tags-row-main span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tags-row-main strong { color: inherit; font-size: 13px; font-weight: 500; }
+.tags-row-main:hover strong { color: var(--accent); }
+.tags-row-main span { margin-top: 5px; color: var(--muted); font-size: 11px; }
+.tags-row-actions { display: flex; gap: 3px; }
+.tags-row-actions button, .tags-edit button { width: 32px; height: 32px; display: grid; place-items: center; border: 0; border-radius: 4px; background: transparent; color: var(--muted); }
+.tags-row-actions button:hover, .tags-edit button:hover { background: var(--tint); color: var(--accent); }
+.tags-edit { min-width: 0; display: flex; flex: 1; gap: 4px; }
+.tags-delete { position: absolute; z-index: 2; right: 4px; top: 58px; display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); box-shadow: 0 8px 24px #0005; font-size: 11px; }
+.tags-delete button { border: 0; background: transparent; color: var(--accent); font-size: 11px; }
+.mode-light .tags-heading h1 { color: var(--light-text); }
+@media(max-width:760px) { .tags-view { padding: 24px 16px 42px; } .tags-heading h1 { font-size: 23px; } .tags-create { max-width: none; } }

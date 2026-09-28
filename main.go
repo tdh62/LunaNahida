@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
@@ -17,7 +18,11 @@ import (
 var frontend embed.FS
 
 func main() {
-	store, err := backend.Open("")
+	dataRoot, browserPath, err := desktopPaths()
+	if err != nil {
+		log.Fatal(err)
+	}
+	store, err := backend.Open(dataRoot)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -30,8 +35,11 @@ func main() {
 	var api *backend.API
 	var apiHandler http.Handler
 	app := application.New(application.Options{
-		Name:    "Luma Tune",
-		Windows: application.WindowsOptions{WebviewUserDataPath: filepath.Join(store.Root, "cache", "webview")},
+		Name: "Luma Tune",
+		Windows: application.WindowsOptions{
+			WebviewUserDataPath: filepath.Join(store.Root, "cache", "webview"),
+			WebviewBrowserPath:  browserPath,
+		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(frontend),
 			Middleware: func(next http.Handler) http.Handler {
@@ -68,6 +76,7 @@ func main() {
 	})
 	window.OnWindowEvent(events.Common.WindowFilesDropped, func(event *application.WindowEvent) {
 		app.Event.Emit("luma:files-dropped", event.Context().DroppedFiles())
+		time.AfterFunc(100*time.Millisecond, window.Focus)
 	})
 	api.RunScans(ctx, func(result backend.ScanResult) { app.Event.Emit("luma:scan-complete", result) })
 	if err := app.Run(); err != nil {

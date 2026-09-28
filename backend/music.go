@@ -115,12 +115,106 @@ func (m *Music) match(item song, title, artist string) bool {
 	if m.normalized(item.Title) != m.normalized(title) {
 		return false
 	}
+	wanted := strings.FieldsFunc(artist, func(r rune) bool { return strings.ContainsRune(",，、/＆&;；", r) })
 	for _, name := range strings.FieldsFunc(item.Artist, func(r rune) bool { return strings.ContainsRune(",，、/＆&;；", r) }) {
-		if m.normalized(name) == m.normalized(artist) {
-			return true
+		for _, expected := range wanted {
+			if m.normalized(name) == m.normalized(expected) {
+				return true
+			}
 		}
 	}
 	return false
+}
+
+func (m *Music) directSong(ctx context.Context, source, id string) (song, error) {
+	if source == "ncm" {
+		value, err := m.ncm(ctx, "https://music.163.com/weapi/v3/song/detail", map[string]any{"c": fmt.Sprintf(`[{"id":%s}]`, id)}, "weapi", "")
+		if err != nil {
+			return song{}, err
+		}
+		items := arr(value["songs"])
+		if len(items) == 0 {
+			return song{}, errors.New("song not found")
+		}
+		item := obj(items[0])
+		names := []string{}
+		for _, person := range arr(chooseAny(item["ar"], item["artists"])) {
+			names = append(names, str(obj(person)["name"]))
+		}
+		album := obj(chooseAny(item["al"], item["album"]))
+		return song{ID: str(item["id"]), Title: str(item["name"]), Artist: strings.Join(names, ", "), Artwork: str(album["picUrl"])}, nil
+	}
+	body, _ := json.Marshal(map[string]any{"Protocol_UpdateSongInfo": map[string]any{"method": "CgiGetTrackInfo", "module": "music.trackInfo.UniformRuleCtrl", "param": map[string]any{"ctx": 0, "ids": []int64{number(id)}, "types": []int{0}}}})
+	payload, _, err := m.request(ctx, "qq", "POST", "https://u.y.qq.com/cgi-bin/musicu.fcg", bytes.NewReader(body), map[string]string{"Content-Type": "application/json", "Referer": "https://y.qq.com/"})
+	if err != nil {
+		return song{}, err
+	}
+	var value map[string]any
+	if err = json.Unmarshal(payload, &value); err != nil {
+		return song{}, err
+	}
+	response := obj(value["Protocol_UpdateSongInfo"])
+	if number(response["code"]) != 0 {
+		return song{}, errors.New("qq detail unavailable")
+	}
+	items := arr(obj(response["data"])["tracks"])
+	if len(items) == 0 {
+		return song{}, errors.New("song not found")
+	}
+	item := obj(items[0])
+	names := []string{}
+	for _, person := range arr(item["singer"]) {
+		names = append(names, str(obj(person)["name"]))
+	}
+	album := obj(item["album"])
+	mid := choose(str(album["pmid"]), str(album["mid"]))
+	artwork := ""
+	if mid != "" {
+		artwork = "https://y.gtimg.cn/music/photo_new/T002R300x300M000" + mid + ".jpg"
+	}
+	return song{ID: str(item["id"]), Mid: str(item["mid"]), Title: choose(str(item["name"]), str(item["title"])), Artist: strings.Join(names, ", "), Artwork: artwork}, nil
+}
+
+func (m *Music) enrichWithID(ctx context.Context, title, artist, album string, cover, lyric, force bool, source, id string) (enrichment, error) {
+	if source != "ncm" && source != "qq" || id == "" {
+		return m.enrich(ctx, title, artist, album, cover, lyric, force)
+	}
+	value, err := m.cached("direct:v1:"+source+":"+id, 24*time.Hour, force, func() (any, error) { return m.directSong(ctx, source, id) })
+	if err != nil {
+		return m.enrich(ctx, title, artist, album, cover, lyric, force)
+	}
+	raw, _ := json.Marshal(value)
+	var item song
+	if json.Unmarshal(raw, &item) != nil || item.ID != id || !m.match(item, title, artist) {
+		return m.enrich(ctx, title, artist, album, cover, lyric, force)
+	}
+	result := enrichment{}
+	if cover {
+		result.Cover = m.localArtwork(ctx, item.Artwork)
+	}
+	if lyric {
+		value, err := m.cached("lyric:"+source+":"+item.ID+":"+item.Mid, 24*time.Hour, force, func() (any, error) {
+			text, translation, err := m.lyrics(ctx, source, item)
+			return map[string]any{"lyric": text, "translation": translation}, err
+		})
+		if err == nil {
+			result.Lyric, result.Translation = str(obj(value)["lyric"]), str(obj(value)["translation"])
+		}
+	}
+	if (!cover || result.Cover != "") && (!lyric || result.Lyric != "") {
+		return result, nil
+	}
+	fallback, err := m.enrich(ctx, title, artist, album, cover && result.Cover == "", lyric && result.Lyric == "", force)
+	if result.Cover == "" {
+		result.Cover = fallback.Cover
+	}
+	if result.Lyric == "" {
+		result.Lyric, result.Translation = fallback.Lyric, fallback.Translation
+	}
+	if result.Cover != "" || result.Lyric != "" {
+		return result, nil
+	}
+	return result, err
 }
 
 func (m *Music) cached(key string, ttl time.Duration, refresh bool, load func() (any, error)) (any, error) {
@@ -508,8 +602,17 @@ func (m *Music) Enrich(w http.ResponseWriter, r *http.Request) {
 	cover := q.Get("cover") == "1"
 	lyric := q.Get("lyric") == "1"
 	force := q.Get("refresh") == "1"
-	key := fmt.Sprintf("enrich:v8:%s:%s:%s:%t:%t", m.normalized(title), m.normalized(artist), m.normalized(album), cover, lyric)
-	value, err := m.cached(key, 30*time.Minute, force, func() (any, error) { return m.enrich(r.Context(), title, artist, album, cover, lyric, force) })
+	source, id := q.Get("source"), q.Get("id")
+	if id != "" {
+		if source != "ncm" && source != "qq" || len(id) > 20 || strings.Trim(id, "0123456789") != "" || number(id) <= 0 {
+			fail(w, 400, errors.New("无效的曲目 ID"))
+			return
+		}
+	}
+	key := fmt.Sprintf("enrich:v9:%s:%s:%s:%t:%t:%s:%s", m.normalized(title), m.normalized(artist), m.normalized(album), cover, lyric, source, id)
+	value, err := m.cached(key, 30*time.Minute, force, func() (any, error) {
+		return m.enrichWithID(r.Context(), title, artist, album, cover, lyric, force, source, id)
+	})
 	if err != nil {
 		fail(w, 502, errors.New("音乐资料暂时不可用"))
 		return

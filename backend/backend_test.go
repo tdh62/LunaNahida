@@ -19,6 +19,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf16"
+
+	"golang.org/x/text/encoding/simplifiedchinese"
 )
 
 func TestLiveMusicSources(t *testing.T) {
@@ -169,6 +172,256 @@ func TestEmbeddedMetadataHasPriority(t *testing.T) {
 	}
 }
 
+func TestSidecarLyricsTakePriorityAndFollowFileChanges(t *testing.T) {
+	store := testStore(t)
+	path := filepath.Join(t.TempDir(), "embedded.mp3")
+	embeddedMP3(t, path)
+	sidecar := strings.TrimSuffix(path, ".mp3") + ".LRC"
+	if err := os.WriteFile(sidecar, append([]byte{0xef, 0xbb, 0xbf}, []byte("[00:01.00]Local lyric")...), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(strings.TrimSuffix(path, ".mp3")+".txt", []byte("Lower priority"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, mode := range []string{"temporary", "library"} {
+		tracks, err := store.Import([]string{path}, mode)
+		if err != nil || len(tracks) != 1 || tracks[0].Lyrics != "[00:01.00]Local lyric" || !tracks[0].LocalLyrics || tracks[0].EmbeddedLyrics {
+			t.Fatalf("%s sidecar import: %+v, %v", mode, tracks, err)
+		}
+	}
+	tracks, err := store.Import([]string{path}, "library")
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := tracks[0].ID
+	request := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/tracks/%d/enrichment", id), strings.NewReader(`{"lyric":"[00:02.00]Online lyric","translation":"Online translation"}`))
+	response := httptest.NewRecorder()
+	NewAPI(store, Dialogs{}).Handler().ServeHTTP(response, request)
+	track, err := store.GetTrack(id)
+	if err != nil || response.Code != 200 || track.Lyrics != "[00:01.00]Local lyric" || track.Translation != "" {
+		t.Fatalf("online lyric replaced sidecar: %+v, response=%d, err=%v", track, response.Code, err)
+	}
+	if err := os.WriteFile(sidecar, []byte("[00:03.00]Updated lyric"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	tracks, err = store.Import([]string{path}, "library")
+	if err != nil || tracks[0].Lyrics != "[00:03.00]Updated lyric" {
+		t.Fatalf("sidecar edit not detected: %+v, %v", tracks, err)
+	}
+	if err := os.Remove(sidecar); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(strings.TrimSuffix(path, ".mp3") + ".txt"); err != nil {
+		t.Fatal(err)
+	}
+	tracks, err = store.Import([]string{path}, "library")
+	if err != nil || tracks[0].Lyrics != "[00:01.00]Embedded lyric" || tracks[0].LocalLyrics || !tracks[0].EmbeddedLyrics {
+		t.Fatalf("embedded lyric not restored after sidecar removal: %+v, %v", tracks, err)
+	}
+}
+
+func TestSidecarLyricFormatsAndEncodings(t *testing.T) {
+	store := testStore(t)
+	type lyricCase struct {
+		name, ext, want string
+		data            []byte
+	}
+	cases := []lyricCase{
+		{"srt", ".srt", "[00:01.500]First second\n[00:03.000]Next", []byte("1\r\n00:00:01,500 --> 00:00:02,000\r\nFirst\r\nsecond\r\n\r\n2\r\n00:00:03,000 --> 00:00:04,000\r\nNext")},
+		{"vtt", ".vtt", "[00:01.250]Caption", []byte("WEBVTT\n\n00:01.250 --> 00:02.000\nCaption")},
+	}
+	units := utf16.Encode([]rune("静态歌词"))
+	utf16Data := []byte{0xff, 0xfe}
+	for _, unit := range units {
+		utf16Data = binary.LittleEndian.AppendUint16(utf16Data, unit)
+	}
+	cases = append(cases, lyricCase{"utf16 text", ".txt", "静态歌词", utf16Data})
+	gb18030Data, err := simplifiedchinese.GB18030.NewEncoder().Bytes([]byte("[00:01.00]中文歌词"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cases = append(cases, lyricCase{"gb18030 lrc", ".lrc", "[00:01.00]中文歌词", gb18030Data})
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "song.wav")
+			if err := os.WriteFile(path, []byte("RIFFsample audio"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(strings.TrimSuffix(path, ".wav")+tc.ext, tc.data, 0600); err != nil {
+				t.Fatal(err)
+			}
+			tracks, err := store.Import([]string{path}, "temporary")
+			if err != nil || len(tracks) != 1 || tracks[0].Lyrics != tc.want || !tracks[0].LocalLyrics {
+				t.Fatalf("sidecar import: %+v, %v", tracks, err)
+			}
+		})
+	}
+}
+
+func TestScanFindsSidecarForImportedTrack(t *testing.T) {
+	store := testStore(t)
+	path := filepath.Join(t.TempDir(), "song.wav")
+	if err := os.WriteFile(path, []byte("RIFFsample audio"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	tracks, err := store.Import([]string{path}, "library")
+	if err != nil || len(tracks) != 1 || tracks[0].LocalLyrics {
+		t.Fatalf("initial import: %+v, %v", tracks, err)
+	}
+	sidecar := path + ".lrc"
+	if err := os.WriteFile(sidecar, []byte("[00:01.00]Added later"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Scan(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	track, err := store.GetTrack(tracks[0].ID)
+	if err != nil || track.Lyrics != "[00:01.00]Added later" || !track.LocalLyrics {
+		t.Fatalf("scan missed added sidecar: %+v, %v", track, err)
+	}
+	if err := os.Remove(sidecar); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Scan(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	track, err = store.GetTrack(tracks[0].ID)
+	if err != nil || track.Lyrics != "" || track.LocalLyrics {
+		t.Fatalf("scan retained removed sidecar: %+v, %v", track, err)
+	}
+}
+
+func TestMigrationFindsSidecarForExistingTrack(t *testing.T) {
+	root := t.TempDir()
+	store, err := Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "song.wav")
+	if err := os.WriteFile(path, []byte("RIFFsample audio"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	tracks, err := store.Import([]string{path}, "library")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	db, err := sql.Open("sqlite", filepath.Join(root, "data", "library.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`ALTER TABLE tracks DROP COLUMN local_lyrics; UPDATE schema_version SET version=4`); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(strings.TrimSuffix(path, ".wav")+".lrc", []byte("[00:01.00]Local lyric"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	store, err = Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	state, err := store.State()
+	if err != nil || len(state.Tracks) != 1 || state.Tracks[0].ID != tracks[0].ID || !state.Tracks[0].LocalLyrics || state.Tracks[0].Lyrics != "[00:01.00]Local lyric" {
+		t.Fatalf("existing track sidecar not found: %+v, %v", state.Tracks, err)
+	}
+}
+
+func TestSaveLyricsCreatesSidecarWithoutOverwriting(t *testing.T) {
+	store := testStore(t)
+	path := filepath.Join(t.TempDir(), "song.wav")
+	if err := os.WriteFile(path, []byte("RIFFsample audio"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	tracks, err := store.Import([]string{path}, "library")
+	if err != nil {
+		t.Fatal(err)
+	}
+	api := NewAPI(store, Dialogs{}).Handler()
+	id := tracks[0].ID
+	endpoint := fmt.Sprintf("/api/tracks/%d/lyrics", id)
+	save := func(lyrics string) *httptest.ResponseRecorder {
+		t.Helper()
+		response := httptest.NewRecorder()
+		api.ServeHTTP(response, httptest.NewRequest(http.MethodPost, endpoint, strings.NewReader(fmt.Sprintf(`{"lyrics":%q}`, lyrics))))
+		return response
+	}
+	if response := save(""); response.Code != 400 {
+		t.Fatalf("empty lyrics returned %d", response.Code)
+	}
+	lyrics := "[00:01.00]Fetched lyric"
+	if response := save(lyrics); response.Code != 200 {
+		t.Fatalf("save lyrics returned %d: %s", response.Code, response.Body.String())
+	}
+	sidecar := strings.TrimSuffix(path, ".wav") + ".lrc"
+	data, err := os.ReadFile(sidecar)
+	if err != nil || string(data) != lyrics+"\n" {
+		t.Fatalf("saved sidecar: %q, %v", data, err)
+	}
+	track, err := store.GetTrack(id)
+	if err != nil || !track.LocalLyrics || track.Lyrics != lyrics {
+		t.Fatalf("saved lyrics not used locally: %+v, %v", track, err)
+	}
+	if response := save("[00:02.00]Different lyric"); response.Code != 409 {
+		t.Fatalf("existing lyric file returned %d", response.Code)
+	}
+	data, err = os.ReadFile(sidecar)
+	if err != nil || string(data) != lyrics+"\n" {
+		t.Fatalf("existing sidecar was overwritten: %q, %v", data, err)
+	}
+	response := httptest.NewRecorder()
+	api.ServeHTTP(response, httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/tracks/%d/enrichment", id), strings.NewReader(`{"lyric":"[00:03.00]Online replacement"}`)))
+	track, err = store.GetTrack(id)
+	if response.Code != 200 || err != nil || track.Lyrics != lyrics {
+		t.Fatalf("online enrichment replaced saved lyrics: %+v, response=%d, err=%v", track, response.Code, err)
+	}
+	stalePath := filepath.Join(t.TempDir(), "stale.wav")
+	if err := os.WriteFile(stalePath, []byte("RIFFsample audio"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	staleTracks, err := store.Import([]string{stalePath}, "library")
+	if err != nil {
+		t.Fatal(err)
+	}
+	staleSidecar := strings.TrimSuffix(stalePath, ".wav") + ".lrc"
+	if err := os.WriteFile(staleSidecar, []byte("Existing lyric"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	response = httptest.NewRecorder()
+	api.ServeHTTP(response, httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/tracks/%d/lyrics", staleTracks[0].ID), strings.NewReader(`{"lyrics":"New lyric"}`)))
+	data, err = os.ReadFile(staleSidecar)
+	if response.Code != 409 || err != nil || string(data) != "Existing lyric" {
+		t.Fatalf("unscanned sidecar was overwritten: %q, response=%d, err=%v", data, response.Code, err)
+	}
+}
+
+func TestSaveLyricsForTemporaryTrack(t *testing.T) {
+	store := testStore(t)
+	path := filepath.Join(t.TempDir(), "temporary.wav")
+	if err := os.WriteFile(path, []byte("RIFFsample audio"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	tracks, err := store.Import([]string{path}, "temporary")
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	NewAPI(store, Dialogs{}).Handler().ServeHTTP(response, httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/tracks/%d/lyrics", tracks[0].ID), strings.NewReader(`{"lyrics":"[00:01.00]Temporary lyric"}`)))
+	track, err := store.GetTrack(tracks[0].ID)
+	if response.Code != 200 || err != nil || !track.LocalLyrics || track.Lyrics != "[00:01.00]Temporary lyric" {
+		t.Fatalf("temporary lyric save: %+v, response=%d, err=%v", track, response.Code, err)
+	}
+	data, err := os.ReadFile(strings.TrimSuffix(path, ".wav") + ".lrc")
+	if err != nil || string(data) != "[00:01.00]Temporary lyric\n" {
+		t.Fatalf("temporary sidecar: %q, %v", data, err)
+	}
+}
+
 func TestExistingLibraryRechecksEmbeddedMetadata(t *testing.T) {
 	root := t.TempDir()
 	store, err := Open(root)
@@ -191,6 +444,7 @@ func TestExistingLibraryRechecksEmbeddedMetadata(t *testing.T) {
 	if _, err = db.Exec(`UPDATE tracks SET cover='/covers/local.svg', lyrics='old online lyric', translation='old translation';
 		ALTER TABLE tracks DROP COLUMN embedded_cover;
 		ALTER TABLE tracks DROP COLUMN embedded_lyrics;
+		ALTER TABLE tracks DROP COLUMN local_lyrics;
 		ALTER TABLE tracks DROP COLUMN tags_checked;
 		UPDATE schema_version SET version=3`); err != nil {
 		t.Fatal(err)
@@ -562,6 +816,7 @@ func TestPlaylistCoverModeMigration(t *testing.T) {
 	if _, err = db.Exec(`ALTER TABLE playlists DROP COLUMN cover_mode;
 		ALTER TABLE tracks DROP COLUMN embedded_cover;
 		ALTER TABLE tracks DROP COLUMN embedded_lyrics;
+		ALTER TABLE tracks DROP COLUMN local_lyrics;
 		ALTER TABLE tracks DROP COLUMN tags_checked;
 		UPDATE schema_version SET version=2`); err != nil {
 		t.Fatal(err)

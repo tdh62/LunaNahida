@@ -10,8 +10,9 @@ const albumOf = (track: Track) => track.album.trim() === '未知专辑' ? '' : t
 
 export async function refreshMusicInfo(track: Track) {
   if (!track.source || !track.title.trim() || !track.artist.trim()) throw new Error('歌曲缺少可匹配的曲名或歌手');
-  if (track.embeddedCover && track.embeddedLyrics) return { cover: track.cover, lyric: track.lyrics };
-  const params = new URLSearchParams({ title: track.title, artist: track.artist, album: albumOf(track), cover: track.embeddedCover ? '0' : '1', lyric: track.embeddedLyrics ? '0' : '1', refresh: '1' });
+  if (track.embeddedCover && (track.embeddedLyrics || track.localLyrics)) return { cover: track.cover, lyric: track.lyrics };
+  const params = new URLSearchParams({ title: track.title, artist: track.artist, album: albumOf(track), cover: track.embeddedCover ? '0' : '1', lyric: track.embeddedLyrics || track.localLyrics ? '0' : '1', refresh: '1' });
+  if (track.provider && track.providerId) { params.set('source', track.provider); params.set('id', track.providerId); }
   const response = await fetch(`/api/music/enrich?${params}`);
   if (!response.ok) throw new Error('音乐源暂时不可用，请稍后重试');
   const value = await response.json() as Enrichment;
@@ -48,11 +49,12 @@ export function useMusicEnrichment(track: Track, playing: boolean) {
     return () => { window.removeEventListener('lumatune-music-refreshed', refresh); window.removeEventListener('luma-cache-cleared', clear); };
   }, [key]);
   const needCover = !track.embeddedCover && track.cover === '/covers/local.svg';
-  const needLyrics = !track.embeddedLyrics && !track.lyrics;
+  const needLyrics = !track.embeddedLyrics && !track.localLyrics && !track.lyrics;
   useEffect(() => {
     if (!key || !playing || (!needCover && !needLyrics) || track.artist === '未知歌手') return;
     const controller = new AbortController();
     const params = new URLSearchParams({ title: track.title, artist: track.artist, album: albumOf(track), cover: needCover ? '1' : '0', lyric: needLyrics ? '1' : '0' });
+    if (track.provider && track.providerId) { params.set('source', track.provider); params.set('id', track.providerId); }
     fetch(`/api/music/enrich?${params}`, { signal: controller.signal })
       .then(response => { if (!response.ok) throw new Error('补全失败'); return response.json() as Promise<Enrichment>; })
       .then(async value => { if (!controller.signal.aborted) { if (track.id > 0 && (value.cover || value.lyric || value.translation)) { await backend.enrichment(track.id, value.cover ?? '', value.lyric ?? '', value.translation ?? ''); window.dispatchEvent(new Event('luma-library-changed')); } current.set(key, value); setResult({ key, value }); window.dispatchEvent(new CustomEvent('lumatune-music-refreshed', { detail: { id: track.id, key, value } })); } })
@@ -60,8 +62,8 @@ export function useMusicEnrichment(track: Track, playing: boolean) {
     return () => controller.abort();
   }, [key, playing, needCover, needLyrics, track.id, track.title, track.artist, track.album]);
   const value = result?.key === key ? result.value : current.get(key);
-  const lines = parseLrc(track.lyrics || (track.embeddedLyrics ? '' : value?.lyric) || '');
-  const translations = parseLrc(track.embeddedLyrics ? '' : track.translation || value?.translation || '');
+  const lines = parseLrc(track.lyrics || (track.embeddedLyrics || track.localLyrics ? '' : value?.lyric) || '');
+  const translations = parseLrc(track.embeddedLyrics || track.localLyrics ? '' : track.translation || value?.translation || '');
   for (const line of lines) { const translated = translations.find(item => Math.abs(item.time - line.time) < 0.5); if (translated) line.translation = translated.text; }
   return { cover: track.embeddedCover ? track.cover : value?.cover || track.cover, lines };
 }

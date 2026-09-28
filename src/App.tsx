@@ -18,6 +18,7 @@ const App = () => (
           <Route path="/" element={<Index />}>
             <Route index element={null} />
             <Route path="music" element={null} />
+            <Route path="tags" element={null} />
             <Route path="liked" element={null} />
             <Route path="recent" element={null} />
             <Route path="playlists" element={null} />

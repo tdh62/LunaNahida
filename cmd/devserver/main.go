@@ -19,7 +19,11 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	api.RunScans(ctx, nil)
-	server := &http.Server{Addr: "127.0.0.1:8787", Handler: api.Handler()}
+	port := os.Getenv("LUMA_TUNE_API_PORT")
+	if port == "" {
+		port = "8787"
+	}
+	server := &http.Server{Addr: "127.0.0.1:" + port, Handler: api.Handler()}
 	go func() { <-ctx.Done(); _ = server.Shutdown(context.Background()) }()
 	log.Printf("Luma Tune development API on %s", server.Addr)
 	if err = server.ListenAndServe(); err != nil && err != http.ErrServerClosed {

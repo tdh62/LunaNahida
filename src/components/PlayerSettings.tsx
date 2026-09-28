@@ -35,8 +35,8 @@ type SettingsProps = {
   setShowTranslation: (value: boolean) => void;
   sleep: number;
   setSleep: (value: number) => void;
-  effect: string;
-  setEffect: (value: string) => void;
+  effectName: string;
+  onEditEffects: () => void;
   equalizer: number[];
   setBand: (index: number, value: number) => void;
   resetEqualizer: () => void;
@@ -47,7 +47,7 @@ type SettingsProps = {
   artistNames: string[];
 };
 
-export default function PlayerSettings({ theme, setTheme, appearance, setAppearance, visual, setVisual, lyricEffect, setLyricEffect, lyricScroll, setLyricScroll, showTranslation, setShowTranslation, sleep, setSleep, effect, setEffect, equalizer, setBand, resetEqualizer, mappings, setMappings, lyricAppearance, setLyricAppearance, artistNames }: SettingsProps) {
+export default function PlayerSettings({ theme, setTheme, appearance, setAppearance, visual, setVisual, lyricEffect, setLyricEffect, lyricScroll, setLyricScroll, showTranslation, setShowTranslation, sleep, setSleep, effectName, onEditEffects, equalizer, setBand, resetEqualizer, mappings, setMappings, lyricAppearance, setLyricAppearance, artistNames }: SettingsProps) {
   const [library, setLibrary] = useState<LibraryState | null>(null);
   const [newFolder, setNewFolder] = useState('');
   const [scanning, setScanning] = useState(false);
@@ -105,8 +105,10 @@ export default function PlayerSettings({ theme, setTheme, appearance, setAppeara
   return <div className="settings-page">
     <header className="settings-heading"><h1>设置</h1></header>
     <section className="settings-group"><div className="settings-group-title"><FolderOpen size={19} /><div><h2>本地音乐库</h2></div></div>
-      <div className="settings-row"><div><strong>拖入文件</strong></div><select className="lyric-font-select" aria-label="拖入文件处理方式" value={library?.settings.dropAction ?? 'ask'} onChange={event => saveLibrarySettings({ dropAction: event.target.value as StoredSettings['dropAction'] })}><option value="ask">每次询问</option><option value="temporary">仅本次播放</option><option value="library">加入音乐库</option><option value="watch">监听所在文件夹</option></select></div>
+        <div className="settings-row"><div><strong>打开文件或文件夹</strong></div><select className="lyric-font-select" aria-label="打开文件或文件夹处理方式" value={library?.settings.dropAction ?? 'ask'} onChange={event => saveLibrarySettings({ dropAction: event.target.value as StoredSettings['dropAction'] })}><option value="ask">每次询问</option><option value="temporary">仅本次播放</option><option value="library">加入音乐库</option><option value="watch">监听所在文件夹</option></select></div>
       <div className="settings-row"><div><strong>启动时扫描</strong></div><button type="button" role="switch" aria-checked={library?.settings.scanOnStart ?? true} aria-label="启动时扫描" className={`settings-switch ${library?.settings.scanOnStart ? 'on' : ''}`} onClick={() => saveLibrarySettings({ scanOnStart: !library?.settings.scanOnStart })}><span /></button></div>
+      <div className="settings-row"><div><strong>自动转换加密音频</strong><small>导入及扫描时处理</small></div><button type="button" role="switch" aria-checked={library?.settings.autoConvert ?? false} aria-label="自动转换加密音频" className={`settings-switch ${library?.settings.autoConvert ? 'on' : ''}`} onClick={() => saveLibrarySettings({ autoConvert: !library?.settings.autoConvert })}><span /></button></div>
+      <div className="settings-row"><div><strong>备份加密源文件</strong><small>保存在源文件同目录的备份文件夹</small></div><button type="button" role="switch" aria-checked={library?.settings.backupOriginal ?? true} aria-label="备份加密源文件" className={`settings-switch ${library?.settings.backupOriginal ? 'on' : ''}`} onClick={() => saveLibrarySettings({ backupOriginal: !library?.settings.backupOriginal })}><span /></button></div>
       <div className="settings-row"><div><strong>定时扫描</strong></div><select className="lyric-font-select" aria-label="定时扫描间隔" value={library?.settings.scanIntervalMinutes ?? 0} onChange={event => saveLibrarySettings({ scanIntervalMinutes: Number(event.target.value) })}><option value={0}>关闭</option><option value={15}>每 15 分钟</option><option value={30}>每 30 分钟</option><option value={60}>每小时</option><option value={360}>每 6 小时</option><option value={1440}>每天</option></select></div>
       <div className="settings-row"><div><strong>监听文件夹</strong><small>{library?.folders.length ?? 0} 个路径</small></div><button type="button" className="playlist-primary" onClick={() => void backend.chooseFolder().then(result => addFolder(result.paths[0])).catch(error => toast.error(error.message))}><Plus size={15} />添加文件夹</button></div>
       <form className="artist-mapping-form" onSubmit={event => { event.preventDefault(); void addFolder(newFolder); }}><label>路径<input value={newFolder} onChange={event => setNewFolder(event.target.value)} placeholder="本地文件夹绝对路径" /></label><button type="submit" className="playlist-primary" disabled={!newFolder.trim()}><Plus size={15} />添加路径</button></form>
@@ -135,7 +137,7 @@ export default function PlayerSettings({ theme, setTheme, appearance, setAppeara
       <div className="lyric-setting-control"><label htmlFor="lyric-spacing">行间距 <strong>{lyricAppearance.spacing}px</strong></label><input id="lyric-spacing" type="range" min="0" max="24" value={lyricAppearance.spacing} onChange={event => setLyricAppearance({ ...lyricAppearance, spacing: Number(event.target.value) })} /></div>
     </section>
     <section className="settings-group"><div className="settings-group-title"><SlidersHorizontal size={19} /><div><h2>声音</h2></div></div>
-      <div className="settings-row"><div><strong>音效</strong></div><div className="settings-options settings-wrap">{['原声', '低音增强', '空间回响', '温暖 Lo-fi'].map(v => <button key={v} aria-pressed={effect === v} className={effect === v ? 'active' : ''} onClick={() => setEffect(v)}>{v}</button>)}</div></div>
+      <div className="settings-row"><div><strong>音效</strong><small>{effectName}</small></div><button type="button" className="playlist-primary" onClick={onEditEffects}><SlidersHorizontal size={15} />编辑音效</button></div>
       <div className="settings-eq"><div className="settings-eq-heading"><span><Waves size={16} /> 五段均衡器</span><button onClick={resetEqualizer}>重置</button></div><div className="settings-eq-grid">{eqNames.map((name, i) => <label key={name}><span>{name}</span><input type="range" min="-12" max="12" value={equalizer[i]} onChange={e => setBand(i, Number(e.target.value))} aria-label={`${name}频段`} /><small>{equalizer[i] > 0 ? '+' : ''}{equalizer[i]} dB</small></label>)}</div></div>
     </section>
     <section className="settings-group"><div className="settings-group-title"><Users size={19} /><div><h2>歌手名称映射</h2><p>繁简体名称自动合并；手动指定根名称后，歌手页将显示根名称。</p></div></div>

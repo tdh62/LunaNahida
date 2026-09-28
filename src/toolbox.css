@@ -1,0 +1,33 @@
+.toolbox-dialog { --toolbox-accent: #a5b5ff; --toolbox-accent-text: #191b21; width: min(520px, calc(100vw - 28px)); max-width: 520px; gap: 14px; }
+.toolbox-dialog.theme-anime { --toolbox-accent: #e4a9da; }
+.toolbox-dialog.theme-forest { --toolbox-accent: #a5cdb0; }
+html.mode-light .toolbox-dialog { --toolbox-accent: #435db8; --toolbox-accent-text: #fff; }
+html.mode-light .toolbox-dialog.theme-anime { --toolbox-accent: #a63d8b; }
+html.mode-light .toolbox-dialog.theme-forest { --toolbox-accent: #276d4d; }
+.toolbox-dialog > h2 { display: flex; align-items: center; gap: 9px; font-size: 17px; }
+.toolbox-dialog > h2 svg { color: var(--toolbox-accent); }
+.toolbox-drop { display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px; min-height: 142px; border: 1px dashed #677076; border-radius: 7px; background: rgba(109, 145, 151, .08); cursor: pointer; text-align: center; }
+.toolbox-drop:hover, .toolbox-drop:focus-visible { border-color: var(--toolbox-accent); outline: none; }
+.toolbox-drop svg { color: var(--toolbox-accent); }
+.toolbox-drop strong { font-size: 12px; font-weight: 500; }
+.toolbox-drop small { color: #a6a7a9; font-size: 10px; }
+.toolbox-controls, .toolbox-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.toolbox-controls label { display: flex; align-items: center; gap: 7px; font-size: 11px; cursor: pointer; }
+.toolbox-controls input { accent-color: var(--toolbox-accent); }
+.toolbox-controls button, .toolbox-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 31px; padding: 5px 11px; border: 1px solid #45494b; border-radius: 5px; background: #292c2d; color: #eee; font-size: 11px; }
+.toolbox-actions { justify-content: flex-end; }
+.toolbox-actions .toolbox-convert { min-width: 116px; min-height: 38px; border-color: var(--toolbox-accent); background: var(--toolbox-accent); color: var(--toolbox-accent-text); font-size: 12px; font-weight: 600; }
+.toolbox-actions .toolbox-convert:hover:not(:disabled) { filter: brightness(1.08); }
+.toolbox-actions button:disabled, .toolbox-controls button:disabled { opacity: .6; cursor: not-allowed; }
+.toolbox-actions .toolbox-convert:disabled { opacity: 1; border-color: #505963; background: #343a40; color: #c7ccd1; }
+html.mode-light .toolbox-drop small, html.mode-light .toolbox-item small { color: #586968; }
+html.mode-light .toolbox-controls button, html.mode-light .toolbox-actions button:not(.toolbox-convert) { border-color: #c6d0d7; background: #f3f5f7; color: #25343a; }
+html.mode-light .toolbox-actions .toolbox-convert:disabled { border-color: #c6d0d7; background: #e6eaee; color: #586a72; }
+.toolbox-list { max-height: min(250px, 36vh); overflow: auto; border-top: 1px solid var(--line); }
+.toolbox-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 49px; padding: 7px 3px; border-bottom: 1px solid var(--line); }
+.toolbox-item > div { min-width: 0; }
+.toolbox-item strong, .toolbox-item small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.toolbox-item strong { font-size: 11px; font-weight: 500; }
+.toolbox-item small { margin-top: 4px; color: #a5a7a9; font-size: 10px; }
+.toolbox-item button { display: grid; place-items: center; flex: none; width: 28px; height: 28px; border: 0; background: none; color: #aaa; }
+.toolbox-item .toolbox-success { flex: none; color: #73c69d; }

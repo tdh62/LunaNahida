@@ -1,10 +1,14 @@
 .quick-queue-panel { position: fixed; z-index: 55; right: 24px; bottom: 104px; width: min(360px, calc(100vw - 32px)); max-height: min(520px, calc(100vh - 132px)); display: flex; flex-direction: column; overflow: hidden; border: 1px solid #3c3d40; border-radius: 8px; background: #202123; color: #efeeea; box-shadow: 0 18px 50px rgba(0, 0, 0, .48); animation: queue-panel-enter .16s ease-out; }
+.quick-queue-panel.track-drop-target { border-color: var(--accent); box-shadow: 0 0 0 2px var(--tint), 0 18px 50px rgba(0, 0, 0, .48); }
 .quick-queue-panel > header { display: flex; align-items: center; justify-content: space-between; min-height: 58px; padding: 10px 14px; border-bottom: 1px solid #37383a; }
 .quick-queue-panel > header > div { display: flex; align-items: baseline; gap: 10px; }
+.quick-queue-panel > header > .quick-queue-actions { align-items: center; gap: 3px; }
 .quick-queue-panel h2 { margin: 0; color: #f0efed; font-size: 13px; font-weight: 600; }
 .quick-queue-panel header span { color: #99989b; font-size: 10px; }
 .quick-queue-panel header button { display: grid; place-items: center; width: 30px; height: 30px; border: 0; border-radius: 5px; background: transparent; color: #aaa9ad; }
 .quick-queue-panel header button:hover { background: #303134; color: var(--accent); }
+.quick-queue-panel header button:disabled { opacity: .4; cursor: not-allowed; }
+.quick-queue-panel header button:disabled:hover { background: transparent; color: #aaa9ad; }
 .quick-queue-list { min-height: 0; overflow: auto; padding: 5px 10px 10px; }
 .quick-queue-list .queue-track { min-height: 56px; border-radius: 5px; border-bottom-color: #2b2c2e; }
 .quick-queue-list .queue-track:hover { background: #292a2c; }

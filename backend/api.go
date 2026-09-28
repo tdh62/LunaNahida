@@ -2,6 +2,7 @@ package backend
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"io"
@@ -61,6 +62,94 @@ func (a *API) Handler() http.Handler {
 			return
 		}
 		respond(w, 200, state)
+	})
+	mux.HandleFunc("DELETE /api/tracks", func(w http.ResponseWriter, r *http.Request) {
+		var input struct {
+			IDs []int64 `json:"ids"`
+		}
+		if err := decode(r, &input); err != nil {
+			fail(w, 400, err)
+			return
+		}
+		if err := a.Store.DeleteTracks(input.IDs); err != nil {
+			fail(w, 400, err)
+			return
+		}
+		respond(w, 200, map[string]bool{"ok": true})
+	})
+	mux.HandleFunc("POST /api/tags", func(w http.ResponseWriter, r *http.Request) {
+		var input struct {
+			Name string `json:"name"`
+		}
+		if err := decode(r, &input); err != nil {
+			fail(w, 400, err)
+			return
+		}
+		if err := a.Store.CreateTag(input.Name); err != nil {
+			fail(w, 400, err)
+			return
+		}
+		respond(w, 200, map[string]bool{"ok": true})
+	})
+	mux.HandleFunc("PUT /api/tags/rename", func(w http.ResponseWriter, r *http.Request) {
+		var input struct {
+			OldName string `json:"oldName"`
+			NewName string `json:"newName"`
+		}
+		if err := decode(r, &input); err != nil {
+			fail(w, 400, err)
+			return
+		}
+		if err := a.Store.RenameTag(input.OldName, input.NewName); err != nil {
+			fail(w, 400, err)
+			return
+		}
+		respond(w, 200, map[string]bool{"ok": true})
+	})
+	mux.HandleFunc("DELETE /api/tags", func(w http.ResponseWriter, r *http.Request) {
+		var input struct {
+			Name string `json:"name"`
+		}
+		if err := decode(r, &input); err != nil {
+			fail(w, 400, err)
+			return
+		}
+		if err := a.Store.DeleteTag(input.Name); err != nil {
+			fail(w, 400, err)
+			return
+		}
+		respond(w, 200, map[string]bool{"ok": true})
+	})
+	mux.HandleFunc("PUT /api/tracks/tags", func(w http.ResponseWriter, r *http.Request) {
+		var input struct {
+			IDs  []int64  `json:"ids"`
+			Tags []string `json:"tags"`
+		}
+		if err := decode(r, &input); err != nil {
+			fail(w, 400, err)
+			return
+		}
+		if err := a.Store.SaveTrackTags(input.IDs, input.Tags); err != nil {
+			fail(w, 400, err)
+			return
+		}
+		respond(w, 200, map[string]bool{"ok": true})
+	})
+	mux.HandleFunc("PATCH /api/tracks/tags", func(w http.ResponseWriter, r *http.Request) {
+		var input struct {
+			IDs  []int64 `json:"ids"`
+			Name string  `json:"name"`
+			Add  bool    `json:"add"`
+		}
+		if err := decode(r, &input); err != nil {
+			fail(w, 400, err)
+			return
+		}
+		if err := a.Store.ChangeTrackTag(input.IDs, input.Name, input.Add); err != nil {
+			fail(w, 400, err)
+			return
+		}
+		respond(w, 200, map[string]bool{"ok": true})
 	})
 	mux.HandleFunc("PUT /api/settings", func(w http.ResponseWriter, r *http.Request) {
 		var settings Settings
@@ -187,7 +276,7 @@ func (a *API) Handler() http.Handler {
 				return
 			}
 		}
-		changed, err := a.Store.DB.Exec(`UPDATE tracks SET cover=CASE WHEN embedded_cover=1 OR ?='' OR (?='1' AND cover<>'/covers/local.svg') THEN cover ELSE ? END,lyrics=CASE WHEN embedded_lyrics=1 OR ?='' THEN lyrics ELSE ? END,translation=CASE WHEN embedded_lyrics=1 OR ?='' THEN translation ELSE ? END WHERE id=?`, input.Cover, r.URL.Query().Get("fallback"), input.Cover, input.Lyric, input.Lyric, input.Translation, input.Translation, id)
+		changed, err := a.Store.DB.Exec(`UPDATE tracks SET cover=CASE WHEN embedded_cover=1 OR ?='' OR (?='1' AND cover<>'/covers/local.svg') THEN cover ELSE ? END,lyrics=CASE WHEN embedded_lyrics=1 OR local_lyrics=1 OR ?='' THEN lyrics ELSE ? END,translation=CASE WHEN embedded_lyrics=1 OR local_lyrics=1 OR ?='' THEN translation ELSE ? END WHERE id=?`, input.Cover, r.URL.Query().Get("fallback"), input.Cover, input.Lyric, input.Lyric, input.Translation, input.Translation, id)
 		if err != nil {
 			fail(w, 500, err)
 			return
@@ -197,6 +286,34 @@ func (a *API) Handler() http.Handler {
 			return
 		}
 		respond(w, 200, map[string]bool{"ok": true})
+	})
+	mux.HandleFunc("POST /api/tracks/{id}/lyrics", func(w http.ResponseWriter, r *http.Request) {
+		id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+		if err != nil || id == 0 {
+			fail(w, 400, errors.New("invalid track"))
+			return
+		}
+		var input struct {
+			Lyrics string `json:"lyrics"`
+		}
+		if err = decode(r, &input); err != nil {
+			fail(w, 400, err)
+			return
+		}
+		track, err := a.Store.SaveLyrics(id, input.Lyrics)
+		if err != nil {
+			status := 500
+			if errors.Is(err, sql.ErrNoRows) || errors.Is(err, os.ErrNotExist) {
+				status = 404
+			} else if errors.Is(err, errNoLyrics) || errors.Is(err, errLyricsTooLarge) {
+				status = 400
+			} else if errors.Is(err, errLyricsExist) {
+				status = 409
+			}
+			fail(w, status, err)
+			return
+		}
+		respond(w, 200, track)
 	})
 	mux.HandleFunc("POST /api/import", func(w http.ResponseWriter, r *http.Request) {
 		var input struct {
@@ -217,6 +334,86 @@ func (a *API) Handler() http.Handler {
 			return
 		}
 		respond(w, 200, tracks)
+	})
+	mux.HandleFunc("POST /api/conversion/inspect", func(w http.ResponseWriter, r *http.Request) {
+		var input struct {
+			Paths []string `json:"paths"`
+		}
+		if err := decode(r, &input); err != nil || len(input.Paths) > 1000 {
+			fail(w, 400, errors.New("invalid paths"))
+			return
+		}
+		found := []string{}
+		for _, raw := range input.Paths {
+			path, err := canonical(raw)
+			if err != nil {
+				continue
+			}
+			info, err := os.Stat(path)
+			if err != nil {
+				continue
+			}
+			if !info.IsDir() {
+				if encryptedFile(path) {
+					found = append(found, path)
+				}
+				continue
+			}
+			_ = filepath.WalkDir(path, func(item string, entry os.DirEntry, walkErr error) error {
+				if walkErr != nil {
+					return nil
+				}
+				if entry.IsDir() {
+					if entry.Name() == backupFolder {
+						return filepath.SkipDir
+					}
+					return nil
+				}
+				if encryptedFile(item) {
+					found = append(found, item)
+				}
+				if len(found) >= 1000 {
+					return filepath.SkipAll
+				}
+				return nil
+			})
+		}
+		respond(w, 200, map[string]any{"paths": found})
+	})
+	mux.HandleFunc("POST /api/conversion", func(w http.ResponseWriter, r *http.Request) {
+		var input struct {
+			Path         string `json:"path"`
+			AddToLibrary bool   `json:"addToLibrary"`
+		}
+		if err := decode(r, &input); err != nil || input.Path == "" {
+			fail(w, 400, errors.New("invalid path"))
+			return
+		}
+		settings, err := a.Store.Settings()
+		if err != nil {
+			fail(w, 500, err)
+			return
+		}
+		respond(w, 200, a.Store.Convert(r.Context(), input.Path, settings.BackupOriginal, input.AddToLibrary))
+	})
+	mux.HandleFunc("PUT /api/tracks/{id}/playback", func(w http.ResponseWriter, r *http.Request) {
+		id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+		if err != nil || id <= 0 {
+			fail(w, 400, errors.New("invalid track"))
+			return
+		}
+		var input struct {
+			Status string `json:"status"`
+		}
+		if err = decode(r, &input); err != nil || input.Status != "playable" && input.Status != "unplayable" && input.Status != "unknown" {
+			fail(w, 400, errors.New("invalid status"))
+			return
+		}
+		if _, err = a.Store.DB.Exec(`UPDATE tracks SET playback_status=? WHERE id=?`, input.Status, id); err != nil {
+			fail(w, 500, err)
+			return
+		}
+		respond(w, 200, map[string]bool{"ok": true})
 	})
 	mux.HandleFunc("POST /api/scan", func(w http.ResponseWriter, r *http.Request) {
 		result, err := a.Store.Scan(r.Context())
