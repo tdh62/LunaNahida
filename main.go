@@ -11,11 +11,14 @@ import (
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
-	"lumatune/backend"
+	"lunanahida/backend"
 )
 
 //go:embed all:dist
 var frontend embed.FS
+
+//go:embed build/appicon.png
+var appIcon []byte
 
 func main() {
 	dataRoot, browserPath, err := desktopPaths()
@@ -35,7 +38,8 @@ func main() {
 	var api *backend.API
 	var apiHandler http.Handler
 	app := application.New(application.Options{
-		Name: "Luma Tune",
+		Name: "LunaNahida",
+		Icon: appIcon,
 		Windows: application.WindowsOptions{
 			WebviewUserDataPath: filepath.Join(store.Root, "cache", "webview"),
 			WebviewBrowserPath:  browserPath,
@@ -71,14 +75,14 @@ func main() {
 	})
 	apiHandler = api.Handler()
 	window := app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Name: "main", Title: "Luma Tune", Width: 1280, Height: 800,
+		Name: "main", Title: "LunaNahida", Width: 1280, Height: 800,
 		MinWidth: 900, MinHeight: 600, EnableFileDrop: true, URL: "/",
 	})
 	window.OnWindowEvent(events.Common.WindowFilesDropped, func(event *application.WindowEvent) {
-		app.Event.Emit("luma:files-dropped", event.Context().DroppedFiles())
+		app.Event.Emit("lunanahida:files-dropped", event.Context().DroppedFiles())
 		time.AfterFunc(100*time.Millisecond, window.Focus)
 	})
-	api.RunScans(ctx, func(result backend.ScanResult) { app.Event.Emit("luma:scan-complete", result) })
+	api.RunScans(ctx, func(result backend.ScanResult) { app.Event.Emit("lunanahida:scan-complete", result) })
 	if err := app.Run(); err != nil {
 		log.Fatal(err)
 	}

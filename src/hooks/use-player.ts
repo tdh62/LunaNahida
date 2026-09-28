@@ -37,12 +37,12 @@ export function usePlayer() {
 
   useEffect(() => {
     const element = new Audio(); audio.current = element;
-    const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('lumatune-playback') : null;
+    const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('lunanahidatune-playback') : null;
     const stop = () => { shouldPlay.current = false; element.pause(); };
     channel?.addEventListener('message', event => { if (event.data === 'play') stop(); });
     element.ontimeupdate = () => setTime(element.currentTime);
     element.onloadedmetadata = () => { const id = currentId.current; if (id !== null && Number.isFinite(element.duration)) { const updated = queueRef.current.map(item => item.id === id ? { ...item, duration: element.duration } : item); updateQueue(updated); if (id > 0) void backend.duration(id, element.duration).catch(() => {}); } };
-    element.oncanplay = () => { const id = currentId.current; if (id === null) return; const item = queueRef.current.find(track => track.id === id); if (item?.playbackStatus === 'playable') return; updateQueue(queueRef.current.map(track => track.id === id ? { ...track, playbackStatus: 'playable' } : track)); if (id > 0) void backend.playbackStatus(id, 'playable').then(() => window.dispatchEvent(new Event('luma-library-changed'))).catch(() => {}); };
+    element.oncanplay = () => { const id = currentId.current; if (id === null) return; const item = queueRef.current.find(track => track.id === id); if (item?.playbackStatus === 'playable') return; updateQueue(queueRef.current.map(track => track.id === id ? { ...track, playbackStatus: 'playable' } : track)); if (id > 0) void backend.playbackStatus(id, 'playable').then(() => window.dispatchEvent(new Event('lunanahida-library-changed'))).catch(() => {}); };
     element.onerror = () => {
       const id = currentId.current;
       if (id === null || ![3, 4].includes(element.error?.code ?? 0)) return;
@@ -51,9 +51,9 @@ export function usePlayer() {
       const source = queueRef.current.find(track => track.id === id)?.source;
       if (!source) return;
       void fetch(source, { method: 'HEAD' }).then(response => {
-        if (currentId.current !== id || !response.ok) { window.dispatchEvent(new Event('luma-library-changed')); return; }
+        if (currentId.current !== id || !response.ok) { window.dispatchEvent(new Event('lunanahida-library-changed')); return; }
         updateQueue(queueRef.current.map(track => track.id === id ? { ...track, playbackStatus: 'unplayable' } : track));
-        if (id > 0) void backend.playbackStatus(id, 'unplayable').then(() => window.dispatchEvent(new Event('luma-library-changed'))).catch(() => {});
+        if (id > 0) void backend.playbackStatus(id, 'unplayable').then(() => window.dispatchEvent(new Event('lunanahida-library-changed'))).catch(() => {});
       }).catch(() => {});
     };
     element.onended = () => nextRef.current();
@@ -76,8 +76,8 @@ export function usePlayer() {
         translation: item.embeddedLyrics || item.localLyrics ? item.translation : value.translation || item.translation,
       } : item));
     };
-    window.addEventListener('lumatune-music-refreshed', updateEnrichedTrack);
-    return () => window.removeEventListener('lumatune-music-refreshed', updateEnrichedTrack);
+    window.addEventListener('lunanahidatune-music-refreshed', updateEnrichedTrack);
+    return () => window.removeEventListener('lunanahidatune-music-refreshed', updateEnrichedTrack);
   }, []);
 
   const ensureGraph = () => {

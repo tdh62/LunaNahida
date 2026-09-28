@@ -118,8 +118,8 @@ export default function Index() {
   const [deleteTrackIds, setDeleteTrackIds] = useState<number[]>([]);
   const [playlistNavExpanded, setPlaylistNavExpanded] = useState(false);
   const [recentPlaylistIds, setRecentPlaylistIds] = useState<string[]>([]);
-  const [theme, setTheme] = useState('dusk'), [lyricEffect, setLyricEffect] = useState('流动'), [lyricScroll, setLyricScroll] = useState('平滑'), [visual, setVisual] = useState('频谱');
-  const [appearance, setAppearance] = useState<'dark' | 'light'>('dark');
+  const [theme, setTheme] = useState('forest'), [lyricEffect, setLyricEffect] = useState('流动'), [lyricScroll, setLyricScroll] = useState('平滑'), [visual, setVisual] = useState('频谱');
+  const [appearance, setAppearance] = useState<'dark' | 'light'>('light');
   const [lyricAppearance, setLyricAppearance] = useState({ font: 'default', size: 16, lineHeight: 57, spacing: 0 });
   const [scopeSettings, setScopeSettings] = useState<ScopeSettings>(defaultScopeSettings);
   const [scopeOpen, setScopeOpen] = useState(false);
@@ -207,16 +207,16 @@ export default function Index() {
   const chooseFiles = () => { void backend.chooseFiles().then(result => handlePaths(result.paths)).catch(error => toast.error(error.message)); };
   const chooseFolder = () => { void backend.chooseFolder().then(result => handlePaths(result.paths.filter(Boolean))).catch(error => toast.error(error.message)); };
   useEffect(() => {
-    const offDrop = Events.On('luma:files-dropped', event => { dragDepth.current = 0; setDropActive(false); const paths = event.data as string[]; if (toolboxOpen) { void backend.inspectConversion(paths).then(result => { setToolboxPaths(previous => [...new Set([...previous, ...result.paths])]); if (!result.paths.length) toast.info('没有找到可转换的加密音频'); }).catch(error => toast.error(error.message)); } else void handlePaths(paths, true); });
-    const offScan = Events.On('luma:scan-complete', () => void reloadLibrary());
+    const offDrop = Events.On('lunanahida:files-dropped', event => { dragDepth.current = 0; setDropActive(false); const paths = event.data as string[]; if (toolboxOpen) { void backend.inspectConversion(paths).then(result => { setToolboxPaths(previous => [...new Set([...previous, ...result.paths])]); if (!result.paths.length) toast.info('没有找到可转换的加密音频'); }).catch(error => toast.error(error.message)); } else void handlePaths(paths, true); });
+    const offScan = Events.On('lunanahida:scan-complete', () => void reloadLibrary());
     return () => { offDrop(); offScan(); };
   }, [storedSettings, toolboxOpen, pathname]);
   useEffect(() => {
     const settingsChanged = (event: Event) => setStoredSettings((event as CustomEvent<StoredSettings>).detail);
     const libraryChanged = () => void reloadLibrary();
-    window.addEventListener('luma-settings-updated', settingsChanged);
-    window.addEventListener('luma-library-changed', libraryChanged);
-    return () => { window.removeEventListener('luma-settings-updated', settingsChanged); window.removeEventListener('luma-library-changed', libraryChanged); };
+    window.addEventListener('lunanahida-settings-updated', settingsChanged);
+    window.addEventListener('lunanahida-library-changed', libraryChanged);
+    return () => { window.removeEventListener('lunanahida-settings-updated', settingsChanged); window.removeEventListener('lunanahida-library-changed', libraryChanged); };
   }, []);
   const dropFiles = (event: DragEvent) => { event.preventDefault(); dragDepth.current = 0; setDropActive(false); };
   const refreshInfo = (track: Track) => {
@@ -485,7 +485,7 @@ export default function Index() {
   };
   return <div ref={appRef} data-file-drop-target className={`music-app theme-${theme} mode-${appearance} ${focus ? 'focus-mode' : ''} sidebar-${sidebarMode} ${trackDragging ? 'is-track-dragging' : ''}`} onDragStart={event => { if (hasTrackDrag(event.dataTransfer)) setTrackDragging(true); }} onDragEnter={event => { if (event.dataTransfer.types.includes('Files')) { dragDepth.current++; setDropActive(true); } }} onDragLeave={event => { if (event.dataTransfer.types.includes('Files') && --dragDepth.current <= 0) { dragDepth.current = 0; setDropActive(false); } }} onDragOver={event => { if (event.dataTransfer.types.includes('Files')) event.preventDefault(); }} onDragEndCapture={() => { setTrackDropTarget(null); setTrackDragging(false); }} onDrop={event => { setTrackDropTarget(null); setTrackDragging(false); void dropFiles(event); }}>
     <aside className="sidebar flex flex-col">
-      
+      <div className="sidebar-brand-row"><Link to="/" className="brand" title="LunaNahida"><img src="/lunanahida-icon.svg" alt="" /><span className="brand-name">LunaNahida</span></Link></div>
       <div className="nav-label">音乐库</div><nav className="space-y-1">{[{ title: '正在播放', path: '/', icon: AudioLines }, { title: '我的音乐', path: '/music', icon: Disc3 }, { title: '标签', path: '/tags', icon: Tag }, { title: '歌手', path: '/artists', icon: Mic2 }, { title: '专辑', path: '/albums', icon: Disc3 }, { title: '我喜欢的', path: '/liked', icon: Heart }, { title: '最近播放', path: '/recent', icon: ListMusic }].map(({ title, path, icon: Icon }) => <button key={title} title={title} onClick={() => navigate(path)} onDragOver={title === '我喜欢的' || title === '正在播放' ? event => onTrackDragOver(event, title === '我喜欢的' ? 'liked' : 'queue') : undefined} onDragLeave={title === '我喜欢的' || title === '正在播放' ? () => setTrackDropTarget(null) : undefined} onDrop={title === '我喜欢的' ? onDropToLiked : title === '正在播放' ? onDropToQueue : undefined} className={`nav-item ${!isSettings && (pathname === path || (path === '/artists' && isArtists) || (path === '/albums' && isAlbums)) ? 'selected' : ''} ${trackDropTarget === (title === '我喜欢的' ? 'liked' : title === '正在播放' ? 'queue' : '') ? 'track-drop-target' : ''}`}><Icon size={18} />{title}{title === '正在播放' && p.playing && <span className="tiny-bars" aria-hidden="true"><i /><i /><i /></span>}{title === '我喜欢的' && <small>{liked.length}</small>}</button>)}</nav>
       <Link to="/settings" title="播放器设置" className={`nav-item settings-nav ${isSettings ? 'selected' : ''}`}><Settings2 size={18} />播放器设置</Link>
       <div className="playlist-nav-heading"><button type="button" onClick={() => navigate('/playlists')} className="nav-label" title="查看全部歌单">歌单</button><button type="button" className="playlist-nav-add" title="新建歌单" aria-label="新建歌单" onClick={() => setCreatePlaylistOpen(true)}><Plus size={16} /></button></div>

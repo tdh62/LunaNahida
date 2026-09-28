@@ -68,6 +68,11 @@
 .queue-sortable.selected .queue-track { background: var(--tint); box-shadow: inset 2px 0 var(--accent); }
 .queue-sortable:focus-within:not(.selected) .queue-track { outline: 1px solid var(--accent); outline-offset: -1px; }
 .queue-context { z-index: 100; min-width: 158px; padding: 5px; border: 1px solid #42454a; border-radius: 7px; background: #232527; color: #f1f0ed; box-shadow: 0 12px 30px rgba(0,0,0,.35); }
+.sidebar-brand-row { display: flex; align-items: center; min-height: 35px; margin-bottom: 35px; }
+.sidebar-brand-row .brand { display: flex; align-items: center; gap: 9px; height: 35px; margin: 0; text-decoration: none; white-space: nowrap; font-size: 17px; }
+.sidebar-brand-row .brand img { display: block; width: 31px; height: 31px; flex: none; border-radius: 7px; }
+.sidebar-brand-row .brand-name { overflow: hidden; text-overflow: ellipsis; }
+.mode-light .sidebar-brand-row .brand { color: #276747; }
 .queue-context [role=menuitem] { display: flex; align-items: center; gap: 9px; padding: 9px 10px; border-radius: 4px; font-size: 11px; }
 .queue-context [role=menuitem]:focus { background: #343944; color: #d4dcff; }
 .queue-context .queue-context-danger { color: #ef9c9c; }
@@ -82,7 +87,7 @@
 @media (min-width: 761px) {
   .music-app { position: relative; }
   .sidebar-brand-row { display: flex; align-items: flex-start; justify-content: space-between; }
-  .sidebar-brand-row .brand { margin-bottom: 48px; }
+  .sidebar-brand-row .brand { margin-bottom: 0; }
   .sidebar-controls { display: flex; align-items: center; }
   .sidebar-toggle { display: grid; place-items: center; width: 30px; height: 32px; flex: none; border: 0; border-radius: 5px; background: transparent; color: #a6a6aa; }
   .sidebar-toggle:hover, .sidebar-restore:hover { color: var(--accent); background: var(--tint); }

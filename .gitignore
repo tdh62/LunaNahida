@@ -33,4 +33,3 @@ dist-ssr
 /playwright-report/
 /playwright/.cache/
 .last-run.json
-.dyad/

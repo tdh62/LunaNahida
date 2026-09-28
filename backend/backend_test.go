@@ -25,8 +25,8 @@ import (
 )
 
 func TestLiveMusicSources(t *testing.T) {
-	if os.Getenv("LUMA_TUNE_LIVE_TEST") != "1" {
-		t.Skip("set LUMA_TUNE_LIVE_TEST=1 for upstream diagnostics")
+	if os.Getenv("LUNANAHIDA_LIVE_TEST") != "1" {
+		t.Skip("set LUNANAHIDA_LIVE_TEST=1 for upstream diagnostics")
 	}
 	music := NewMusic(testStore(t))
 	result, err := music.enrich(context.Background(), "奇妙能力歌", "陈粒", "", true, true, true)

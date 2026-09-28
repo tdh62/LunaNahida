@@ -5,7 +5,7 @@
 @tailwind utilities;
 
 @layer base {
-  :root { --background: 222 14% 9%; --foreground: 30 13% 94%; --card: 222 12% 12%; --card-foreground: 30 13% 94%; --popover: 222 12% 12%; --popover-foreground: 30 13% 94%; --primary: 230 100% 82%; --primary-foreground: 230 18% 10%; --secondary: 222 10% 16%; --secondary-foreground: 30 13% 94%; --muted: 222 10% 16%; --muted-foreground: 220 5% 55%; --accent: 230 100% 82%; --accent-foreground: 230 18% 10%; --border: 222 8% 19%; --input: 222 8% 19%; --ring: 230 100% 82%; --radius: .3rem; }
+  :root { --background: 108 33% 97%; --foreground: 157 28% 17%; --card: 0 0% 100%; --card-foreground: 157 28% 17%; --popover: 0 0% 100%; --popover-foreground: 157 28% 17%; --primary: 145 45% 31%; --primary-foreground: 0 0% 100%; --secondary: 112 25% 92%; --secondary-foreground: 157 28% 17%; --muted: 112 25% 92%; --muted-foreground: 156 14% 38%; --accent: 145 45% 31%; --accent-foreground: 0 0% 100%; --border: 125 18% 83%; --input: 125 18% 83%; --ring: 145 45% 31%; --radius: .3rem; }
   * { @apply border-border; }
   body { @apply bg-background text-foreground; margin: 0; }
   button, input { font: inherit; }

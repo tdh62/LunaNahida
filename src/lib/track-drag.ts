@@ -1,4 +1,4 @@
-export const TRACK_DRAG_TYPE = 'application/x-lumatune-track';
+export const TRACK_DRAG_TYPE = 'application/x-lunanahidatune-track';
 
 export function hasTrackDrag(data: DataTransfer) {
   return data.types.includes(TRACK_DRAG_TYPE);

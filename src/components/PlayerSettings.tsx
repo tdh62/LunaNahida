@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 export const themes = [
   { id: 'dusk', name: '山间暮色', desc: '柔和的暮蓝', icon: Moon },
   { id: 'anime', name: '星野放映室', desc: '轻盈的粉色', icon: Sparkles },
-  { id: 'forest', name: '森林呼吸', desc: '安静的绿意', icon: Leaf },
+  { id: 'forest', name: '纳西妲之森', desc: '新芽绿与柔和金', icon: Leaf },
 ];
 
 const eqNames = ['低音', '低中', '中音', '高中', '高音'];
@@ -61,12 +61,12 @@ export default function PlayerSettings({ theme, setTheme, appearance, setAppeara
     if (!library) return;
     const settings = { ...library.settings, ...change };
     setLibrary({ ...library, settings });
-    window.dispatchEvent(new CustomEvent('luma-settings-updated', { detail: settings }));
+    window.dispatchEvent(new CustomEvent('lunanahida-settings-updated', { detail: settings }));
     void backend.settings(settings).catch(error => toast.error(error.message));
   };
   const refreshLibrary = () => { void backend.state().then(setLibrary).catch(error => toast.error(error.message)); };
   const addFolder = async (path: string) => { if (!path.trim()) return; try { await backend.addFolder(path.trim()); setNewFolder(''); refreshLibrary(); toast.success('已添加监听文件夹'); } catch (error) { toast.error(error instanceof Error ? error.message : '添加失败'); } };
-  const scan = async () => { setScanning(true); try { const result = await backend.scan(); refreshLibrary(); window.dispatchEvent(new Event('luma-library-changed')); toast.success(`扫描完成：新增 ${result.added} 首，缺失 ${result.missing} 首`); if (result.errors.length) toast.warning(`${result.errors.length} 个路径暂不可访问`); } catch (error) { toast.error(error instanceof Error ? error.message : '扫描失败'); } finally { setScanning(false); } };
+  const scan = async () => { setScanning(true); try { const result = await backend.scan(); refreshLibrary(); window.dispatchEvent(new Event('lunanahida-library-changed')); toast.success(`扫描完成：新增 ${result.added} 首，缺失 ${result.missing} 首`); if (result.errors.length) toast.warning(`${result.errors.length} 个路径暂不可访问`); } catch (error) { toast.error(error instanceof Error ? error.message : '扫描失败'); } finally { setScanning(false); } };
   const clearCache = async () => {
     setClearing(true);
     try {
@@ -74,15 +74,15 @@ export default function PlayerSettings({ theme, setTheme, appearance, setAppeara
       setCache(stats);
       setCacheError(false);
       setClearConfirmOpen(false);
-      window.dispatchEvent(new Event('luma-cache-cleared'));
-      window.dispatchEvent(new Event('luma-library-changed'));
+      window.dispatchEvent(new Event('lunanahida-cache-cleared'));
+      window.dispatchEvent(new Event('lunanahida-library-changed'));
       toast.success('缓存已清理，WebView 缓存将在下次启动时清理');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '清理缓存失败');
       void backend.cacheStats().then(stats => { setCache(stats); setCacheError(false); }).catch(() => setCacheError(true));
       refreshLibrary();
-      window.dispatchEvent(new Event('luma-cache-cleared'));
-      window.dispatchEvent(new Event('luma-library-changed'));
+      window.dispatchEvent(new Event('lunanahida-cache-cleared'));
+      window.dispatchEvent(new Event('lunanahida-library-changed'));
     } finally {
       setClearing(false);
     }

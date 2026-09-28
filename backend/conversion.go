@@ -30,7 +30,7 @@ import (
 	_ "unlock-music.dev/cli/algo/ximalaya"
 )
 
-const backupFolder = ".luma-original-backup"
+const backupFolder = ".lunanahida-original-backup"
 
 type ConversionResult struct {
 	Source string `json:"source"`
@@ -138,7 +138,7 @@ func (s *Store) Convert(ctx context.Context, input string, backup, addToLibrary 
 			return result
 		}
 	}
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".luma-convert-*"+ext)
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".lunanahida-convert-*"+ext)
 	if err != nil {
 		result.Error = err.Error()
 		return result
@@ -195,7 +195,7 @@ func (s *Store) Convert(ctx context.Context, input string, backup, addToLibrary 
 			return result
 		}
 	} else {
-		retiredFile, createErr := os.CreateTemp(filepath.Dir(path), ".luma-retired-*")
+		retiredFile, createErr := os.CreateTemp(filepath.Dir(path), ".lunanahida-retired-*")
 		if createErr != nil {
 			result.Error = createErr.Error()
 			return result
@@ -347,7 +347,7 @@ func writeConvertedMeta(ctx context.Context, path, ext string, meta common.Audio
 		if err != nil {
 			return err
 		}
-		comment := flacvorbis.MetaDataBlockVorbisComment{Vendor: "Luma Tune"}
+		comment := flacvorbis.MetaDataBlockVorbisComment{Vendor: "LunaNahida"}
 		for _, existing := range f.Meta {
 			if existing.Type != flac.VorbisComment {
 				continue

@@ -1,4 +1,4 @@
-# Luma Tune
+# LunaNahida
 
 Windows desktop music player built with React, Go, SQLite, and Wails v3 beta.26.
 
@@ -16,13 +16,13 @@ The browser preview uses the same Go API as the desktop app. Native dialogs and 
 
 ## Desktop build
 
-`corepack pnpm build:desktop` writes `bin/LumaTune.exe`. The executable embeds `dist` and serves the Go API inside the Wails asset handler. It does not open a network API port.
+`corepack pnpm build:desktop` writes `bin/LunaNahida.exe`. The executable embeds `dist` and serves the Go API inside the Wails asset handler. It does not open a network API port.
 
-To build a portable package, first place the Microsoft WebView2 Fixed Version Runtime for Windows x64 in `resources/WebView2`. This locally supplied runtime is not tracked in Git. `corepack pnpm build:portable` writes `bin/portable/LumaTune.exe` and copies the runtime into `bin/portable/WebView2`. Move the whole `bin/portable` folder together. Any `.cab` source archive in `resources` is not included in the package. This build requires Windows x64.
+To build a portable package, first place the Microsoft WebView2 Fixed Version Runtime for Windows x64 in `resources/WebView2`. This locally supplied runtime is not tracked in Git. `corepack pnpm build:portable` writes `bin/portable/LunaNahida.exe` and copies the runtime into `bin/portable/WebView2`. Move the whole `bin/portable` folder together. Any `.cab` source archive in `resources` is not included in the package. This build requires Windows x64.
 
-The portable build stores its SQLite database, artwork cache, and WebView profile in `bin/portable/userdata` beside the executable. Run it from a writable folder; `userdata` is created on first launch. Keep `userdata` when updating the executable and runtime. Music files remain at their original paths, so moving the package separately from the music may require adding the new folders again. The portable build ignores `LUMA_TUNE_DATA_DIR` to keep its data beside the executable.
+The portable build stores its SQLite database, artwork cache, and WebView profile in `bin/portable/userdata` beside the executable. Run it from a writable folder; `userdata` is created on first launch. Keep `userdata` when updating the executable and runtime. Music files remain at their original paths, so moving the package separately from the music may require adding the new folders again. The portable build ignores `LUNANAHIDA_DATA_DIR` to keep its data beside the executable.
 
-The standard desktop build stores data in the local user cache directory under `LumaTune/data/library.db` and `LumaTune/cache/covers`. `LUMA_TUNE_DATA_DIR` overrides the root for development. SQLite contains library metadata, playlists, favorites, playback history, queue, settings, watched folders, and music information cache.
+The standard desktop build stores data in the local user cache directory under `LunaNahida/data/library.db` and `LunaNahida/cache/covers`. `LUNANAHIDA_DATA_DIR` overrides the root for development. SQLite contains library metadata, playlists, favorites, playback history, queue, settings, watched folders, and music information cache. New libraries start with the light forest theme.
 
 On first launch the library is empty. Add files through the desktop dialog or drop them into the window. The default action asks whether to play only this time, add to the library, or watch the containing folder. Settings include startup scans, manual scans, and optional scheduled scans. Missing files remain in the library and can be rediscovered when they return.
 

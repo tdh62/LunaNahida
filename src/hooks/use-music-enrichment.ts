@@ -17,9 +17,9 @@ export async function refreshMusicInfo(track: Track) {
   if (!response.ok) throw new Error('音乐源暂时不可用，请稍后重试');
   const value = await response.json() as Enrichment;
   if (!value.cover && !value.lyric) throw new Error('未找到与曲名和歌手匹配的资料');
-  if (track.id > 0) { await backend.enrichment(track.id, value.cover ?? '', value.lyric ?? '', value.translation ?? ''); window.dispatchEvent(new Event('luma-library-changed')); }
+  if (track.id > 0) { await backend.enrichment(track.id, value.cover ?? '', value.lyric ?? '', value.translation ?? ''); window.dispatchEvent(new Event('lunanahida-library-changed')); }
   const key = keyOf(track); current.set(key, value);
-  window.dispatchEvent(new CustomEvent('lumatune-music-refreshed', { detail: { id: track.id, key, value } }));
+  window.dispatchEvent(new CustomEvent('lunanahidatune-music-refreshed', { detail: { id: track.id, key, value } }));
   return value;
 }
 
@@ -44,9 +44,9 @@ export function useMusicEnrichment(track: Track, playing: boolean) {
   useEffect(() => {
     const refresh = (event: Event) => { const detail = (event as CustomEvent<{ key: string; value: Enrichment }>).detail; if (detail.key === key) setResult(detail); };
     const clear = () => { current.clear(); setResult(null); };
-    window.addEventListener('lumatune-music-refreshed', refresh);
-    window.addEventListener('luma-cache-cleared', clear);
-    return () => { window.removeEventListener('lumatune-music-refreshed', refresh); window.removeEventListener('luma-cache-cleared', clear); };
+    window.addEventListener('lunanahidatune-music-refreshed', refresh);
+    window.addEventListener('lunanahida-cache-cleared', clear);
+    return () => { window.removeEventListener('lunanahidatune-music-refreshed', refresh); window.removeEventListener('lunanahida-cache-cleared', clear); };
   }, [key]);
   const needCover = !track.embeddedCover && track.cover === '/covers/local.svg';
   const needLyrics = !track.embeddedLyrics && !track.localLyrics && !track.lyrics;
@@ -57,7 +57,7 @@ export function useMusicEnrichment(track: Track, playing: boolean) {
     if (track.provider && track.providerId) { params.set('source', track.provider); params.set('id', track.providerId); }
     fetch(`/api/music/enrich?${params}`, { signal: controller.signal })
       .then(response => { if (!response.ok) throw new Error('补全失败'); return response.json() as Promise<Enrichment>; })
-      .then(async value => { if (!controller.signal.aborted) { if (track.id > 0 && (value.cover || value.lyric || value.translation)) { await backend.enrichment(track.id, value.cover ?? '', value.lyric ?? '', value.translation ?? ''); window.dispatchEvent(new Event('luma-library-changed')); } current.set(key, value); setResult({ key, value }); window.dispatchEvent(new CustomEvent('lumatune-music-refreshed', { detail: { id: track.id, key, value } })); } })
+      .then(async value => { if (!controller.signal.aborted) { if (track.id > 0 && (value.cover || value.lyric || value.translation)) { await backend.enrichment(track.id, value.cover ?? '', value.lyric ?? '', value.translation ?? ''); window.dispatchEvent(new Event('lunanahida-library-changed')); } current.set(key, value); setResult({ key, value }); window.dispatchEvent(new CustomEvent('lunanahidatune-music-refreshed', { detail: { id: track.id, key, value } })); } })
       .catch(() => {});
     return () => controller.abort();
   }, [key, playing, needCover, needLyrics, track.id, track.title, track.artist, track.album]);

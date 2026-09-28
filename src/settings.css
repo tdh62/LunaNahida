@@ -14,7 +14,7 @@
 .settings-theme-preview { display: grid; place-items: center; width: 56px; height: 56px; flex: none; border-radius: 5px; }
 .preview-dusk { background: #303b56; color: #bdcbff; }
 .preview-anime { background: #4b304b; color: #f2b9e9; }
-.preview-forest { background: #2c4437; color: #bce1c5; }
+.preview-forest { background: #dcedd5; color: #2b7651; }
 .settings-theme-label { min-width: 0; }
 .settings-theme-label strong { display: flex; align-items: center; gap: 5px; white-space: nowrap; font-size: 12px; font-weight: 500; }
 .settings-theme-label strong svg { flex: none; color: var(--accent); }

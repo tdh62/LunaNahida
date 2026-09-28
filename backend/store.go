@@ -135,7 +135,7 @@ type ScopeSettings struct {
 }
 
 func DefaultSettings() Settings {
-	return Settings{DropAction: "ask", ScanOnStart: true, BackupOriginal: true, Theme: "dusk", Appearance: "dark", Visual: "频谱", Scope: ScopeSettings{Mode: "spectrum", FFTSize: 8192, MinFrequency: 20, MaxFrequency: 20000, Smoothing: 0.72}, LyricEffect: "流动", LyricScroll: "平滑", ShowTranslation: true, LyricAppearance: json.RawMessage(`{"font":"default","size":16,"lineHeight":57,"spacing":0}`), ArtistMappings: json.RawMessage(`[]`), Volume: 65, Mode: "list", Effect: "原声", Equalizer: []float64{0, 0, 0, 0, 0}, CustomEffects: []SavedEffect{}}
+	return Settings{DropAction: "ask", ScanOnStart: true, BackupOriginal: true, Theme: "forest", Appearance: "light", Visual: "频谱", Scope: ScopeSettings{Mode: "spectrum", FFTSize: 8192, MinFrequency: 20, MaxFrequency: 20000, Smoothing: 0.72}, LyricEffect: "流动", LyricScroll: "平滑", ShowTranslation: true, LyricAppearance: json.RawMessage(`{"font":"default","size":16,"lineHeight":57,"spacing":0}`), ArtistMappings: json.RawMessage(`[]`), Volume: 65, Mode: "list", Effect: "原声", Equalizer: []float64{0, 0, 0, 0, 0}, CustomEffects: []SavedEffect{}}
 }
 
 type State struct {
@@ -162,14 +162,14 @@ type Store struct {
 
 func Open(root string) (*Store, error) {
 	if root == "" {
-		root = os.Getenv("LUMA_TUNE_DATA_DIR")
+		root = os.Getenv("LUNANAHIDA_DATA_DIR")
 	}
 	if root == "" {
 		base, err := os.UserCacheDir()
 		if err != nil {
 			return nil, err
 		}
-		root = filepath.Join(base, "LumaTune")
+		root = filepath.Join(base, "LunaNahida")
 	}
 	root, err := filepath.Abs(root)
 	if err != nil {

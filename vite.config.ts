@@ -6,7 +6,7 @@ export default defineConfig(() => ({
   server: {
     host: "127.0.0.1",
     port: 8080,
-    proxy: { "/api": `http://127.0.0.1:${process.env.LUMA_TUNE_API_PORT || "8787"}` },
+    proxy: { "/api": `http://127.0.0.1:${process.env.LUNANAHIDA_API_PORT || "8787"}` },
   },
   plugins: [react()],
   resolve: {

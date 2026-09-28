@@ -16,7 +16,7 @@ type AlbumDescription = {
 };
 const artistDescriptions = new Map<string, ArtistDescription>();
 const albumDescriptions = new Map<string, AlbumDescription>();
-if (typeof window !== 'undefined') window.addEventListener('luma-cache-cleared', () => { artistDescriptions.clear(); albumDescriptions.clear(); });
+if (typeof window !== 'undefined') window.addEventListener('lunanahida-cache-cleared', () => { artistDescriptions.clear(); albumDescriptions.clear(); });
 
 function readArtistDescriptionCache(name: string) {
   return artistDescriptions.get(name.trim().normalize('NFKC').toLowerCase());
@@ -200,7 +200,7 @@ export default function CatalogView({ kind, artists, albums, artist, album, curr
     let active = true;
     void Promise.allSettled(missing.map(track => backend.enrichment(track.id, albumPicture, '', '', true)))
       .then(results => {
-        if (active && results.some(result => result.status === 'fulfilled')) window.dispatchEvent(new Event('luma-library-changed'));
+        if (active && results.some(result => result.status === 'fulfilled')) window.dispatchEvent(new Event('lunanahida-library-changed'));
       });
     return () => { active = false; };
   }, [album, albumPicture]);

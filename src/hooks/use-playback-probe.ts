@@ -49,7 +49,7 @@ export function usePlaybackProbe(tracks: Track[]) {
         try { await backend.playbackStatus(track.id, status); changed = true; } catch { /* The next scan can retry. */ }
       }
     };
-    void Promise.all([worker(), worker()]).then(() => { if (changed && !controller.signal.aborted) window.dispatchEvent(new Event('luma-library-changed')); });
+    void Promise.all([worker(), worker()]).then(() => { if (changed && !controller.signal.aborted) window.dispatchEvent(new Event('lunanahida-library-changed')); });
     return () => controller.abort();
   }, [tracks]);
 }

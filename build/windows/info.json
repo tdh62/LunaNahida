@@ -1,0 +1,12 @@
+{
+  "fixed": {
+    "file_version": "1.0.0.0"
+  },
+  "info": {
+    "0000": {
+      "ProductVersion": "1.0.0",
+      "FileDescription": "LunaNahida music player",
+      "ProductName": "LunaNahida"
+    }
+  }
+}

@@ -1,5 +1,5 @@
 {
-  "name": "luma-tune",
+  "name": "lunanahida",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -8,7 +8,7 @@
     "dev:api": "go run ./cmd/devserver",
     "dev:ui": "vite",
     "build": "vite build",
-    "build:desktop": "vite build && go build -tags production -o bin/LumaTune.exe .",
+    "build:desktop": "vite build && go build -tags production -o bin/LunaNahida.exe .",
     "build:portable": "vite build && node scripts/build-portable.mjs",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
