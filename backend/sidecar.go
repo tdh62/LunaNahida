@@ -123,6 +123,9 @@ func (s *Store) SaveLyrics(id int64, lyrics string) (Track, error) {
 	if err != nil {
 		return Track{}, err
 	}
+	if track.Kind == "network" {
+		return Track{}, errors.New("网络歌曲不支持保存到源文件旁")
+	}
 	info, err := os.Stat(track.Path)
 	if err != nil {
 		return Track{}, err

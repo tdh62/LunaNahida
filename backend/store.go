@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -17,6 +18,7 @@ import (
 type Track struct {
 	ID             int64    `json:"id"`
 	Path           string   `json:"path"`
+	Kind           string   `json:"kind"`
 	Title          string   `json:"title"`
 	English        string   `json:"english"`
 	Artist         string   `json:"artist"`
@@ -57,6 +59,7 @@ type Playlist struct {
 
 type Settings struct {
 	DropAction          string          `json:"dropAction"`
+	NetworkCacheCount   int             `json:"networkCacheCount"`
 	ScanOnStart         bool            `json:"scanOnStart"`
 	ScanIntervalMinutes int             `json:"scanIntervalMinutes"`
 	AutoConvert         bool            `json:"autoConvert"`
@@ -135,18 +138,19 @@ type ScopeSettings struct {
 }
 
 func DefaultSettings() Settings {
-	return Settings{DropAction: "ask", ScanOnStart: true, BackupOriginal: true, Theme: "forest", Appearance: "light", Visual: "频谱", Scope: ScopeSettings{Mode: "spectrum", FFTSize: 8192, MinFrequency: 20, MaxFrequency: 20000, Smoothing: 0.72}, LyricEffect: "流动", LyricScroll: "平滑", ShowTranslation: true, LyricAppearance: json.RawMessage(`{"font":"default","size":16,"lineHeight":57,"spacing":0}`), ArtistMappings: json.RawMessage(`[]`), Volume: 65, Mode: "list", Effect: "原声", Equalizer: []float64{0, 0, 0, 0, 0}, CustomEffects: []SavedEffect{}}
+	return Settings{DropAction: "ask", NetworkCacheCount: 10, ScanOnStart: true, BackupOriginal: true, Theme: "forest", Appearance: "light", Visual: "频谱", Scope: ScopeSettings{Mode: "spectrum", FFTSize: 8192, MinFrequency: 20, MaxFrequency: 20000, Smoothing: 0.72}, LyricEffect: "流动", LyricScroll: "平滑", ShowTranslation: true, LyricAppearance: json.RawMessage(`{"font":"default","size":16,"lineHeight":57,"spacing":0}`), ArtistMappings: json.RawMessage(`[]`), Volume: 65, Mode: "list", Effect: "原声", Equalizer: []float64{0, 0, 0, 0, 0}, CustomEffects: []SavedEffect{}}
 }
 
 type State struct {
-	Tracks    []Track    `json:"tracks"`
-	Tags      []string   `json:"tags"`
-	Playlists []Playlist `json:"playlists"`
-	Liked     []int64    `json:"liked"`
-	Recent    []int64    `json:"recent"`
-	Queue     []int64    `json:"queue"`
-	Folders   []string   `json:"folders"`
-	Settings  Settings   `json:"settings"`
+	Tracks         []Track         `json:"tracks"`
+	Tags           []string        `json:"tags"`
+	Playlists      []Playlist      `json:"playlists"`
+	Liked          []int64         `json:"liked"`
+	Recent         []int64         `json:"recent"`
+	Queue          []int64         `json:"queue"`
+	Folders        []string        `json:"folders"`
+	NetworkSources []NetworkSource `json:"networkSources"`
+	Settings       Settings        `json:"settings"`
 }
 
 type Store struct {
@@ -158,6 +162,14 @@ type Store struct {
 	temporary     map[int64]Track
 	nextTemporary int64
 	scanning      bool
+	networkMu     sync.Mutex
+	networkJobs   map[int64]bool
+	networkCancel map[int64]context.CancelFunc
+	networkChecks map[int64]time.Time
+	networkSlots  chan struct{}
+	networkWG     sync.WaitGroup
+	networkClosed bool
+	networkEpoch  uint64
 }
 
 func Open(root string) (*Store, error) {
@@ -178,6 +190,9 @@ func Open(root string) (*Store, error) {
 	if err = os.MkdirAll(filepath.Join(root, "cache", "covers"), 0700); err != nil {
 		return nil, err
 	}
+	if err = os.MkdirAll(filepath.Join(root, "cache", "network-audio"), 0700); err != nil {
+		return nil, err
+	}
 	if err = os.MkdirAll(filepath.Join(root, "data"), 0700); err != nil {
 		return nil, err
 	}
@@ -186,7 +201,7 @@ func Open(root string) (*Store, error) {
 		return nil, err
 	}
 	db.SetMaxOpenConns(1)
-	store := &Store{DB: db, Root: root, temporary: map[int64]Track{}, nextTemporary: -1}
+	store := &Store{DB: db, Root: root, temporary: map[int64]Track{}, nextTemporary: -1, networkJobs: map[int64]bool{}, networkCancel: map[int64]context.CancelFunc{}, networkChecks: map[int64]time.Time{}, networkSlots: make(chan struct{}, 2)}
 	if _, err = db.Exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;`); err != nil {
 		db.Close()
 		return nil, err
@@ -198,7 +213,17 @@ func Open(root string) (*Store, error) {
 	return store, nil
 }
 
-func (s *Store) Close() error { return s.DB.Close() }
+func (s *Store) Close() error {
+	s.networkMu.Lock()
+	s.networkClosed = true
+	s.networkEpoch++
+	for _, cancel := range s.networkCancel {
+		cancel()
+	}
+	s.networkMu.Unlock()
+	s.networkWG.Wait()
+	return s.DB.Close()
+}
 
 func (s *Store) migrate() error {
 	_, err := s.DB.Exec(`CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL);
@@ -377,6 +402,45 @@ func (s *Store) migrate() error {
 			return err
 		}
 	}
+	if version < 12 {
+		if _, err = s.DB.Exec(`CREATE TABLE IF NOT EXISTS network_tracks(track_id INTEGER PRIMARY KEY REFERENCES tracks(id) ON DELETE CASCADE,url TEXT NOT NULL,etag TEXT NOT NULL DEFAULT '',last_modified TEXT NOT NULL DEFAULT '',size INTEGER NOT NULL DEFAULT 0);
+		UPDATE schema_version SET version=12`); err != nil {
+			return err
+		}
+	}
+	if version < 13 {
+		var hasColumn int
+		if err = s.DB.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('network_tracks') WHERE name='content_type'`).Scan(&hasColumn); err != nil {
+			return err
+		}
+		if hasColumn == 0 {
+			if _, err = s.DB.Exec(`ALTER TABLE network_tracks ADD COLUMN content_type TEXT NOT NULL DEFAULT ''`); err != nil {
+				return err
+			}
+		}
+		if _, err = s.DB.Exec(`UPDATE schema_version SET version=13`); err != nil {
+			return err
+		}
+	}
+	if version < 14 {
+		if _, err = s.DB.Exec(`CREATE TABLE IF NOT EXISTS network_sources(id INTEGER PRIMARY KEY,kind TEXT NOT NULL,url TEXT NOT NULL,username TEXT NOT NULL DEFAULT '',secret BLOB NOT NULL DEFAULT X'',UNIQUE(kind,url))`); err != nil {
+			return err
+		}
+		for _, column := range []struct{ name, definition string }{{"source_id", "INTEGER REFERENCES network_sources(id) ON DELETE CASCADE"}, {"remote_key", "TEXT NOT NULL DEFAULT ''"}} {
+			var found int
+			if err = s.DB.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('network_tracks') WHERE name=?`, column.name).Scan(&found); err != nil {
+				return err
+			}
+			if found == 0 {
+				if _, err = s.DB.Exec(`ALTER TABLE network_tracks ADD COLUMN ` + column.name + ` ` + column.definition); err != nil {
+					return err
+				}
+			}
+		}
+		if _, err = s.DB.Exec(`CREATE INDEX IF NOT EXISTS network_tracks_source ON network_tracks(source_id); UPDATE schema_version SET version=14`); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -408,6 +472,9 @@ func (s *Store) Settings() (Settings, error) {
 	if value.CustomEffects == nil {
 		value.CustomEffects = []SavedEffect{}
 	}
+	if value.NetworkCacheCount < 0 || value.NetworkCacheCount > 50 {
+		value.NetworkCacheCount = 10
+	}
 	if value.Scope.Smoothing < 0 || value.Scope.Smoothing > 0.95 {
 		value.Scope.Smoothing = 0.72
 	}
@@ -415,6 +482,13 @@ func (s *Store) Settings() (Settings, error) {
 }
 
 func (s *Store) SaveSettings(value Settings) error {
+	previous, err := s.Settings()
+	if err != nil {
+		return err
+	}
+	if value.NetworkCacheCount < 0 || value.NetworkCacheCount > 50 {
+		return errors.New("invalid network cache count")
+	}
 	if value.DropAction != "ask" && value.DropAction != "temporary" && value.DropAction != "library" && value.DropAction != "watch" {
 		return errors.New("invalid drop action")
 	}
@@ -454,16 +528,29 @@ func (s *Store) SaveSettings(value Settings) error {
 		return err
 	}
 	_, err = s.DB.Exec(`INSERT INTO preferences(key,value) VALUES('settings',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`, string(raw))
-	return err
+	if err != nil || previous.NetworkCacheCount == value.NetworkCacheCount {
+		return err
+	}
+	if err = s.pruneNetworkCache(value.NetworkCacheCount); err != nil {
+		return err
+	}
+	if value.NetworkCacheCount > previous.NetworkCacheCount {
+		return s.backfillNetworkCache(value.NetworkCacheCount)
+	}
+	return nil
 }
 
 func (s *Store) State() (State, error) {
-	state := State{Tracks: []Track{}, Tags: []string{}, Playlists: []Playlist{}, Liked: []int64{}, Recent: []int64{}, Queue: []int64{}, Folders: []string{}}
+	state := State{Tracks: []Track{}, Tags: []string{}, Playlists: []Playlist{}, Liked: []int64{}, Recent: []int64{}, Queue: []int64{}, Folders: []string{}, NetworkSources: []NetworkSource{}}
 	if err := s.recheckLegacyTags(); err != nil {
 		return state, err
 	}
 	var err error
 	state.Settings, err = s.Settings()
+	if err != nil {
+		return state, err
+	}
+	state.NetworkSources, err = s.NetworkSources()
 	if err != nil {
 		return state, err
 	}
@@ -496,6 +583,11 @@ func (s *Store) State() (State, error) {
 	rows.Close()
 	if err != nil {
 		return state, err
+	}
+	for i := range state.Tracks {
+		if err = s.decorateNetworkTrack(&state.Tracks[i]); err != nil {
+			return state, err
+		}
 	}
 	if err = s.loadCustomTags(&state); err != nil {
 		return state, err
@@ -613,6 +705,9 @@ func (s *Store) RecordPlay(id int64) error {
 		return nil
 	}
 	_, err := s.DB.Exec(`INSERT INTO history(track_id,played_at) VALUES(?,?) ON CONFLICT(track_id) DO UPDATE SET played_at=excluded.played_at`, id, time.Now().UnixNano())
+	if err == nil {
+		s.scheduleNetworkCache(id)
+	}
 	return err
 }
 

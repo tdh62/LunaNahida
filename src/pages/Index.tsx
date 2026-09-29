@@ -7,6 +7,7 @@ import Toolbox from '@/components/Toolbox';
 import QueuePanel from '@/components/QueuePanel';
 import LibraryView from '@/components/LibraryView';
 import TagsView from '@/components/TagsView';
+import TrackTagEditor from '@/components/TrackTagEditor';
 import PlaylistView from '@/components/PlaylistView';
 import CatalogView from '@/components/CatalogView';
 import TrackDetails from '@/components/TrackDetails';
@@ -19,7 +20,7 @@ import { Events } from '@wailsio/runtime';
 import { toast } from 'sonner';
 import '@/settings.css';
 import '@/sleep-timer.css';
-import { AudioLines, Check, ChevronDown, ChevronsLeft, Disc3, X, FolderOpen, Heart, ListEnd, ListMusic, Maximize2, Mic2, Minimize2, PanelLeftClose, PanelLeftOpen, Pause, Play, Plus, Repeat, Repeat1, Save, Settings2, Shuffle, SkipBack, SkipForward, SlidersHorizontal, Square, Tag, Timer, Volume2, VolumeX, Waves, Wrench } from 'lucide-react';
+import { AudioLines, Check, ChevronDown, ChevronsLeft, Disc3, X, FolderOpen, Globe2, Heart, ListEnd, ListMusic, Maximize2, Mic2, Minimize2, PanelLeftClose, PanelLeftOpen, Pause, Play, Plus, Repeat, Repeat1, Save, Settings2, Shuffle, SkipBack, SkipForward, SlidersHorizontal, Square, Tag, Timer, Volume2, VolumeX, Waves, Wrench } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -142,12 +143,26 @@ export default function Index() {
   const [trackDropTarget, setTrackDropTarget] = useState<string | null>(null);
   const [trackDragging, setTrackDragging] = useState(false);
   const [pendingPaths, setPendingPaths] = useState<string[]>([]);
+  const [networkOpen, setNetworkOpen] = useState(false);
+  const [networkURL, setNetworkURL] = useState('');
+  const [networkLoading, setNetworkLoading] = useState(false);
   const [toolboxOpen, setToolboxOpen] = useState(false);
   const [toolboxPaths, setToolboxPaths] = useState<string[]>([]);
   const [toolboxAddToLibrary, setToolboxAddToLibrary] = useState(false);
   const [toolboxQueueOnConvert, setToolboxQueueOnConvert] = useState(false);
   const [toolboxAutoClose, setToolboxAutoClose] = useState(false);
   usePlaybackProbe(libraryTracks);
+  useEffect(() => {
+    if (!queueOpen || p.trackId === null) return;
+    const list = document.querySelector<HTMLDivElement>('.quick-queue-list');
+    const row = list?.querySelector<HTMLButtonElement>('.queue-track.current');
+    if (!list || !row) return;
+    row.focus({ preventScroll: true });
+    const listBounds = list.getBoundingClientRect();
+    const rowBounds = row.getBoundingClientRect();
+    if (rowBounds.top < listBounds.top) list.scrollTop -= listBounds.top - rowBounds.top;
+    else if (rowBounds.bottom > listBounds.bottom) list.scrollTop += rowBounds.bottom - listBounds.bottom;
+  }, [queueOpen, p.trackId]);
   useEffect(() => {
     backend.state().then(state => {
       setLibraryTracks(state.tracks); setCustomTags(state.tags); setPlaylists(state.playlists); setLiked(state.liked); setFolders(state.folders);
@@ -175,38 +190,67 @@ export default function Index() {
     return () => { document.documentElement.classList.remove('mode-light'); document.documentElement.style.colorScheme = ''; };
   }, [appearance]);
   const reloadLibrary = async () => { const state = await backend.state(); setLibraryTracks(state.tracks); setCustomTags(state.tags); setFolders(state.folders); };
-  const importPaths = async (paths: string[], mode: 'temporary' | 'library' | 'watch', addToQueue = true) => {
+  const importPaths = async (paths: string[], mode: 'temporary' | 'library' | 'watch', options: { addToQueue?: boolean; skipConversion?: boolean; quietEmpty?: boolean } = {}) => {
     if (!paths.length) return;
     try {
-      const imported = await backend.import(paths, mode);
+      const imported = await backend.import(paths, mode, options.skipConversion);
       if (mode !== 'temporary') await reloadLibrary();
-      if (addToQueue) p.addTracks(imported);
+      if (imported.length === 0) { if (!options.quietEmpty) toast.info('没有找到可导入的音频文件'); return; }
+      if (options.addToQueue !== false) p.addTracks(imported);
       toast.success(`已处理 ${imported.length} 首歌曲`);
     } catch (error) { void reloadLibrary(); toast.error(error instanceof Error ? error.message : '导入失败'); }
   };
   const handlePaths = async (paths: string[], dropped = false) => {
     if (!paths.length) return;
-    if (!storedSettings?.autoConvert) {
+    let encrypted: string[] = [];
+    if (dropped || !storedSettings?.autoConvert) {
       try {
-        const encrypted = (await backend.inspectConversion(paths)).paths;
-        if (encrypted.length) {
-          setToolboxPaths(previous => [...new Set([...previous, ...encrypted])]);
-          setToolboxAddToLibrary(dropped);
-          setToolboxQueueOnConvert(dropped && pathname === '/');
-          setToolboxAutoClose(dropped);
-          setToolboxOpen(true);
-          const encryptedSet = new Set(encrypted);
-          paths = paths.filter(path => !encryptedSet.has(path));
-        }
+        encrypted = (await backend.inspectConversion(paths)).paths;
       } catch (error) { toast.error(error instanceof Error ? error.message : '无法检查文件格式'); return; }
     }
+    if (dropped) {
+      await importPaths(paths, 'library', { addToQueue: pathname === '/', skipConversion: true, quietEmpty: encrypted.length > 0 });
+      if (encrypted.length) {
+        setToolboxPaths(previous => [...new Set([...previous, ...encrypted])]);
+        setToolboxAddToLibrary(true);
+        setToolboxQueueOnConvert(pathname === '/');
+        setToolboxAutoClose(true);
+        setToolboxOpen(true);
+      }
+      return;
+    }
+    if (encrypted.length) {
+      setToolboxPaths(previous => [...new Set([...previous, ...encrypted])]);
+      setToolboxAddToLibrary(false);
+      setToolboxQueueOnConvert(false);
+      setToolboxAutoClose(false);
+      setToolboxOpen(true);
+      const encryptedSet = new Set(encrypted);
+      paths = paths.filter(path => !encryptedSet.has(path));
+    }
     if (!paths.length) return;
-    if (dropped) void importPaths(paths, 'library', pathname === '/');
-    else if (storedSettings?.dropAction === 'ask' || !storedSettings) setPendingPaths(paths);
+    if (storedSettings?.dropAction === 'ask' || !storedSettings) setPendingPaths(paths);
     else void importPaths(paths, storedSettings.dropAction);
   };
   const chooseFiles = () => { void backend.chooseFiles().then(result => handlePaths(result.paths)).catch(error => toast.error(error.message)); };
   const chooseFolder = () => { void backend.chooseFolder().then(result => handlePaths(result.paths.filter(Boolean))).catch(error => toast.error(error.message)); };
+  const openNetworkSong = async () => {
+    if (!networkURL.trim() || networkLoading) return;
+    setNetworkLoading(true);
+    try {
+      const track = await backend.importNetwork(networkURL.trim());
+      await reloadLibrary();
+      p.addTracks([track]);
+      p.select(track.id);
+      setNetworkOpen(false);
+      setNetworkURL('');
+      navigate('/');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '无法打开网络歌曲');
+    } finally {
+      setNetworkLoading(false);
+    }
+  };
   useEffect(() => {
     const offDrop = Events.On('lunanahida:files-dropped', event => { dragDepth.current = 0; setDropActive(false); const paths = event.data as string[]; if (toolboxOpen) { void backend.inspectConversion(paths).then(result => { setToolboxPaths(previous => [...new Set([...previous, ...result.paths])]); if (!result.paths.length) toast.info('没有找到可转换的加密音频'); }).catch(error => toast.error(error.message)); } else void handlePaths(paths, true); });
     const offScan = Events.On('lunanahida:scan-complete', () => void reloadLibrary());
@@ -215,9 +259,14 @@ export default function Index() {
   useEffect(() => {
     const settingsChanged = (event: Event) => setStoredSettings((event as CustomEvent<StoredSettings>).detail);
     const libraryChanged = () => void reloadLibrary();
+    const backupImported = () => void backend.state().then(state => {
+      setLibraryTracks(state.tracks); setCustomTags(state.tags); setPlaylists(state.playlists); setLiked(state.liked); setFolders(state.folders);
+      p.addTracks(state.queue.map(id => state.tracks.find(track => track.id === id)).filter((track): track is Track => Boolean(track)));
+    }).catch(error => toast.error(error instanceof Error ? error.message : '刷新音乐库失败'));
     window.addEventListener('lunanahida-settings-updated', settingsChanged);
     window.addEventListener('lunanahida-library-changed', libraryChanged);
-    return () => { window.removeEventListener('lunanahida-settings-updated', settingsChanged); window.removeEventListener('lunanahida-library-changed', libraryChanged); };
+    window.addEventListener('lunanahida-backup-imported', backupImported);
+    return () => { window.removeEventListener('lunanahida-settings-updated', settingsChanged); window.removeEventListener('lunanahida-library-changed', libraryChanged); window.removeEventListener('lunanahida-backup-imported', backupImported); };
   }, []);
   const dropFiles = (event: DragEvent) => { event.preventDefault(); dragDepth.current = 0; setDropActive(false); };
   const refreshInfo = (track: Track) => {
@@ -314,42 +363,44 @@ export default function Index() {
     const key = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.isComposing || event.altKey || event.ctrlKey || event.metaKey) return;
       const target = event.target;
-      if (target instanceof Element && target.closest('input, textarea, select, button, a, [contenteditable]:not([contenteditable="false"]), [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [role="slider"]')) return;
+      const mediaKey = ['MediaPlayPause', 'MediaTrackNext', 'MediaTrackPrevious'].includes(event.key);
+      if (!mediaKey && target instanceof Element && target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="combobox"], [role="dialog"], [role="alertdialog"], [role="menu"], [role="slider"]')) return;
+      const handled = () => { event.preventDefault(); event.stopPropagation(); };
 
       if (event.key === 'Escape') {
-        if (scopeOpen) { event.preventDefault(); setScopeOpen(false); }
-        else if (focus) { event.preventDefault(); setFocus(false); }
+        if (scopeOpen) { handled(); setScopeOpen(false); }
+        else if (focus) { handled(); setFocus(false); }
         return;
       }
       if (event.key.toLowerCase() === 'o' && pathname === '/' && p.hasTrack) {
-        event.preventDefault(); setFocus(false); setScopeOpen(value => !value); return;
+        handled(); setFocus(false); setScopeOpen(value => !value); return;
       }
       if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
-        event.preventDefault();
+        handled();
         p.setVolume(Math.max(0, Math.min(100, p.volume + (event.key === 'ArrowUp' ? 5 : -5))));
         return;
       }
       if (event.key.toLowerCase() === 'm') {
-        event.preventDefault(); p.setVolume(p.volume ? 0 : 65); return;
+        handled(); p.setVolume(p.volume ? 0 : 65); return;
       }
       if (!p.hasTrack) return;
       switch (event.key) {
         case ' ': case 'k': case 'K': case 'MediaPlayPause':
-          event.preventDefault(); if (!event.repeat) p.toggle(); break;
+          handled(); if (!event.repeat) p.toggle(); break;
         case 'ArrowRight': case 'l': case 'L':
-          event.preventDefault(); p.seek(Math.min(p.time + (event.key === 'ArrowRight' ? 5 : 10), p.track.duration)); break;
+          handled(); p.seek(Math.min(p.time + (event.key === 'ArrowRight' ? 5 : 10), p.track.duration)); break;
         case 'ArrowLeft': case 'j': case 'J':
-          event.preventDefault(); p.seek(Math.max(p.time - (event.key === 'ArrowLeft' ? 5 : 10), 0)); break;
-        case 'Home': event.preventDefault(); p.seek(0); break;
-        case 'End': event.preventDefault(); p.seek(p.track.duration); break;
+          handled(); p.seek(Math.max(p.time - (event.key === 'ArrowLeft' ? 5 : 10), 0)); break;
+        case 'Home': handled(); p.seek(0); break;
+        case 'End': handled(); p.seek(p.track.duration); break;
         case 'n': case 'N': case 'MediaTrackNext':
-          event.preventDefault(); if (!event.repeat) p.next(); break;
+          handled(); if (!event.repeat) p.next(); break;
         case 'p': case 'P': case 'MediaTrackPrevious':
-          event.preventDefault(); if (!event.repeat) p.previous(); break;
+          handled(); if (!event.repeat) p.previous(); break;
       }
     };
-    window.addEventListener('keydown', key);
-    return () => window.removeEventListener('keydown', key);
+    window.addEventListener('keydown', key, true);
+    return () => window.removeEventListener('keydown', key, true);
   }, [p, focus, scopeOpen, pathname]);
   useEffect(() => { if (!sleep) return; const timer = window.setInterval(() => setSleep(v => Math.max(0, v - 1)), 1000); return () => window.clearInterval(timer); }, [sleep > 0]);
   useEffect(() => { if (sleep === 1 && p.playing) p.toggle(); }, [sleep]);
@@ -385,7 +436,21 @@ export default function Index() {
       await backend.changeTrackTag(ids, name, add);
       await reloadLibrary();
       toast.success(add ? '已添加标签' : '已移除标签');
-    } catch (error) { toast.error(error instanceof Error ? error.message : '更新标签失败'); await reloadLibrary(); }
+      return true;
+    } catch (error) { toast.error(error instanceof Error ? error.message : '更新标签失败'); void reloadLibrary().catch(() => {}); return false; }
+  };
+  const createTrackTag = async (id: number, name: string) => {
+    try {
+      await backend.createTag(name);
+      await backend.changeTrackTag([id], name, true);
+      await reloadLibrary();
+      toast.success('已创建并添加标签');
+      return true;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '创建标签失败');
+      void reloadLibrary().catch(() => {});
+      return false;
+    }
   };
   const displayPlaylists = useMemo(() => playlists.map(item => ({ ...item, cover: playlistCover(item, allTracks) })), [playlists, allTracks]);
   const activePlaylist = playlists.find(item => item.id === playlistId);
@@ -486,22 +551,22 @@ export default function Index() {
   };
   return <div ref={appRef} data-file-drop-target className={`music-app theme-${theme} mode-${appearance} ${focus ? 'focus-mode' : ''} sidebar-${sidebarMode} ${trackDragging ? 'is-track-dragging' : ''}`} onDragStart={event => { if (hasTrackDrag(event.dataTransfer)) setTrackDragging(true); }} onDragEnter={event => { if (event.dataTransfer.types.includes('Files')) { dragDepth.current++; setDropActive(true); } }} onDragLeave={event => { if (event.dataTransfer.types.includes('Files') && --dragDepth.current <= 0) { dragDepth.current = 0; setDropActive(false); } }} onDragOver={event => { if (event.dataTransfer.types.includes('Files')) event.preventDefault(); }} onDragEndCapture={() => { setTrackDropTarget(null); setTrackDragging(false); }} onDrop={event => { setTrackDropTarget(null); setTrackDragging(false); void dropFiles(event); }}>
     <aside className="sidebar flex flex-col">
-      <div className="nav-label">音乐库</div><nav className="space-y-1">{[{ title: '正在播放', path: '/', icon: AudioLines }, { title: '我的音乐', path: '/music', icon: Disc3 }, { title: '标签', path: '/tags', icon: Tag }, { title: '歌手', path: '/artists', icon: Mic2 }, { title: '专辑', path: '/albums', icon: Disc3 }, { title: '我喜欢的', path: '/liked', icon: Heart }, { title: '最近播放', path: '/recent', icon: ListMusic }].map(({ title, path, icon: Icon }) => <button key={title} title={title} onClick={() => navigate(path)} onDragOver={title === '我喜欢的' || title === '正在播放' ? event => onTrackDragOver(event, title === '我喜欢的' ? 'liked' : 'queue') : undefined} onDragLeave={title === '我喜欢的' || title === '正在播放' ? () => setTrackDropTarget(null) : undefined} onDrop={title === '我喜欢的' ? onDropToLiked : title === '正在播放' ? onDropToQueue : undefined} className={`nav-item ${!isSettings && (pathname === path || (path === '/artists' && isArtists) || (path === '/albums' && isAlbums)) ? 'selected' : ''} ${trackDropTarget === (title === '我喜欢的' ? 'liked' : title === '正在播放' ? 'queue' : '') ? 'track-drop-target' : ''}`}><Icon size={18} />{title}{title === '正在播放' && p.playing && <span className="tiny-bars" aria-hidden="true"><i /><i /><i /></span>}{title === '我喜欢的' && <small>{liked.length}</small>}</button>)}</nav>
+      <div className="nav-label">音乐库</div><nav className="library-nav">{[{ title: '正在播放', path: '/', icon: AudioLines }, { title: '我的音乐', path: '/music', icon: Disc3 }, { title: '标签', path: '/tags', icon: Tag }, { title: '歌手', path: '/artists', icon: Mic2 }, { title: '专辑', path: '/albums', icon: Disc3 }, { title: '我喜欢的', path: '/liked', icon: Heart }, { title: '最近播放', path: '/recent', icon: ListMusic }].map(({ title, path, icon: Icon }) => <button key={title} title={title} onClick={() => navigate(path)} onDragOver={title === '我喜欢的' || title === '正在播放' ? event => onTrackDragOver(event, title === '我喜欢的' ? 'liked' : 'queue') : undefined} onDragLeave={title === '我喜欢的' || title === '正在播放' ? () => setTrackDropTarget(null) : undefined} onDrop={title === '我喜欢的' ? onDropToLiked : title === '正在播放' ? onDropToQueue : undefined} className={`nav-item ${path === '/artists' || path === '/albums' ? 'nav-item-paired' : ''} ${!isSettings && (pathname === path || (path === '/artists' && isArtists) || (path === '/albums' && isAlbums)) ? 'selected' : ''} ${trackDropTarget === (title === '我喜欢的' ? 'liked' : title === '正在播放' ? 'queue' : '') ? 'track-drop-target' : ''}`}><Icon size={18} />{title}{title === '正在播放' && p.playing && <span className="tiny-bars" aria-hidden="true"><i /><i /><i /></span>}{title === '我喜欢的' && <small>{liked.length}</small>}</button>)}</nav>
       <Link to="/settings" title="播放器设置" className={`nav-item settings-nav ${isSettings ? 'selected' : ''}`}><Settings2 size={18} />播放器设置</Link>
       <div className="playlist-nav-heading"><button type="button" onClick={() => navigate('/playlists')} className="nav-label" title="查看全部歌单">歌单</button><button type="button" className="playlist-nav-add" title="新建歌单" aria-label="新建歌单" onClick={() => setCreatePlaylistOpen(true)}><Plus size={16} /></button></div>
       <nav className="playlist-nav"><button type="button" title="我的歌单" className={`nav-item ${pathname === '/playlists' ? 'selected' : ''}`} onClick={() => navigate('/playlists')}><ListMusic size={18} />我的歌单<small>{playlists.length}</small></button>{sidebarPlaylists.map(item => <button type="button" key={item.id} title={item.name} className={`nav-item playlist-nav-entry ${playlistId === item.id ? 'selected' : ''} ${trackDropTarget === item.id ? 'track-drop-target' : ''}`} onClick={() => openPlaylist(item.id)} onDragOver={event => onTrackDragOver(event, item.id)} onDragLeave={() => setTrackDropTarget(null)} onDrop={event => onDropToPlaylist(event, item.id)}><img src={item.cover} alt="" onError={event => { if (!event.currentTarget.src.endsWith('/covers/local.svg')) event.currentTarget.src = '/covers/local.svg'; }} /><span>{item.name}</span></button>)}{recentPlaylists.length > 2 && <button type="button" className="playlist-nav-more" onClick={() => setPlaylistNavExpanded(value => !value)}>{playlistNavExpanded ? '收起' : '展开'}</button>}{recentPlaylists.length > 10 && playlistNavExpanded && <button type="button" className="playlist-nav-more" onClick={() => navigate('/playlists')}>查看全部</button>}</nav>
-      <div className="import-actions"><button title="打开歌曲" className="nav-item" onClick={chooseFiles}><Plus size={18} />打开歌曲</button><button title="打开文件夹" className="nav-item" onClick={chooseFolder}><FolderOpen size={18} />打开文件夹</button></div>
-      <div className="sidebar-controls sidebar-bottom-controls"><button type="button" className="sidebar-now-playing" title="返回正在播放" aria-label="返回正在播放" onClick={() => navigate('/')}><AudioLines size={17} /></button><button type="button" className="sidebar-toggle" title={sidebarMode === 'collapsed' ? '展开侧栏' : '折叠为图标'} aria-label={sidebarMode === 'collapsed' ? '展开侧栏' : '折叠为图标'} onClick={() => setSidebarMode(sidebarMode === 'collapsed' ? 'expanded' : 'collapsed')}>{sidebarMode === 'collapsed' ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}</button>{view === '正在播放' && !isSettings && <button type="button" className="sidebar-toggle" title="完全隐藏侧栏" aria-label="完全隐藏侧栏" onClick={() => setSidebarMode('hidden')}><ChevronsLeft size={17} /></button>}</div>
+      <div className="import-actions"><button title="打开歌曲" className="nav-item" onClick={chooseFiles}><Plus size={18} />打开歌曲</button><button title="打开文件夹" className="nav-item" onClick={chooseFolder}><FolderOpen size={18} />打开文件夹</button><button title="打开网络歌曲" className="nav-item" onClick={() => setNetworkOpen(true)}><Globe2 size={18} />网络歌曲</button></div>
+      <div className="sidebar-controls sidebar-bottom-controls"><button type="button" className="sidebar-toggle" title={sidebarMode === 'collapsed' ? '展开侧栏' : '折叠为图标'} aria-label={sidebarMode === 'collapsed' ? '展开侧栏' : '折叠为图标'} onClick={() => setSidebarMode(sidebarMode === 'collapsed' ? 'expanded' : 'collapsed')}>{sidebarMode === 'collapsed' ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}</button>{view === '正在播放' && !isSettings && <button type="button" className="sidebar-toggle" title="完全隐藏侧栏" aria-label="完全隐藏侧栏" onClick={() => setSidebarMode('hidden')}><ChevronsLeft size={17} /></button>}</div>
     </aside>
     {sidebarMode === 'hidden' && <button type="button" className="sidebar-restore" title="展开侧栏" aria-label="展开侧栏" onClick={() => setSidebarMode('expanded')}><PanelLeftOpen size={19} /></button>}
-    <main className={`workspace min-w-0 ${isSettings ? 'settings-workspace' : ''} ${isArtists || isAlbums ? 'catalog-workspace' : ''} ${isPlaylists || isTags || pathname === '/music' || pathname === '/liked' || pathname === '/recent' ? 'scrolling-workspace' : ''}`}>
+    <main className={`workspace min-w-0 ${isSettings ? 'settings-workspace' : ''} ${isArtists || isAlbums ? 'catalog-workspace' : ''} ${isPlaylists || isTags || pathname === '/music' || pathname === '/liked' || pathname === '/recent' ? 'scrolling-workspace' : ''} ${pathname === '/music' || pathname === '/liked' || pathname === '/recent' ? 'library-workspace' : ''}`}>
       {isSettings ? <PlayerSettings theme={theme} setTheme={setTheme} appearance={appearance} setAppearance={setAppearance} visual={visual} setVisual={setVisual} lyricEffect={lyricEffect} setLyricEffect={setLyricEffect} lyricScroll={lyricScroll} setLyricScroll={setLyricScroll} showTranslation={showTranslation} setShowTranslation={setShowTranslation} sleep={sleep} setSleep={setSleep} effectName={p.effectName} onEditEffects={() => setEffectEditorOpen(true)} equalizer={p.equalizer} setBand={p.setBand} resetEqualizer={p.resetEqualizer} mappings={mappings} setMappings={setMappings} lyricAppearance={lyricAppearance} setLyricAppearance={setLyricAppearance} artistNames={[...new Set(allTracks.map(track => track.artist))]} />
       : isArtists || isAlbums ? <CatalogView onRefreshInfo={refreshInfo} onSaveLyrics={saveLyrics} kind={isArtists ? 'artists' : 'albums'} artists={catalog.artists} albums={catalog.albums} artist={selectedArtist} album={selectedAlbum} currentId={p.trackId} liked={liked} playlists={displayPlaylists} onPlayTracks={(tracks, startId) => { if (p.playTracks(tracks, startId)) navigate('/'); }} onToggleLike={toggleTrackLike} onViewInfo={setDetailTrack} onAddToPlaylist={addToPlaylist} onArtist={openArtist} onAlbum={openAlbum} />
       : isPlaylists ? <PlaylistView onRefreshInfo={refreshInfo} onSaveLyrics={saveLyrics} playlists={overviewPlaylists} playlist={activePlaylist} displayCover={activePlaylist ? playlistCover(activePlaylist, allTracks) : undefined} tracks={allTracks} currentId={p.trackId} liked={liked} onCreate={() => setCreatePlaylistOpen(true)} onDelete={setDeletePlaylistId} onPlayPlaylist={(tracks, startId) => { if (p.playTracks(tracks, startId)) navigate('/'); }} onToggleLike={toggleTrackLike} onViewInfo={setDetailTrack} onArtist={openArtist} onAlbum={openAlbum} onAddToPlaylist={addToPlaylist} onRemoveFromPlaylist={removeFromPlaylist} onEditPlaylist={edited => setPlaylists(prev => prev.map(item => item.id === edited.id ? edited : item))} />
       : isTags ? <TagsView tracks={allTracks} customTags={customTags} onCreate={createTag} onRename={renameTag} onDelete={deleteTag} onOpen={openTag} />
       : view !== '正在播放' ? <LibraryView onRefreshInfo={refreshInfo} onSaveLyrics={saveLyrics} key={view} title={view} tracks={visibleTracks} currentId={p.trackId} liked={liked} onToggleLike={toggleTrackLike} onViewInfo={setDetailTrack} onArtist={openArtist} onAlbum={openAlbum} playlists={displayPlaylists} onAddToPlaylist={addToPlaylist} onDeleteTracks={setDeleteTrackIds} customTags={customTags} allTagNames={pathname === '/music' ? allTagNames : undefined} selectedTag={selectedTag} onTagFilter={name => navigate(name ? `/music?tag=${encodeURIComponent(name)}` : '/music')} onSetTrackTag={setTrackTag} onPlay={id => { p.select(id); navigate('/'); }} onPlayMany={tracks => { if (p.playTracks(tracks)) navigate('/'); }} onShufflePlay={pathname === '/music' ? shuffleLibrary : undefined} /> : <>
       <div className="main-columns"><section className="listening-stage">
-        {p.hasTrack ? scopeOpen ? <ExpandedScope key={p.trackId} analyser={p.scopeAnalyser} response={p.frequencyResponse} active={p.playing} trackId={p.trackId} title={p.track.title} artist={p.track.artist} sampleRate={p.track.quality?.sampleRate} settings={scopeSettings} onSettingsChange={setScopeSettings} onClose={() => setScopeOpen(false)} /> : <div className={`listening-content ${!hasLyrics ? 'without-lyrics' : ''}`}><div className="album-column"><div className={`album-art ${visual === '唱片' ? 'vinyl' : ''}`}><img src={cover} alt={`${p.track.album}专辑封面`} /></div><div className="album-title flex items-center justify-between"><h2>{p.track.title}</h2>{!p.track.temporary && <IconButton label={favorite ? '取消喜欢' : '喜欢这首歌'} active={favorite} onClick={toggleLike}><Heart size={21} fill={favorite ? 'currentColor' : 'none'} /></IconButton>}</div><p className="artist-name"><button type="button" className="track-meta-link" onClick={() => openArtist(p.track.artist)}>{p.track.artist}</button><span> · </span><button type="button" className="track-meta-link" onClick={() => openAlbum(p.track)}>{p.track.album}</button></p><div className="track-tags">{trackTags(p.track).map(name => <button type="button" key={name} onClick={() => openTag(name)}>{name}</button>)}</div><div className={`visualizer ${p.playing ? 'animated' : ''} ${visual === '呼吸' ? 'breathing' : ''}`} role="button" tabIndex={0} title="双击展开示波视图" aria-label="展开示波视图" onDoubleClick={openScope} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openScope(); } }}>{visual === '频谱' ? <Spectrum analyser={p.analyser} response={p.frequencyResponse} active={p.playing} /> : Array.from({ length: 48 }, (_, i) => <i key={i} style={{ height: `${8 + Math.sin(i * .65) ** 2 * 23 + Math.sin(i * .2) ** 2 * 13}px`, animationDelay: `${i * -.13}s`, animationDuration: `${.65 + i % 5 * .2}s` }} />)}</div></div>
+        {p.hasTrack ? scopeOpen ? <ExpandedScope key={p.trackId} analyser={p.scopeAnalyser} response={p.frequencyResponse} active={p.playing} trackId={p.trackId} title={p.track.title} artist={p.track.artist} sampleRate={p.track.quality?.sampleRate} settings={scopeSettings} onSettingsChange={setScopeSettings} onClose={() => setScopeOpen(false)} /> : <div className={`listening-content ${!hasLyrics ? 'without-lyrics' : ''}`}><div className="album-column"><div className={`album-art ${visual === '唱片' ? 'vinyl' : ''}`}><img src={cover} alt={`${p.track.album}专辑封面`} /></div><div className="album-title flex items-center justify-between"><h2>{p.track.title}</h2>{!p.track.temporary && <IconButton label={favorite ? '取消喜欢' : '喜欢这首歌'} active={favorite} onClick={toggleLike}><Heart size={21} fill={favorite ? 'currentColor' : 'none'} /></IconButton>}</div><p className="artist-name"><button type="button" className="track-meta-link" onClick={() => openArtist(p.track.artist)}>{p.track.artist}</button><span> · </span><button type="button" className="track-meta-link" onClick={() => openAlbum(p.track)}>{p.track.album}</button></p><div className="track-tags">{trackTags(p.track).map(name => <button type="button" key={name} onClick={() => openTag(name)}>{name}</button>)}<TrackTagEditor key={p.track.id} track={p.track} theme={theme} customTags={customTags} onToggle={(id, name, add) => setTrackTag([id], name, add)} onCreate={createTrackTag} /></div><div className={`visualizer ${p.playing ? 'animated' : ''} ${visual === '呼吸' ? 'breathing' : ''}`} role="button" tabIndex={0} title="双击展开示波视图" aria-label="展开示波视图" onDoubleClick={openScope} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openScope(); } }}>{visual === '频谱' ? <Spectrum analyser={p.analyser} response={p.frequencyResponse} active={p.playing} /> : Array.from({ length: 48 }, (_, i) => <i key={i} style={{ height: `${8 + Math.sin(i * .65) ** 2 * 23 + Math.sin(i * .2) ** 2 * 13}px`, animationDelay: `${i * -.13}s`, animationDuration: `${.65 + i % 5 * .2}s` }} />)}</div></div>
           {hasLyrics && (
             <div className={`lyrics-column lyric-${lyricEffect} ${lyricScroll === '即时' ? 'lyric-scroll-instant' : ''} ${browsingLyrics ? 'is-browsing' : ''}`}><IconButton className="lyrics-immersive-toggle" label="展开歌词" onClick={() => setFocus(true)}><Maximize2 size={16} /></IconButton>
               <div
@@ -557,6 +622,7 @@ export default function Index() {
     {dropActive && <div className="file-drop-overlay"><Plus size={32} /><strong>{toolboxOpen ? '添加加密音频' : pathname === '/' ? '加入音乐库和播放队列' : '加入音乐库'}</strong></div>}
     <Toolbox open={toolboxOpen} theme={theme} autoClose={toolboxAutoClose} onOpenChange={setToolboxOpen} paths={toolboxPaths} setPaths={setToolboxPaths} addToLibrary={toolboxAddToLibrary} onAddToLibraryChange={setToolboxAddToLibrary} onChanged={async tracks => { await reloadLibrary(); if (toolboxQueueOnConvert) p.addTracks(tracks); }} />
     <Dialog open={pendingPaths.length > 0 && !toolboxOpen} onOpenChange={open => { if (!open) setPendingPaths([]); }}><DialogContent className="music-dialog folder-dialog"><DialogTitle>如何处理这些文件？</DialogTitle><DialogDescription>{pendingPaths.length} 个本地路径</DialogDescription><div className="folder-dialog-actions"><button onClick={() => { void importPaths(pendingPaths, 'temporary'); setPendingPaths([]); }}>仅本次播放</button><button onClick={() => { void importPaths(pendingPaths, 'library'); setPendingPaths([]); }}>加入音乐库</button><button onClick={() => { void importPaths(pendingPaths, 'watch'); setPendingPaths([]); }}>监听所在文件夹</button></div></DialogContent></Dialog>
+    <Dialog open={networkOpen} onOpenChange={setNetworkOpen}><DialogContent className="music-dialog folder-dialog"><DialogTitle>打开网络歌曲</DialogTitle><DialogDescription>HTTP 或 HTTPS 音频文件地址</DialogDescription><form className="network-song-form" onSubmit={event => { event.preventDefault(); void openNetworkSong(); }}><Input type="url" autoFocus required value={networkURL} onChange={event => setNetworkURL(event.target.value)} placeholder="https://example.com/music/song.mp3" aria-label="网络歌曲地址" /><div className="folder-dialog-actions"><button type="button" onClick={() => setNetworkOpen(false)}>取消</button><button type="submit" disabled={networkLoading || !networkURL.trim()}>{networkLoading ? '正在打开' : '打开并播放'}</button></div></form></DialogContent></Dialog>
     <footer className="playback-bar">
       <div className="mini-track"><button type="button" className="mini-cover-link" aria-label="前往正在播放" title="前往正在播放" onClick={() => navigate('/')}><img className="mini-cover" src={cover} alt="" /></button><div><strong>{p.track.title}</strong><small>{p.track.artist}</small></div>{p.hasTrack && !p.track.source && <IconButton label="喜欢" onClick={toggleLike} active={favorite}><Heart size={17} fill={favorite ? 'currentColor' : 'none'} /></IconButton>}</div>
       <div className="transport"><div className="transport-buttons"><IconButton label="随机播放" active={p.mode === 'shuffle'} onClick={() => p.setMode(p.mode === 'shuffle' ? 'list' : 'shuffle')}><Shuffle size={17} /></IconButton><IconButton label="上一首" onClick={p.previous}><SkipBack size={20} fill="currentColor" /></IconButton><button className="play-button" disabled={!p.hasTrack} aria-label={p.playing ? '暂停' : '播放'} onClick={p.toggle}>{p.playing ? <Pause size={21} fill="currentColor" /> : <Play size={21} fill="currentColor" />}</button><IconButton label="下一首" onClick={p.next}><SkipForward size={20} fill="currentColor" /></IconButton><IconButton label={({ list: '列表循环', repeat: '单曲循环', shuffle: '列表循环', 'stop-track': '播完单曲停止', 'stop-list': '播完列表停止' })[p.mode]} active={p.mode !== 'list' && p.mode !== 'shuffle'} onClick={() => { const modes = ['list', 'repeat', 'stop-track', 'stop-list'] as const; p.setMode(modes[(modes.indexOf(p.mode as typeof modes[number]) + 1) % modes.length]); }}>{p.mode === 'repeat' ? <Repeat1 size={18} /> : p.mode === 'stop-track' ? <Square size={18} /> : p.mode === 'stop-list' ? <ListEnd size={18} /> : <Repeat size={18} />}</IconButton></div><div className="seek-row"><span>{formatTime(p.time)}</span><input aria-label="播放进度" type="range" min="0" max={Math.max(1, p.track.duration)} step="0.1" value={p.time} disabled={!p.hasTrack} onChange={e => p.seek(Number(e.target.value))} style={{ '--fill': `${p.time / Math.max(1, p.track.duration) * 100}%` } as React.CSSProperties} /><span>{formatTime(p.track.duration)}</span></div></div>

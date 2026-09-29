@@ -10,6 +10,9 @@
 
 @media (min-width: 761px) {
   .music-app .workspace.scrolling-workspace, .music-app .workspace.catalog-workspace { display: block; overflow-y: auto; overscroll-behavior-y: auto; scrollbar-width: thin; scrollbar-color: #44464a transparent; }
+  .music-app .workspace.library-workspace { display: flex; flex-direction: column; overflow: hidden; }
+  .library-workspace .library-view { display: flex; flex: 1; flex-direction: column; min-height: 0; padding-bottom: 0; }
+  .library-workspace .library-rows { flex: 1; min-height: 0; max-height: none; }
 }
 @media (max-width: 760px) {
   .music-app .workspace.scrolling-workspace, .music-app .workspace.catalog-workspace { display: block; height: auto; overflow: visible; }

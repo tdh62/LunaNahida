@@ -30,7 +30,6 @@
 .scope-range-presets button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
 .scope-controls .scope-range input { width: 74px; height: 28px; padding: 0 4px; border: 1px solid var(--line); border-radius: 4px; background: #242629; color: #e4e5e2; font-size: 11px; }
 .mode-light .scope-controls .scope-range input { background: #eef0ef; color: #282d30; }
-.visualizer[role="button"] { cursor: zoom-in; }
 .visualizer[role="button"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .mode-light .expanded-scope { --scope-muted: #60656a; }
 .mode-light .scope-track strong { color: var(--light-text, #202529); }

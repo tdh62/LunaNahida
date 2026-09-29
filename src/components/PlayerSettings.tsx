@@ -1,8 +1,8 @@
-import { Check, FolderOpen, HardDrive, Headphones, Leaf, Moon, Palette, Pencil, Plus, RefreshCw, SlidersHorizontal, Sparkles, Sun, Timer, Trash2, Users, Waves } from 'lucide-react';
-import { useEffect, useState, type FormEvent } from 'react';
+import { Check, Download, FolderOpen, HardDrive, Headphones, Leaf, Moon, Palette, Pencil, Plus, RefreshCw, SlidersHorizontal, Sparkles, Sun, Timer, Trash2, Upload, Users, Waves, Globe2 } from 'lucide-react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { normalizeName, type ArtistMapping } from '@/lib/catalog';
 import { formatTime } from '@/lib/music';
-import { backend, type CacheStats, type LibraryState, type StoredSettings } from '@/lib/backend';
+import { backend, type CacheStats, type LibraryState, type NetworkSource, type StoredSettings } from '@/lib/backend';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 
@@ -50,11 +50,20 @@ type SettingsProps = {
 export default function PlayerSettings({ theme, setTheme, appearance, setAppearance, visual, setVisual, lyricEffect, setLyricEffect, lyricScroll, setLyricScroll, showTranslation, setShowTranslation, sleep, setSleep, effectName, onEditEffects, equalizer, setBand, resetEqualizer, mappings, setMappings, lyricAppearance, setLyricAppearance, artistNames }: SettingsProps) {
   const [library, setLibrary] = useState<LibraryState | null>(null);
   const [newFolder, setNewFolder] = useState('');
+  const [sourceKind, setSourceKind] = useState<NetworkSource['kind']>('webdav');
+  const [sourceURL, setSourceURL] = useState('');
+  const [sourceUsername, setSourceUsername] = useState('');
+  const [sourcePassword, setSourcePassword] = useState('');
+  const [addingSource, setAddingSource] = useState(false);
   const [scanning, setScanning] = useState(false);
+  const [scanBackupOverride, setScanBackupOverride] = useState<boolean | null>(null);
   const [cache, setCache] = useState<CacheStats | null>(null);
   const [cacheError, setCacheError] = useState(false);
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [clearingNetwork, setClearingNetwork] = useState(false);
+  const [backupBusy, setBackupBusy] = useState<'export' | 'import' | null>(null);
+  const backupInput = useRef<HTMLInputElement>(null);
   useEffect(() => { void backend.state().then(setLibrary).catch(error => toast.error(error.message)); }, []);
   useEffect(() => { void backend.cacheStats().then(setCache).catch(error => { setCacheError(true); toast.error(error.message); }); }, []);
   const saveLibrarySettings = (change: Partial<StoredSettings>) => {
@@ -66,7 +75,24 @@ export default function PlayerSettings({ theme, setTheme, appearance, setAppeara
   };
   const refreshLibrary = () => { void backend.state().then(setLibrary).catch(error => toast.error(error.message)); };
   const addFolder = async (path: string) => { if (!path.trim()) return; try { await backend.addFolder(path.trim()); setNewFolder(''); refreshLibrary(); toast.success('已添加监听文件夹'); } catch (error) { toast.error(error instanceof Error ? error.message : '添加失败'); } };
-  const scan = async () => { setScanning(true); try { const result = await backend.scan(); refreshLibrary(); window.dispatchEvent(new Event('lunanahida-library-changed')); toast.success(`扫描完成：新增 ${result.added} 首，缺失 ${result.missing} 首`); if (result.errors.length) toast.warning(`${result.errors.length} 个路径暂不可访问`); } catch (error) { toast.error(error instanceof Error ? error.message : '扫描失败'); } finally { setScanning(false); } };
+  const scan = async () => { setScanning(true); try { const result = await backend.scan(scanBackupOverride ?? library?.settings.backupOriginal ?? true); refreshLibrary(); window.dispatchEvent(new Event('lunanahida-library-changed')); toast.success(`扫描完成：新增 ${result.added} 首，转换 ${result.converted} 首，清理 ${result.removed} 首${result.missing > result.removed ? `，缺失 ${result.missing - result.removed} 首` : ''}`); if (result.errors.length) toast.warning(`${result.errors.length} 个文件或路径处理失败`); } catch (error) { toast.error(error instanceof Error ? error.message : '扫描失败'); } finally { setScanning(false); setScanBackupOverride(null); } };
+  const addNetworkSource = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!sourceURL.trim()) return;
+    setAddingSource(true);
+    try {
+      const result = await backend.addNetworkSource(sourceKind, sourceURL.trim(), sourceUsername.trim(), sourcePassword);
+      setSourceURL(''); setSourceUsername(''); setSourcePassword('');
+      refreshLibrary();
+      window.dispatchEvent(new Event('lunanahida-library-changed'));
+      toast.success(`已添加网络来源，找到 ${result.scan.added} 首歌曲`);
+    } catch (error) { toast.error(error instanceof Error ? error.message : '添加网络来源失败'); }
+    finally { setAddingSource(false); }
+  };
+  const removeNetworkSource = async (id: number) => {
+    try { await backend.removeNetworkSource(id); refreshLibrary(); window.dispatchEvent(new Event('lunanahida-library-changed')); toast.success('已移除网络来源'); }
+    catch (error) { toast.error(error instanceof Error ? error.message : '移除网络来源失败'); }
+  };
   const clearCache = async () => {
     setClearing(true);
     try {
@@ -85,6 +111,55 @@ export default function PlayerSettings({ theme, setTheme, appearance, setAppeara
       window.dispatchEvent(new Event('lunanahida-library-changed'));
     } finally {
       setClearing(false);
+    }
+  };
+  const clearNetworkCache = async () => {
+    setClearingNetwork(true);
+    try {
+      setCache(await backend.clearNetworkCache());
+      toast.success('网络歌曲缓存已清理');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '清理网络歌曲缓存失败');
+    } finally {
+      setClearingNetwork(false);
+    }
+  };
+  const exportBackup = async () => {
+    setBackupBusy('export');
+    try {
+      const native = await backend.saveBackupNative();
+      if (native.available) {
+        if (native.saved) toast.success('备份已导出');
+        return;
+      }
+      const blob = await backend.exportBackup();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `LunaNahida-${new Date().toISOString().slice(0, 10)}.zip`;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+      toast.success('备份已导出');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '导出备份失败');
+    } finally {
+      setBackupBusy(null);
+    }
+  };
+  const importBackup = async (file: File) => {
+    setBackupBusy('import');
+    try {
+      const result = await backend.importBackup(file);
+      refreshLibrary();
+      void backend.cacheStats().then(setCache).catch(() => {});
+      window.dispatchEvent(new Event('lunanahida-backup-imported'));
+      toast.success(`已合并 ${result.tracks} 首歌曲、${result.playlists} 个歌单、${result.tags} 个标签、${result.covers} 张封面`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '导入备份失败');
+    } finally {
+      setBackupBusy(null);
     }
   };
   const [root, setRoot] = useState('');
@@ -107,16 +182,31 @@ export default function PlayerSettings({ theme, setTheme, appearance, setAppeara
     <section className="settings-group"><div className="settings-group-title"><FolderOpen size={19} /><div><h2>本地音乐库</h2></div></div>
         <div className="settings-row"><div><strong>打开文件或文件夹</strong></div><select className="lyric-font-select" aria-label="打开文件或文件夹处理方式" value={library?.settings.dropAction ?? 'ask'} onChange={event => saveLibrarySettings({ dropAction: event.target.value as StoredSettings['dropAction'] })}><option value="ask">每次询问</option><option value="temporary">仅本次播放</option><option value="library">加入音乐库</option><option value="watch">监听所在文件夹</option></select></div>
       <div className="settings-row"><div><strong>启动时扫描</strong></div><button type="button" role="switch" aria-checked={library?.settings.scanOnStart ?? true} aria-label="启动时扫描" className={`settings-switch ${library?.settings.scanOnStart ? 'on' : ''}`} onClick={() => saveLibrarySettings({ scanOnStart: !library?.settings.scanOnStart })}><span /></button></div>
-      <div className="settings-row"><div><strong>自动转换加密音频</strong><small>导入及扫描时处理</small></div><button type="button" role="switch" aria-checked={library?.settings.autoConvert ?? false} aria-label="自动转换加密音频" className={`settings-switch ${library?.settings.autoConvert ? 'on' : ''}`} onClick={() => saveLibrarySettings({ autoConvert: !library?.settings.autoConvert })}><span /></button></div>
+      <div className="settings-row"><div><strong>自动转换加密音频</strong><small>打开文件/文件夹及自动扫描时处理</small></div><button type="button" role="switch" aria-checked={library?.settings.autoConvert ?? false} aria-label="自动转换加密音频" className={`settings-switch ${library?.settings.autoConvert ? 'on' : ''}`} onClick={() => saveLibrarySettings({ autoConvert: !library?.settings.autoConvert })}><span /></button></div>
       <div className="settings-row"><div><strong>备份加密源文件</strong><small>保存在源文件同目录的备份文件夹</small></div><button type="button" role="switch" aria-checked={library?.settings.backupOriginal ?? true} aria-label="备份加密源文件" className={`settings-switch ${library?.settings.backupOriginal ? 'on' : ''}`} onClick={() => saveLibrarySettings({ backupOriginal: !library?.settings.backupOriginal })}><span /></button></div>
       <div className="settings-row"><div><strong>定时扫描</strong></div><select className="lyric-font-select" aria-label="定时扫描间隔" value={library?.settings.scanIntervalMinutes ?? 0} onChange={event => saveLibrarySettings({ scanIntervalMinutes: Number(event.target.value) })}><option value={0}>关闭</option><option value={15}>每 15 分钟</option><option value={30}>每 30 分钟</option><option value={60}>每小时</option><option value={360}>每 6 小时</option><option value={1440}>每天</option></select></div>
       <div className="settings-row"><div><strong>监听文件夹</strong><small>{library?.folders.length ?? 0} 个路径</small></div><button type="button" className="playlist-primary" onClick={() => void backend.chooseFolder().then(result => addFolder(result.paths[0])).catch(error => toast.error(error.message))}><Plus size={15} />添加文件夹</button></div>
       <form className="artist-mapping-form" onSubmit={event => { event.preventDefault(); void addFolder(newFolder); }}><label>路径<input value={newFolder} onChange={event => setNewFolder(event.target.value)} placeholder="本地文件夹绝对路径" /></label><button type="submit" className="playlist-primary" disabled={!newFolder.trim()}><Plus size={15} />添加路径</button></form>
       <div className="artist-mapping-list">{library?.folders.map(path => <div className="artist-mapping-item" key={path}><div><strong>{path}</strong></div><button type="button" title="移除监听" aria-label={`移除 ${path}`} onClick={() => void backend.removeFolder(path).then(refreshLibrary).catch(error => toast.error(error.message))}><Trash2 size={15} /></button></div>)}</div>
-      <div className="settings-row"><div><strong>扫描音乐库</strong></div><button type="button" className="playlist-primary" disabled={scanning} onClick={() => void scan()}><RefreshCw size={15} />{scanning ? '扫描中' : '立即扫描'}</button></div>
+      <div className="settings-row settings-scan-row"><div><strong>扫描音乐库</strong><small>手动扫描时转换支持的加密歌曲</small></div><div className="settings-scan-actions"><label className="settings-scan-backup"><input type="checkbox" checked={scanBackupOverride ?? library?.settings.backupOriginal ?? true} disabled={scanning || !library} onChange={event => setScanBackupOverride(event.target.checked)} />本次保留源文件备份</label><button type="button" className="playlist-primary" disabled={scanning || !library} onClick={() => void scan()}><RefreshCw size={15} />{scanning ? '扫描中' : '立即扫描'}</button></div></div>
+    </section>
+    <section className="settings-group"><div className="settings-group-title"><Globe2 size={19} /><div><h2>网络音乐库</h2></div></div>
+      <form className="artist-mapping-form network-source-form" onSubmit={event => void addNetworkSource(event)}>
+        <label>来源类型<select className="lyric-font-select" value={sourceKind} onChange={event => setSourceKind(event.target.value as NetworkSource['kind'])}><option value="webdav">WebDAV 文件夹</option><option value="ftp">FTP 文件夹</option><option value="ftps">FTPS 文件夹</option><option value="playlist">HTTP M3U 清单</option></select></label>
+        <label>地址<input type="url" required value={sourceURL} onChange={event => setSourceURL(event.target.value)} placeholder={sourceKind === 'playlist' ? 'https://example.com/music.m3u' : sourceKind === 'webdav' ? 'https://example.com/dav/music/' : `${sourceKind}://example.com/music/`} /></label>
+        {sourceKind !== 'playlist' && <div className="network-source-credentials"><label>用户名<input autoComplete="username" value={sourceUsername} onChange={event => setSourceUsername(event.target.value)} /></label><label>密码<input type="password" autoComplete="new-password" value={sourcePassword} onChange={event => setSourcePassword(event.target.value)} /></label></div>}
+        <div><button type="submit" className="playlist-primary" disabled={addingSource || !sourceURL.trim()}><Plus size={15} />{addingSource ? '连接中' : '添加来源'}</button></div>
+      </form>
+      <div className="artist-mapping-list">{library?.networkSources.map(source => <div className="artist-mapping-item" key={source.id}><div><strong>{source.kind === 'playlist' ? 'HTTP 清单' : source.kind.toUpperCase()} · {source.url}</strong>{source.username && <small>{source.username}</small>}</div><button type="button" title="移除来源" aria-label={`移除 ${source.url}`} onClick={() => void removeNetworkSource(source.id)}><Trash2 size={15} /></button></div>)}</div>
     </section>
     <section className="settings-group"><div className="settings-group-title"><HardDrive size={19} /><div><h2>缓存空间</h2></div></div>
-      <div className="settings-row"><div><strong>{cache ? formatBytes(cache.totalBytes) : cacheError ? '统计失败' : '正在统计'}</strong>{cache && <small>图片 {formatBytes(cache.coverBytes)} · WebView {formatBytes(cache.webviewBytes)} · 在线资料 {formatBytes(cache.metadataBytes)}</small>}{cache?.webviewClearPending && <small>WebView 缓存将在下次启动时清理</small>}</div><button type="button" className="playlist-primary" disabled={clearing || (!cache && !cacheError)} onClick={() => { if (cache) setClearConfirmOpen(true); else void backend.cacheStats().then(stats => { setCache(stats); setCacheError(false); }).catch(error => toast.error(error.message)); }}>{cache ? <Trash2 size={15} /> : <RefreshCw size={15} />}{cache ? '清理缓存' : '重试统计'}</button></div>
+      <div className="settings-row"><div><strong>最近播放的网络歌曲</strong><small>完整缓存最近播放的歌曲；0 表示关闭，单曲上限 512 MB</small></div><select className="lyric-font-select" aria-label="网络歌曲缓存数量" value={library?.settings.networkCacheCount ?? 10} onChange={event => saveLibrarySettings({ networkCacheCount: Number(event.target.value) })}>{[0, 5, 10, 20, 30, 50].map(count => <option key={count} value={count}>{count ? `${count} 首` : '关闭'}</option>)}</select></div>
+      <div className="settings-row"><div><strong>网络歌曲缓存</strong><small>{cache ? formatBytes(cache.networkAudioBytes) : '正在统计'}</small></div><button type="button" className="playlist-primary" disabled={clearingNetwork || !cache?.networkAudioBytes} onClick={() => void clearNetworkCache()}><Trash2 size={15} />{clearingNetwork ? '清理中' : '清理网络缓存'}</button></div>
+      <div className="settings-row"><div><strong>{cache ? formatBytes(cache.totalBytes) : cacheError ? '统计失败' : '正在统计'}</strong>{cache && <small>图片 {formatBytes(cache.coverBytes)} · WebView {formatBytes(cache.webviewBytes)} · 在线资料 {formatBytes(cache.metadataBytes)} · 网络歌曲 {formatBytes(cache.networkAudioBytes)}</small>}{cache?.webviewClearPending && <small>WebView 缓存将在下次启动时清理</small>}</div><button type="button" className="playlist-primary" disabled={clearing || (!cache && !cacheError)} onClick={() => { if (cache) setClearConfirmOpen(true); else void backend.cacheStats().then(stats => { setCache(stats); setCacheError(false); }).catch(error => toast.error(error.message)); }}>{cache ? <Trash2 size={15} /> : <RefreshCw size={15} />}{cache ? '清理缓存' : '重试统计'}</button></div>
+    </section>
+    <section className="settings-group"><div className="settings-group-title"><HardDrive size={19} /><div><h2>数据备份</h2></div></div>
+      <div className="settings-row backup-row"><div><strong>导出压缩包</strong><small>音乐库数据库、歌词及在线资料、封面缓存；不包含音频文件</small></div><button type="button" className="playlist-primary" disabled={backupBusy !== null} onClick={() => void exportBackup()}><Download size={15} />{backupBusy === 'export' ? '导出中' : '导出备份'}</button></div>
+      <div className="settings-row backup-row"><div><strong>合并备份</strong><small>添加缺失数据，保留当前已有歌曲信息、歌单和封面</small></div><button type="button" className="playlist-primary" disabled={backupBusy !== null} onClick={() => backupInput.current?.click()}><Upload size={15} />{backupBusy === 'import' ? '导入中' : '导入备份'}</button><input ref={backupInput} className="sr-only" type="file" accept=".zip,application/zip" aria-label="选择备份压缩包" onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; if (file) void importBackup(file); }} /></div>
     </section>
     <section className="settings-group"><div className="settings-group-title"><Sun size={19} /><div><h2>外观</h2><p>明暗外观与下方色调可自由组合。</p></div></div>
       <div className="settings-options appearance-options" role="group" aria-label="外观模式">{([{ id: 'dark', label: '深色', icon: Moon }, { id: 'light', label: '浅色', icon: Sun }] as const).map(option => <button key={option.id} type="button" aria-pressed={appearance === option.id} className={appearance === option.id ? 'active' : ''} onClick={() => setAppearance(option.id)}><option.icon size={15} />{option.label}</button>)}</div>
@@ -145,6 +235,6 @@ export default function PlayerSettings({ theme, setTheme, appearance, setAppeara
       <form className="artist-mapping-form" onSubmit={saveMapping}><label>展示名称（映射根）<input value={root} onChange={event => setRoot(event.target.value)} placeholder="例如：青木" list="artist-name-options" maxLength={80} /></label><label>其他名称（用逗号分隔）<input value={aliases} onChange={event => setAliases(event.target.value)} placeholder="例如：青木 · Aoki，青木 Aoki" maxLength={500} /></label><datalist id="artist-name-options">{artistNames.map(name => <option key={name} value={name} />)}</datalist>{error && <p role="alert">{error}</p>}<div><button type="submit" className="playlist-primary"><Plus size={15} />{editing === null ? '添加映射' : '保存映射'}</button>{editing !== null && <button type="button" className="artist-mapping-cancel" onClick={() => { setEditing(null); setRoot(''); setAliases(''); setError(''); }}>取消</button>}</div></form>
     </section>
     <section className="settings-group"><div className="settings-group-title"><Timer size={19} /><div><h2>睡眠定时</h2><p>到时间后自动暂停音乐。</p></div></div><div className="settings-row"><div><strong>暂停时间</strong><small>{sleep > 0 ? `剩余 ${formatTime(sleep)}` : '未设置定时'}</small></div><div className="settings-options">{[0, 15, 30, 60].map(v => <button key={v} aria-pressed={v === 0 ? sleep === 0 : sleep > 0 && Math.ceil(sleep / 60) === v} className={(v === 0 ? sleep === 0 : sleep > 0 && Math.ceil(sleep / 60) === v) ? 'active' : ''} onClick={() => setSleep(v * 60)}>{v ? `${v} 分钟` : '关闭'}</button>)}</div></div><div className="settings-row"><div><strong>精细设定</strong><small>以分钟为单位，最多 24 小时</small></div><form className="sleep-settings-form" onSubmit={event => { event.preventDefault(); const minutes = Number(new FormData(event.currentTarget).get('minutes')); if (Number.isFinite(minutes) && minutes > 0) setSleep(Math.round(minutes * 60)); }}><input name="minutes" type="number" min="1" max="1440" step="1" aria-label="睡眠定时分钟数" defaultValue={sleep > 0 ? Math.ceil(sleep / 60) : 20} /><span>分钟</span><button type="submit">设置</button></form></div></section>
-    <Dialog open={clearConfirmOpen} onOpenChange={setClearConfirmOpen}><DialogContent className="music-dialog playlist-dialog"><DialogTitle>清理缓存？</DialogTitle><DialogDescription>在线图片和资料缓存将被清除；音乐库、收藏、内嵌封面及自定义歌单封面会保留。WebView 缓存在下次启动时清理。</DialogDescription><div className="playlist-dialog-actions"><button type="button" disabled={clearing} onClick={() => setClearConfirmOpen(false)}>取消</button><button type="button" className="playlist-danger" disabled={clearing} onClick={() => void clearCache()}>{clearing ? '清理中' : '清理缓存'}</button></div></DialogContent></Dialog>
+    <Dialog open={clearConfirmOpen} onOpenChange={setClearConfirmOpen}><DialogContent className="music-dialog playlist-dialog"><DialogTitle>清理缓存？</DialogTitle><DialogDescription>在线图片、资料和网络歌曲缓存将被清除；音乐库、收藏、内嵌封面及自定义歌单封面会保留。WebView 缓存在下次启动时清理。</DialogDescription><div className="playlist-dialog-actions"><button type="button" disabled={clearing} onClick={() => setClearConfirmOpen(false)}>取消</button><button type="button" className="playlist-danger" disabled={clearing} onClick={() => void clearCache()}>{clearing ? '清理中' : '清理缓存'}</button></div></DialogContent></Dialog>
   </div>;
 }

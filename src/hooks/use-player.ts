@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { backend } from '@/lib/backend';
 import type { Track } from '@/lib/music';
+import { toast } from 'sonner';
 import { calculateFIRResponse, effectDefinitions, makeFrequencyImpulse, makeTimeImpulse, selectedEffect, validateFilter, type CustomFilter, type FrequencyResponse, type SavedEffect } from '@/lib/audio-filter';
 
 const frequencies = [60, 230, 910, 3600, 12000];
@@ -24,7 +25,17 @@ export function usePlayer() {
   currentId.current = trackId;
   const track = queue.find(t => t.id === trackId) ?? null;
   const updateQueue = (value: Track[]) => { queueRef.current = value; setQueue(value); };
-  const setCatalog = (items: Track[]) => { catalogRef.current = items; updateQueue(queueRef.current.map(item => items.find(track => track.id === item.id) ?? item)); };
+  const setCatalog = (items: Track[]) => {
+    catalogRef.current = items;
+    const byId = new Map(items.map(item => [item.id, item]));
+    const next = queueRef.current.map(item => byId.get(item.id) ?? (item.temporary ? item : null)).filter((item): item is Track => item !== null);
+    if (currentId.current !== null && !next.some(item => item.id === currentId.current)) {
+      audio.current?.pause();
+      shouldPlay.current = false;
+      setTrackId(next[0]?.id ?? null);
+    }
+    updateQueue(next);
+  };
   const updateTrack = (track: Track) => updateQueue(queueRef.current.map(item => item.id === track.id ? track : item));
   const hydrate = (items: Track[], ids: number[], history: number[], settings: { volume: number; mode: typeof mode; effect: string; equalizer: number[]; customEffects?: SavedEffect[] }) => {
     catalogRef.current = items;
@@ -46,10 +57,18 @@ export function usePlayer() {
     element.oncanplay = () => { const id = currentId.current; if (id === null) return; const item = queueRef.current.find(track => track.id === id); if (item?.playbackStatus === 'playable') return; updateQueue(queueRef.current.map(track => track.id === id ? { ...track, playbackStatus: 'playable' } : track)); if (id > 0) void backend.playbackStatus(id, 'playable').then(() => window.dispatchEvent(new Event('lunanahida-library-changed'))).catch(() => {}); };
     element.onerror = () => {
       const id = currentId.current;
-      if (id === null || ![3, 4].includes(element.error?.code ?? 0)) return;
+      if (id === null) return;
+      const current = queueRef.current.find(track => track.id === id);
+      if (current?.kind === 'network') {
+        shouldPlay.current = false;
+        setPlaying(false);
+        toast.error('网络歌曲暂时无法播放');
+        return;
+      }
+      if (![3, 4].includes(element.error?.code ?? 0)) return;
       shouldPlay.current = false;
       setPlaying(false);
-      const source = queueRef.current.find(track => track.id === id)?.source;
+      const source = current?.source;
       if (!source) return;
       void fetch(source, { method: 'HEAD' }).then(response => {
         if (currentId.current !== id || !response.ok) { window.dispatchEvent(new Event('lunanahida-library-changed')); return; }

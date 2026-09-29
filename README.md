@@ -26,6 +26,10 @@ The standard desktop build stores data in the local user cache directory under `
 
 On first launch the library is empty. Add files through the desktop dialog or drop them into the window. The default action asks whether to play only this time, add to the library, or watch the containing folder. Settings include startup scans, manual scans, and optional scheduled scans. Missing files remain in the library and can be rediscovered when they return.
 
+Use **网络歌曲** in the sidebar to open a single HTTP(S) audio file URL. In **设置 → 网络音乐库**, add WebDAV, FTP, or explicit FTPS folders, or an HTTP(S) M3U/M3U8 playlist. Network folders are scanned recursively (up to 5,000 audio files); HTTP playlists support up to 1,000 HTTP(S) audio URLs and relative paths. Existing songs remain in the library when a scan cannot reach a source. FTP passwords are protected with Windows DPAPI in the local database. FTP is unencrypted; use FTPS or HTTPS WebDAV for private accounts. Network audio is played through the local API with seeking, and the latest N played songs can be cached in **设置 → 缓存空间**. Direct URL query strings are saved locally with the song, so expiring links may need to be reopened.
+
+Settings can retain complete copies of the most recently played 0, 5, 10, 20, 30, or 50 network songs (10 by default; 512 MB maximum per song). The network audio cache can be cleared separately, and the general cache action clears it too. Cached songs remain playable when the network is unavailable. The source is checked periodically when online; a changed source invalidates its cached copy.
+
 Embedded artwork and lyrics are read from supported audio tags during import and scanning, and take priority over online metadata. Existing library entries are checked once after this upgrade. A sidecar `.lrc` file is used when the audio file has no embedded lyrics.
 
 Cover files use their MD5 digest as the cache key, so identical downloads reuse one file. Settings shows image, WebView, and online metadata cache sizes. Clearing cache removes downloadable artwork and metadata, retains embedded and custom playlist artwork, and clears the WebView profile on the next launch.

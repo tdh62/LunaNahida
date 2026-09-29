@@ -252,6 +252,9 @@ func (s *Store) GetTrack(id int64) (Track, error) {
 	t.LocalLyrics = localLyrics == 1
 	t.Source = "/api/media/audio/" + formatID(t.ID)
 	t.FileName = filepath.Base(t.Path)
+	if err = s.decorateNetworkTrack(&t); err != nil {
+		return Track{}, err
+	}
 	t.Color = "#8daab0"
 	t.EmbeddedTags = decodeTags(embeddedJSON)
 	t.CustomTags, err = s.trackCustomTags(id)
@@ -283,7 +286,7 @@ func (s *Store) UpdateTrackMetadata(id int64, title, artist, album string) (Trac
 }
 
 func (s *Store) recheckLegacyTags() error {
-	rows, err := s.DB.Query(`SELECT path FROM tracks WHERE tags_checked=0`)
+	rows, err := s.DB.Query(`SELECT path FROM tracks WHERE tags_checked=0 AND path NOT LIKE 'remote:%'`)
 	if err != nil {
 		return err
 	}
@@ -309,6 +312,14 @@ func (s *Store) recheckLegacyTags() error {
 }
 
 func (s *Store) Import(paths []string, mode string) ([]Track, error) {
+	return s.importPaths(paths, mode, false)
+}
+
+func (s *Store) ImportWithoutConversion(paths []string, mode string) ([]Track, error) {
+	return s.importPaths(paths, mode, true)
+}
+
+func (s *Store) importPaths(paths []string, mode string, skipConversion bool) ([]Track, error) {
 	if mode != "temporary" && mode != "library" && mode != "watch" {
 		return nil, errors.New("invalid import mode")
 	}
@@ -347,6 +358,9 @@ func (s *Store) Import(paths []string, mode string) ([]Track, error) {
 				if !audioTypes[strings.ToLower(filepath.Ext(item))] && !encryptedFile(item) {
 					return nil
 				}
+				if skipConversion && encryptedFile(item) {
+					return nil
+				}
 				t, loadErr := s.importWithConversion(item, mode, settings)
 				if loadErr == nil && mode == "library" {
 					_, loadErr = s.DB.Exec(`UPDATE tracks SET folder_imported=1 WHERE id=?`, t.ID)
@@ -362,6 +376,12 @@ func (s *Store) Import(paths []string, mode string) ([]Track, error) {
 			if err != nil {
 				return nil, err
 			}
+			continue
+		}
+		if !audioTypes[strings.ToLower(filepath.Ext(path))] && !encryptedFile(path) {
+			continue
+		}
+		if skipConversion && encryptedFile(path) {
 			continue
 		}
 		if mode == "watch" {
@@ -507,18 +527,35 @@ func (s *Store) DeleteTracks(ids []int64) error {
 			return err
 		}
 	}
-	return tx.Commit()
+	if err = tx.Commit(); err != nil {
+		return err
+	}
+	settings, err := s.Settings()
+	if err != nil {
+		return err
+	}
+	return s.pruneNetworkCache(settings.NetworkCacheCount)
 }
 
 type ScanResult struct {
-	Added   int      `json:"added"`
-	Updated int      `json:"updated"`
-	Missing int      `json:"missing"`
-	Folders int      `json:"folders"`
-	Errors  []string `json:"errors"`
+	Added     int      `json:"added"`
+	Updated   int      `json:"updated"`
+	Missing   int      `json:"missing"`
+	Removed   int      `json:"removed"`
+	Folders   int      `json:"folders"`
+	Converted int      `json:"converted"`
+	Errors    []string `json:"errors"`
 }
 
 func (s *Store) Scan(ctx context.Context) (ScanResult, error) {
+	return s.scan(ctx, nil)
+}
+
+func (s *Store) ScanManual(ctx context.Context, backupOriginal bool) (ScanResult, error) {
+	return s.scan(ctx, &backupOriginal)
+}
+
+func (s *Store) scan(ctx context.Context, manualBackup *bool) (ScanResult, error) {
 	s.mu.Lock()
 	if s.scanning {
 		s.mu.Unlock()
@@ -528,6 +565,14 @@ func (s *Store) Scan(ctx context.Context) (ScanResult, error) {
 	s.mu.Unlock()
 	defer func() { s.mu.Lock(); s.scanning = false; s.mu.Unlock() }()
 	result := ScanResult{Errors: []string{}}
+	settings, err := s.Settings()
+	if err != nil {
+		return result, err
+	}
+	if manualBackup != nil {
+		settings.AutoConvert = true
+		settings.BackupOriginal = *manualBackup
+	}
 	rows, err := s.DB.Query(`SELECT path FROM folders`)
 	if err != nil {
 		return result, err
@@ -545,6 +590,7 @@ func (s *Store) Scan(ctx context.Context) (ScanResult, error) {
 		return result, err
 	}
 	scanned := map[string]bool{}
+	unavailableFolders := []string{}
 	for _, folder := range folders {
 		if err = ctx.Err(); err != nil {
 			return result, err
@@ -552,11 +598,11 @@ func (s *Store) Scan(ctx context.Context) (ScanResult, error) {
 		info, statErr := os.Stat(folder)
 		if statErr != nil || !info.IsDir() {
 			result.Errors = append(result.Errors, folder+": unavailable")
+			unavailableFolders = append(unavailableFolders, folder)
 			continue
 		}
 		result.Folders++
-		seen := map[string]bool{}
-		_ = filepath.WalkDir(folder, func(path string, entry fs.DirEntry, walkErr error) error {
+		walkErr := filepath.WalkDir(folder, func(path string, entry fs.DirEntry, walkErr error) error {
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
@@ -575,20 +621,19 @@ func (s *Store) Scan(ctx context.Context) (ScanResult, error) {
 			}
 			convertedNew := false
 			if encryptedFile(path) {
-				var oldID int64
-				convertedNew = errors.Is(s.DB.QueryRow(`SELECT id FROM tracks WHERE path=?`, path).Scan(&oldID), sql.ErrNoRows)
-				settings, settingErr := s.Settings()
-				if settingErr != nil {
-					result.Errors = append(result.Errors, settingErr.Error())
-					return nil
-				}
 				if !settings.AutoConvert {
 					return nil
 				}
+				var oldID int64
+				convertedNew = errors.Is(s.DB.QueryRow(`SELECT id FROM tracks WHERE path=?`, path).Scan(&oldID), sql.ErrNoRows)
 				converted := s.Convert(ctx, path, settings.BackupOriginal, true)
 				if converted.Status != "converted" {
 					result.Errors = append(result.Errors, path+": "+converted.Error)
 					return nil
+				}
+				result.Converted++
+				if converted.Error != "" {
+					result.Errors = append(result.Errors, path+": "+converted.Error)
 				}
 				path = converted.Output
 			}
@@ -596,7 +641,6 @@ func (s *Store) Scan(ctx context.Context) (ScanResult, error) {
 			if canonErr != nil {
 				return nil
 			}
-			seen[path] = true
 			scanned[path] = true
 			var id int64
 			lookupErr := s.DB.QueryRow(`SELECT id FROM tracks WHERE path=?`, path).Scan(&id)
@@ -609,38 +653,8 @@ func (s *Store) Scan(ctx context.Context) (ScanResult, error) {
 			}
 			return nil
 		})
-		rows, queryErr := s.DB.Query(`SELECT id,path FROM tracks`)
-		if queryErr != nil {
-			return result, queryErr
-		}
-		type item struct {
-			id   int64
-			path string
-		}
-		items := []item{}
-		for rows.Next() {
-			var v item
-			if err = rows.Scan(&v.id, &v.path); err != nil {
-				break
-			}
-			items = append(items, v)
-		}
-		rows.Close()
-		if err != nil {
-			return result, err
-		}
-		for _, v := range items {
-			relative, relErr := filepath.Rel(folder, v.path)
-			if relErr != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) || seen[v.path] {
-				continue
-			}
-			changed, updateErr := s.DB.Exec(`UPDATE tracks SET available=0 WHERE id=? AND available=1`, v.id)
-			if updateErr != nil {
-				return result, updateErr
-			}
-			if count, _ := changed.RowsAffected(); count > 0 {
-				result.Missing++
-			}
+		if walkErr != nil {
+			return result, walkErr
 		}
 	}
 	rows, err = s.DB.Query(`SELECT id,path,available FROM tracks`)
@@ -665,18 +679,31 @@ func (s *Store) Scan(ctx context.Context) (ScanResult, error) {
 		return result, err
 	}
 	for _, item := range existing {
+		if strings.HasPrefix(item.path, "remote:") {
+			continue
+		}
 		if err = ctx.Err(); err != nil {
 			return result, err
 		}
-		info, statErr := os.Stat(item.path)
-		if statErr != nil || info.IsDir() {
-			if item.available {
-				_, err = s.DB.Exec(`UPDATE tracks SET available=0 WHERE id=?`, item.id)
-				if err != nil {
-					return result, err
-				}
-				result.Missing++
+		unavailable := false
+		for _, folder := range unavailableFolders {
+			if pathWithin(folder, item.path) {
+				unavailable = true
+				break
 			}
+		}
+		if unavailable {
+			continue
+		}
+		info, statErr := os.Stat(item.path)
+		if errors.Is(statErr, os.ErrNotExist) || statErr == nil && info.IsDir() {
+			if _, err = s.DB.Exec(`DELETE FROM tracks WHERE id=?`, item.id); err != nil {
+				return result, err
+			}
+			result.Missing++
+			result.Removed++
+		} else if statErr != nil {
+			result.Errors = append(result.Errors, item.path+": "+statErr.Error())
 		} else if !item.available || !scanned[item.path] {
 			if _, err = s.upsert(item.path); err == nil {
 				result.Updated++
@@ -684,6 +711,9 @@ func (s *Store) Scan(ctx context.Context) (ScanResult, error) {
 				result.Errors = append(result.Errors, item.path+": "+err.Error())
 			}
 		}
+	}
+	if err = s.scanNetworkSources(ctx, &result); err != nil {
+		return result, err
 	}
 	return result, nil
 }

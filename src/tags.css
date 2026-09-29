@@ -23,3 +23,32 @@
 .tags-delete button { border: 0; background: transparent; color: var(--accent); font-size: 11px; }
 .mode-light .tags-heading h1 { color: var(--light-text); }
 @media(max-width:760px) { .tags-view { padding: 24px 16px 42px; } .tags-heading h1 { font-size: 23px; } .tags-create { max-width: none; } }
+
+.track-tags { flex-wrap: wrap; align-items: center; min-height: 24px; }
+.track-tags > button { min-height: 22px; padding: 3px 6px; border: 1px solid var(--line); border-radius: 4px; background: transparent; color: var(--muted); font-size: 9px; line-height: 1.2; }
+.track-tags > button:hover { border-color: var(--accent); color: var(--accent); }
+.track-tags > .track-tag-add { width: 24px; height: 24px; display: grid; place-items: center; flex: none; padding: 0; border-style: dashed; }
+.track-tags > .track-tag-add:disabled { opacity: .45; cursor: not-allowed; }
+html .track-tag-popover { --accent: #a5b5ff; --tint: rgba(156,174,255,.12); --surface: #202123; --line: #393a3d; --muted: #a1a1a4; z-index: 80; width: min(280px, calc(100vw - 24px)); padding: 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: #efefeb; box-shadow: 0 12px 30px #0005; }
+.track-tag-popover.theme-forest { --accent: #a5cdb0; --tint: rgba(165,205,176,.13); }
+.track-tag-popover.theme-anime { --accent: #e4a9da; --tint: rgba(228,169,218,.13); }
+html.mode-light .track-tag-popover { --accent: #435db8; --tint: rgba(67,93,184,.1); --surface: #fff; --line: #d8e1dc; --muted: #5f706f; color: #25343a; }
+html.mode-light .track-tag-popover.theme-forest { --accent: #2b7651; --tint: rgba(43,118,81,.11); }
+html.mode-light .track-tag-popover.theme-anime { --accent: #a63d8b; --tint: rgba(166,61,139,.1); }
+.track-tag-popover-title { display: flex; align-items: center; gap: 7px; margin-bottom: 9px; color: var(--accent); font-size: 12px; }
+.track-tag-options { max-height: 176px; overflow-y: auto; }
+.track-tag-options button { width: 100%; min-height: 31px; display: flex; align-items: center; gap: 9px; padding: 5px 4px; border: 0; border-radius: 4px; background: transparent; color: inherit; text-align: left; font-size: 11px; overflow-wrap: anywhere; }
+.track-tag-options button:hover { background: var(--tint); }
+.track-tag-options button:disabled { opacity: .55; }
+.track-tag-check { width: 16px; height: 16px; display: grid; place-items: center; flex: none; border: 1px solid var(--muted); border-radius: 3px; }
+.track-tag-check.checked { border-color: var(--accent); background: var(--accent); color: var(--surface); }
+.track-tag-embedded { margin-top: 9px; padding-top: 9px; border-top: 1px solid var(--line); }
+.track-tag-embedded > span { color: var(--muted); font-size: 10px; }
+.track-tag-embedded > div { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+.track-tag-embedded > div span { padding: 3px 5px; border: 1px solid var(--line); border-radius: 3px; color: var(--muted); font-size: 10px; overflow-wrap: anywhere; }
+.track-tag-create { display: flex; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.track-tag-create input { width: 100%; min-width: 0; height: 30px; padding: 0 8px; border: 1px solid var(--line); border-radius: 4px; outline: none; background: transparent; color: inherit; font-size: 11px; }
+.track-tag-create input:focus { border-color: var(--accent); }
+.track-tag-create button { width: 30px; height: 30px; display: grid; place-items: center; flex: none; border: 0; border-radius: 4px; background: var(--accent); color: var(--surface); }
+.track-tag-create button:disabled { opacity: .45; }
+@media(max-width:760px) { .track-tags > button { font-size: 9px; } .track-tag-popover { max-height: min(360px, 70vh); overflow-y: auto; } }

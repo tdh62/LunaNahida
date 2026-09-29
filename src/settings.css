@@ -5,6 +5,10 @@
 .settings-heading h1 { margin: 10px 0 5px; font-size: 29px; font-weight: 600; }
 .settings-heading p, .settings-group-title p { margin: 0; color: #a5a5a8; font-size: 11px; }
 .settings-group { padding: 24px 0 26px; border-bottom: 1px solid var(--line); }
+.network-source-form { margin-bottom: 14px; }
+.network-source-form .lyric-font-select { width: 100%; max-width: none; }
+.network-source-form > .network-source-credentials { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 560px) { .network-source-form > .network-source-credentials { grid-template-columns: 1fr; } }
 .settings-group-title { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 20px; }
 .settings-group-title > svg { margin-top: 2px; color: var(--accent); }
 .settings-group-title h2 { margin: 0 0 4px; font-size: 16px; font-weight: 600; }
@@ -22,9 +26,14 @@
 .settings-theme-check { display: grid; place-items: center; position: absolute; top: 7px; right: 7px; color: var(--accent); }
 .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 60px; padding: 10px 0; border-top: 1px solid #28292b; }
 .settings-row > div:first-child { flex: none; }
+.backup-row > div:first-child { flex: 1; min-width: 0; max-width: 100%; }
 .settings-row strong, .settings-row small { display: block; }
 .settings-row strong { font-size: 12px; font-weight: 500; }
 .settings-row small { margin-top: 5px; color: #99999d; font-size: 10px; }
+.settings-scan-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 12px; min-width: 0; }
+.settings-scan-backup { display: inline-flex; align-items: center; gap: 6px; color: #b7b6ba; font-size: 11px; white-space: nowrap; cursor: pointer; }
+.settings-scan-backup input { margin: 0; accent-color: var(--accent); }
+.settings-scan-backup:has(input:disabled) { opacity: .6; cursor: default; }
 .settings-options { display: flex; justify-content: flex-end; gap: 4px; padding: 3px; border: 1px solid #343538; border-radius: 8px; background: #202123; }
 .settings-options button { min-height: 30px; padding: 5px 12px; border: 0; border-radius: 5px; background: transparent; color: #b7b6ba; font-size: 11px; white-space: nowrap; }
 .settings-options button:hover { color: #fff; }
@@ -63,6 +72,7 @@
   .settings-theme-label small { font-size: 9px; }
   .settings-theme-check { background: #202123; border-radius: 50%; }
   .settings-row { align-items: flex-start; flex-direction: column; gap: 10px; }
+  .settings-scan-actions { justify-content: flex-start; }
   .settings-options { justify-content: flex-start; flex-wrap: wrap; max-width: 100%; }
   .settings-options button { padding: 5px 9px; }
   .settings-eq-grid { gap: 6px; }

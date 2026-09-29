@@ -17,9 +17,10 @@ import (
 )
 
 type Dialogs struct {
-	Files  func() ([]string, error)
-	Folder func() (string, error)
-	Cover  func() (string, error)
+	Files      func() ([]string, error)
+	Folder     func() (string, error)
+	Cover      func() (string, error)
+	BackupSave func() (string, error)
 }
 
 type API struct {
@@ -57,6 +58,65 @@ func decode(r *http.Request, value any) error {
 
 func (a *API) Handler() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/backup", func(w http.ResponseWriter, r *http.Request) {
+		file, err := os.CreateTemp("", "lunanahida-export-*.zip")
+		if err != nil {
+			fail(w, 500, err)
+			return
+		}
+		defer os.Remove(file.Name())
+		defer file.Close()
+		if err = a.Store.ExportBackup(file); err != nil {
+			fail(w, 500, err)
+			return
+		}
+		if _, err = file.Seek(0, io.SeekStart); err != nil {
+			fail(w, 500, err)
+			return
+		}
+		w.Header().Set("Content-Type", "application/zip")
+		w.Header().Set("Content-Disposition", `attachment; filename="LunaNahida-backup.zip"`)
+		w.Header().Set("Cache-Control", "no-store")
+		http.ServeContent(w, r, "LunaNahida-backup.zip", time.Now(), file)
+	})
+	mux.HandleFunc("POST /api/backup/save", func(w http.ResponseWriter, r *http.Request) {
+		if a.Dialogs.BackupSave == nil {
+			respond(w, 200, map[string]bool{"available": false, "saved": false})
+			return
+		}
+		path, err := a.Dialogs.BackupSave()
+		if err != nil {
+			fail(w, 500, err)
+			return
+		}
+		if path == "" {
+			respond(w, 200, map[string]bool{"available": true, "saved": false})
+			return
+		}
+		if err = a.Store.SaveBackup(path); err != nil {
+			fail(w, 500, err)
+			return
+		}
+		respond(w, 200, map[string]bool{"available": true, "saved": true})
+	})
+	mux.HandleFunc("POST /api/backup/import", func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, maxBackupArchive+(1<<20))
+		file, _, err := r.FormFile("archive")
+		if r.MultipartForm != nil {
+			defer r.MultipartForm.RemoveAll()
+		}
+		if err != nil {
+			fail(w, 400, err)
+			return
+		}
+		defer file.Close()
+		result, err := a.Store.ImportBackup(file)
+		if err != nil {
+			fail(w, 400, err)
+			return
+		}
+		respond(w, 200, result)
+	})
 	mux.HandleFunc("GET /api/state", func(w http.ResponseWriter, r *http.Request) {
 		state, err := a.Store.State()
 		if err != nil {
@@ -175,6 +235,14 @@ func (a *API) Handler() http.Handler {
 	})
 	mux.HandleFunc("POST /api/cache/clear", func(w http.ResponseWriter, r *http.Request) {
 		stats, err := a.Store.ClearCache()
+		if err != nil {
+			fail(w, 500, err)
+			return
+		}
+		respond(w, 200, stats)
+	})
+	mux.HandleFunc("POST /api/cache/network/clear", func(w http.ResponseWriter, r *http.Request) {
+		stats, err := a.Store.ClearNetworkCache()
 		if err != nil {
 			fail(w, 500, err)
 			return
@@ -352,8 +420,9 @@ func (a *API) Handler() http.Handler {
 	})
 	mux.HandleFunc("POST /api/import", func(w http.ResponseWriter, r *http.Request) {
 		var input struct {
-			Paths []string `json:"paths"`
-			Mode  string   `json:"mode"`
+			Paths          []string `json:"paths"`
+			Mode           string   `json:"mode"`
+			SkipConversion bool     `json:"skipConversion"`
 		}
 		if err := decode(r, &input); err != nil {
 			fail(w, 400, err)
@@ -363,12 +432,66 @@ func (a *API) Handler() http.Handler {
 			fail(w, 400, errors.New("invalid paths"))
 			return
 		}
-		tracks, err := a.Store.Import(input.Paths, input.Mode)
+		var tracks []Track
+		var err error
+		if input.SkipConversion {
+			tracks, err = a.Store.ImportWithoutConversion(input.Paths, input.Mode)
+		} else {
+			tracks, err = a.Store.Import(input.Paths, input.Mode)
+		}
 		if err != nil {
 			fail(w, 400, err)
 			return
 		}
 		respond(w, 200, tracks)
+	})
+	mux.HandleFunc("POST /api/import/network", func(w http.ResponseWriter, r *http.Request) {
+		var input struct {
+			URL string `json:"url"`
+		}
+		if err := decode(r, &input); err != nil {
+			fail(w, 400, err)
+			return
+		}
+		track, err := a.Store.ImportNetwork(r.Context(), input.URL)
+		if err != nil {
+			fail(w, 400, err)
+			return
+		}
+		respond(w, 200, track)
+	})
+	mux.HandleFunc("POST /api/network/sources", func(w http.ResponseWriter, r *http.Request) {
+		var input struct {
+			Kind     string `json:"kind"`
+			URL      string `json:"url"`
+			Username string `json:"username"`
+			Password string `json:"password"`
+		}
+		if err := decode(r, &input); err != nil {
+			fail(w, 400, err)
+			return
+		}
+		source, scan, err := a.Store.AddNetworkSource(r.Context(), input.Kind, input.URL, input.Username, input.Password)
+		if err != nil {
+			fail(w, 400, err)
+			return
+		}
+		respond(w, 200, struct {
+			Source NetworkSource `json:"source"`
+			Scan   ScanResult    `json:"scan"`
+		}{source, scan})
+	})
+	mux.HandleFunc("DELETE /api/network/sources/{id}", func(w http.ResponseWriter, r *http.Request) {
+		id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+		if err != nil || id <= 0 {
+			fail(w, 400, errors.New("无效的网络来源"))
+			return
+		}
+		if err = a.Store.RemoveNetworkSource(id); err != nil {
+			fail(w, 500, err)
+			return
+		}
+		respond(w, 200, map[string]bool{"ok": true})
 	})
 	mux.HandleFunc("POST /api/conversion/inspect", func(w http.ResponseWriter, r *http.Request) {
 		var input struct {
@@ -451,7 +574,14 @@ func (a *API) Handler() http.Handler {
 		respond(w, 200, map[string]bool{"ok": true})
 	})
 	mux.HandleFunc("POST /api/scan", func(w http.ResponseWriter, r *http.Request) {
-		result, err := a.Store.Scan(r.Context())
+		var input struct {
+			BackupOriginal *bool `json:"backupOriginal"`
+		}
+		if err := decode(r, &input); err != nil || input.BackupOriginal == nil {
+			fail(w, 400, errors.New("请选择本次扫描是否保留源文件备份"))
+			return
+		}
+		result, err := a.Store.ScanManual(r.Context(), *input.BackupOriginal)
 		if err != nil {
 			fail(w, 409, err)
 			return
@@ -537,10 +667,14 @@ func (a *API) Handler() http.Handler {
 		}
 		respond(w, 200, map[string]string{"cover": cover})
 	})
-	mux.HandleFunc("GET /api/media/audio/{id}", func(w http.ResponseWriter, r *http.Request) {
+	audioHandler := func(w http.ResponseWriter, r *http.Request) {
 		id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 		if err != nil {
 			http.NotFound(w, r)
+			return
+		}
+		if _, err := a.Store.networkTrack(id); err == nil {
+			a.Store.ServeNetworkAudio(w, r, id)
 			return
 		}
 		path, err := a.Store.MediaPath(id)
@@ -562,7 +696,9 @@ func (a *API) Handler() http.Handler {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("Content-Type", audioMIME(filepath.Ext(path)))
 		http.ServeContent(w, r, info.Name(), info.ModTime(), file)
-	})
+	}
+	mux.HandleFunc("GET /api/media/audio/{id}", audioHandler)
+	mux.HandleFunc("HEAD /api/media/audio/{id}", audioHandler)
 	mux.HandleFunc("GET /api/media/cover/{name}", func(w http.ResponseWriter, r *http.Request) {
 		path, err := a.Store.CoverPath(r.PathValue("name"))
 		if err != nil {

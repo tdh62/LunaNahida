@@ -17,8 +17,6 @@
 .quick-queue-list .track-number { width: 20px; }
 .sidebar-controls.sidebar-bottom-controls { width: 100%; justify-content: flex-end; gap: 5px; margin-top: auto; padding-top: 14px; }
 .sidebar-toggle { border-radius: 5px; }
-.sidebar-now-playing { display: grid; place-items: center; width: 30px; height: 32px; margin-right: auto; border: 0; border-radius: 5px; background: transparent; color: #a6a6aa; }
-.sidebar-now-playing:hover, .sidebar-now-playing:focus-visible { background: var(--tint); color: var(--accent); }
 .sidebar-collapsed .sidebar-controls.sidebar-bottom-controls { justify-content: center; }
 .sidebar-restore { top: auto !important; bottom: 102px !important; left: 12px !important; }
 .music-app:not(.focus-mode) .workspace:not(.settings-workspace) .main-columns { height: 100%; }

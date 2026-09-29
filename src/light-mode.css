@@ -30,7 +30,7 @@ html.mode-light body { background: #f6f9f7; color: #25343a; }
   color: var(--light-muted);
 }
 .mode-light .nav-item, .mode-light .icon-button, .mode-light .sidebar-toggle,
-.mode-light .sidebar-now-playing, .mode-light .sidebar-restore,
+.mode-light .sidebar-restore,
 .mode-light .playlist-nav-add, .mode-light .playlist-nav-more,
 .mode-light .topbar, .mode-light .stage-top, .mode-light .text-action,
 .mode-light .artist-name, .mode-light .audio-caption, .mode-light .lyrics-header button,
@@ -50,15 +50,22 @@ html.mode-light body { background: #f6f9f7; color: #25343a; }
   color: var(--light-muted);
 }
 .mode-light .nav-item:hover, .mode-light .nav-item.selected,
-.mode-light .sidebar .playlist-nav .nav-item,
-.mode-light .import-actions .nav-item, .mode-light .sidebar-restore,
+.mode-light .sidebar-restore,
 .mode-light .queue-track:hover, .mode-light .library-row:hover,
 .mode-light .library-row.is-current, .mode-light .quick-queue-list .queue-track:hover {
   background: #e3ebe6; color: var(--light-text);
 }
-.mode-light .sidebar .nav-item:hover, .mode-light .sidebar .nav-item.selected,
 .mode-light .sidebar .playlist-nav .nav-item, .mode-light .sidebar .import-actions .nav-item {
+  background: transparent;
+  box-shadow: none;
+}
+.mode-light .sidebar .nav-item:hover, .mode-light .sidebar .nav-item.selected,
+.mode-light .sidebar .nav-item:focus-visible {
   background: var(--sidebar-highlight);
+}
+.mode-light .sidebar .nav-item.track-drop-target {
+  background: var(--tint);
+  box-shadow: inset 0 0 0 1px var(--accent);
 }
 .mode-light .header-separator { background: var(--line); }
 .mode-light .stage-top, .mode-light .lyrics-header, .mode-light .stage-toolbar,
@@ -93,7 +100,7 @@ html.mode-light body { background: #f6f9f7; color: #25343a; }
 .mode-light .settings-switch { background: #b2c2b9; }
 .mode-light .settings-switch.on span { background: #fff; }
 .mode-light .settings-eq-grid label, .mode-light .lyric-setting-control label,
-.mode-light .artist-mapping-form label, .mode-light .playlist-field,
+.mode-light .artist-mapping-form label, .mode-light .settings-scan-backup, .mode-light .playlist-field,
 .mode-light .cover-picker legend { color: var(--light-text); }
 .mode-light .settings-row small, .mode-light .artist-mapping-item small,
 .mode-light .artist-mapping-form input::placeholder,

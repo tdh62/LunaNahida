@@ -75,6 +75,9 @@ func main() {
 		Cover: func() (string, error) {
 			return app.Dialog.OpenFile().CanChooseFiles(true).CanChooseDirectories(false).SetTitle("选择歌单封面").AddFilter("图片文件", "*.jpg;*.jpeg;*.png;*.webp;*.gif").PromptForSingleSelection()
 		},
+		BackupSave: func() (string, error) {
+			return app.Dialog.SaveFile().SetFilename("LunaNahida-"+time.Now().Format("2006-01-02")+".zip").AddFilter("ZIP 备份", "*.zip").PromptForSingleSelection()
+		},
 	})
 	apiHandler = api.Handler()
 	window := app.Window.NewWithOptions(application.WebviewWindowOptions{

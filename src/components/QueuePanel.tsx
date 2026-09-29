@@ -14,12 +14,31 @@ export default function QueuePanel({ player: p, onViewInfo, onRefreshInfo, onSav
   const [compact, setCompact] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const anchor = useRef<number | null>(null);
+  const lastTrackId = useRef(p.trackId);
   const [dragged, setDragged] = useState<number | null>(null);
   const [over, setOver] = useState<number | null>(null);
   const [overDelete, setOverDelete] = useState(false);
   const [overExternal, setOverExternal] = useState(false);
   const selected = selectedIds.filter(id => p.queue.some(track => track.id === id));
   const selectedTracks = p.queue.filter(track => selected.includes(track.id) && track.available !== false && track.playbackStatus !== 'unplayable');
+
+  useEffect(() => {
+    if (lastTrackId.current === p.trackId) return;
+    lastTrackId.current = p.trackId;
+    if (p.trackId === null || selected.length > 1 || !p.queue.some(track => track.id === p.trackId)) return;
+
+    setSelectedIds([p.trackId]);
+    anchor.current = p.trackId;
+    if (document.querySelector('.quick-queue-panel')) return;
+    const list = document.querySelector<HTMLDivElement>('.queue-panel .queue-list');
+    const row = list?.querySelector<HTMLButtonElement>('.queue-track.current');
+    if (!list || !row) return;
+    row.focus({ preventScroll: true });
+    const listBounds = list.getBoundingClientRect();
+    const rowBounds = row.getBoundingClientRect();
+    if (rowBounds.top < listBounds.top) list.scrollTop -= listBounds.top - rowBounds.top;
+    else if (rowBounds.bottom > listBounds.bottom) list.scrollTop += rowBounds.bottom - listBounds.bottom;
+  }, [p.trackId, p.queue, selected.length]);
 
   useEffect(() => {
     const selectAll = (event: globalThis.KeyboardEvent) => {

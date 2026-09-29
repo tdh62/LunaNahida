@@ -6,9 +6,12 @@ import (
 	"crypto/aes"
 	"encoding/base64"
 	"encoding/binary"
+	"encoding/json"
 	"image"
 	"image/color"
 	"image/png"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -363,6 +366,136 @@ func TestAutoConvertImportAndScan(t *testing.T) {
 	state, err := store.State()
 	if err != nil || len(state.Tracks) != 2 {
 		t.Fatalf("library after scan: %+v, %v", state.Tracks, err)
+	}
+}
+
+func TestImportSkipsConversionUntilToolbox(t *testing.T) {
+	for _, folderInput := range []bool{false, true} {
+		name := "mixed files"
+		if folderInput {
+			name = "folder"
+		}
+		t.Run(name, func(t *testing.T) {
+			store := testStore(t)
+			settings, err := store.Settings()
+			if err != nil {
+				t.Fatal(err)
+			}
+			settings.AutoConvert = true
+			if err = store.SaveSettings(settings); err != nil {
+				t.Fatal(err)
+			}
+			folder := t.TempDir()
+			encrypted, _, _ := qmcFixture(t, folder, "encrypted")
+			plain := filepath.Join(folder, "plain.wav")
+			if err = os.WriteFile(plain, []byte("RIFFsample audio"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			canonicalEncrypted, err := canonical(encrypted)
+			if err != nil {
+				t.Fatal(err)
+			}
+			canonicalPlain, err := canonical(plain)
+			if err != nil {
+				t.Fatal(err)
+			}
+			paths := []string{encrypted, plain}
+			if folderInput {
+				paths = []string{folder}
+			}
+			api := NewAPI(store, Dialogs{}).Handler()
+			post := func(endpoint string, body any) *httptest.ResponseRecorder {
+				data, marshalErr := json.Marshal(body)
+				if marshalErr != nil {
+					t.Fatal(marshalErr)
+				}
+				response := httptest.NewRecorder()
+				api.ServeHTTP(response, httptest.NewRequest(http.MethodPost, endpoint, bytes.NewReader(data)))
+				return response
+			}
+			inspected := post("/api/conversion/inspect", map[string]any{"paths": paths})
+			var found struct {
+				Paths []string `json:"paths"`
+			}
+			if inspected.Code != http.StatusOK || json.Unmarshal(inspected.Body.Bytes(), &found) != nil || len(found.Paths) != 1 || found.Paths[0] != canonicalEncrypted {
+				t.Fatalf("inspect: status=%d body=%s", inspected.Code, inspected.Body.String())
+			}
+			imported := post("/api/import", map[string]any{"paths": paths, "mode": "library", "skipConversion": true})
+			var tracks []Track
+			if imported.Code != http.StatusOK || json.Unmarshal(imported.Body.Bytes(), &tracks) != nil || len(tracks) != 1 || tracks[0].Path != canonicalPlain {
+				t.Fatalf("plain import: status=%d body=%s", imported.Code, imported.Body.String())
+			}
+			if _, err = os.Stat(encrypted); err != nil {
+				t.Fatalf("encrypted source changed before conversion: %v", err)
+			}
+			if _, err = os.Stat(filepath.Join(folder, "encrypted.mp3")); !os.IsNotExist(err) {
+				t.Fatalf("encrypted output appeared before toolbox conversion: %v", err)
+			}
+			converted := post("/api/conversion", map[string]any{"path": encrypted, "addToLibrary": true})
+			var result ConversionResult
+			if converted.Code != http.StatusOK || json.Unmarshal(converted.Body.Bytes(), &result) != nil || result.Status != "converted" || result.Track == nil {
+				t.Fatalf("toolbox conversion: status=%d body=%s", converted.Code, converted.Body.String())
+			}
+			state, err := store.State()
+			if err != nil || len(state.Tracks) != 2 {
+				t.Fatalf("library after conversion: %+v, %v", state.Tracks, err)
+			}
+		})
+	}
+}
+
+func TestManualScanConvertsWithOneTimeBackupChoice(t *testing.T) {
+	for _, backup := range []bool{false, true} {
+		name := "without backup"
+		if backup {
+			name = "with backup"
+		}
+		t.Run(name, func(t *testing.T) {
+			store := testStore(t)
+			settings, err := store.Settings()
+			if err != nil {
+				t.Fatal(err)
+			}
+			settings.BackupOriginal = !backup
+			if err = store.SaveSettings(settings); err != nil {
+				t.Fatal(err)
+			}
+			folder := t.TempDir()
+			source, _, want := qmcFixture(t, folder, "song")
+			if err = os.WriteFile(filepath.Join(folder, "broken.ncm"), []byte("invalid"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if err = store.AddFolder(folder); err != nil {
+				t.Fatal(err)
+			}
+			autoResult, err := store.Scan(context.Background())
+			if err != nil || autoResult.Converted != 0 {
+				t.Fatalf("automatic scan should respect disabled conversion: %+v, %v", autoResult, err)
+			}
+			if _, err = os.Stat(source); err != nil {
+				t.Fatalf("automatic scan changed source: %v", err)
+			}
+			result, err := store.ScanManual(context.Background(), backup)
+			if err != nil || result.Added != 1 || result.Converted != 1 || len(result.Errors) != 1 {
+				t.Fatalf("manual scan: %+v, %v", result, err)
+			}
+			output, err := os.ReadFile(filepath.Join(folder, "song.mp3"))
+			if err != nil || !bytes.Equal(output, want) {
+				t.Fatalf("converted output: %v", err)
+			}
+			if _, err = os.Stat(source); !os.IsNotExist(err) {
+				t.Fatalf("source should be retired: %v", err)
+			}
+			backupPath := filepath.Join(folder, backupFolder, "song.qmc0")
+			_, backupErr := os.Stat(backupPath)
+			if backup && backupErr != nil || !backup && !os.IsNotExist(backupErr) {
+				t.Fatalf("one-time backup choice was ignored: %v", backupErr)
+			}
+			after, err := store.Settings()
+			if err != nil || after.AutoConvert || after.BackupOriginal != settings.BackupOriginal {
+				t.Fatalf("manual scan changed saved settings: %+v, %v", after, err)
+			}
+		})
 	}
 }
 

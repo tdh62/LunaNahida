@@ -10,6 +10,7 @@ require (
 	github.com/go-flac/flacpicture v0.3.0
 	github.com/go-flac/flacvorbis v0.2.0
 	github.com/go-flac/go-flac v1.0.0
+	github.com/jlaffaye/ftp v0.2.4
 	github.com/longbridgeapp/opencc v0.3.13
 	go.uber.org/zap v1.27.0
 	golang.org/x/text v0.42.0

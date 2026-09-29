@@ -651,7 +651,7 @@ func testStore(t *testing.T) *Store {
 	return store
 }
 
-func TestLibraryImportAndRestore(t *testing.T) {
+func TestLibraryImportAndMissingCleanup(t *testing.T) {
 	store := testStore(t)
 	state, err := store.State()
 	if err != nil || len(state.Tracks) != 0 || len(state.Playlists) != 0 {
@@ -686,12 +686,15 @@ func TestLibraryImportAndRestore(t *testing.T) {
 	if err = os.Remove(path); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = store.Scan(context.Background()); err != nil {
+	result, err := store.Scan(context.Background())
+	if err != nil {
 		t.Fatal(err)
 	}
-	missing, err := store.GetTrack(id)
-	if err != nil || missing.Available {
-		t.Fatalf("missing track was lost or available: %+v, %v", missing, err)
+	if result.Removed != 1 || result.Missing != 1 {
+		t.Fatalf("missing track was not cleaned: %+v", result)
+	}
+	if _, err = store.GetTrack(id); !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("missing track still exists: %v", err)
 	}
 	if err = os.WriteFile(path, []byte("RIFFsample audio"), 0600); err != nil {
 		t.Fatal(err)
@@ -699,9 +702,79 @@ func TestLibraryImportAndRestore(t *testing.T) {
 	if _, err = store.Scan(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	restored, err := store.GetTrack(id)
-	if err != nil || !restored.Available || restored.ID != id {
-		t.Fatalf("restored track changed id: %+v, %v", restored, err)
+	state, err = store.State()
+	if err != nil || len(state.Tracks) != 1 || !state.Tracks[0].Available {
+		t.Fatalf("returned file was not reimported: %+v, %v", state, err)
+	}
+}
+
+func TestScanCleansMovedTracksAndPlaylistReferences(t *testing.T) {
+	store := testStore(t)
+	folder := t.TempDir()
+	oldPath := filepath.Join(folder, "old.wav")
+	newPath := filepath.Join(folder, "new.wav")
+	if err := os.WriteFile(oldPath, []byte("RIFFsample audio"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	tracks, err := store.Import([]string{folder}, "watch")
+	if err != nil || len(tracks) != 1 {
+		t.Fatalf("watch import: %+v, %v", tracks, err)
+	}
+	oldID := tracks[0].ID
+	if err = store.SavePlaylists([]Playlist{{ID: "saved", Name: "Saved", TrackIDs: []int64{oldID}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err = store.SaveIDs("liked", []int64{oldID}); err != nil {
+		t.Fatal(err)
+	}
+	if err = store.SaveIDs("queue", []int64{oldID}); err != nil {
+		t.Fatal(err)
+	}
+	if err = os.Rename(oldPath, newPath); err != nil {
+		t.Fatal(err)
+	}
+	result, err := store.Scan(context.Background())
+	if err != nil || result.Added != 1 || result.Removed != 1 || result.Missing != 1 {
+		t.Fatalf("moved file scan: %+v, %v", result, err)
+	}
+	canonicalNewPath, err := canonical(newPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := store.State()
+	if err != nil || len(state.Tracks) != 1 || state.Tracks[0].Path != canonicalNewPath || state.Tracks[0].ID == oldID || len(state.Playlists[0].TrackIDs) != 0 || len(state.Liked) != 0 || len(state.Queue) != 0 {
+		t.Fatalf("moved file cleanup: %+v, %v", state, err)
+	}
+	if _, err = os.Stat(newPath); err != nil {
+		t.Fatalf("music file was removed: %v", err)
+	}
+}
+
+func TestScanKeepsTracksWhenWatchedFolderIsUnavailable(t *testing.T) {
+	store := testStore(t)
+	parent := t.TempDir()
+	folder := filepath.Join(parent, "watched")
+	if err := os.Mkdir(folder, 0700); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(folder, "song.wav")
+	if err := os.WriteFile(path, []byte("RIFFsample audio"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	tracks, err := store.Import([]string{folder}, "watch")
+	if err != nil || len(tracks) != 1 {
+		t.Fatalf("watch import: %+v, %v", tracks, err)
+	}
+	if err = os.Rename(folder, filepath.Join(parent, "disconnected")); err != nil {
+		t.Fatal(err)
+	}
+	result, err := store.Scan(context.Background())
+	if err != nil || result.Removed != 0 || len(result.Errors) != 1 {
+		t.Fatalf("unavailable folder scan: %+v, %v", result, err)
+	}
+	track, err := store.GetTrack(tracks[0].ID)
+	if err != nil || !track.Available {
+		t.Fatalf("temporarily unavailable track was removed: %+v, %v", track, err)
 	}
 }
 
@@ -786,8 +859,8 @@ func TestDatabaseSurvivesRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	state, err = store.State()
-	if err != nil || state.Tracks[0].Available == true || len(state.Playlists[0].TrackIDs) != 1 {
-		t.Fatalf("unwatched missing file handling failed: %+v, %v", state, err)
+	if err != nil || len(state.Tracks) != 0 || len(state.Playlists[0].TrackIDs) != 0 || len(state.Liked) != 0 {
+		t.Fatalf("unwatched missing file cleanup failed: %+v, %v", state, err)
 	}
 }
 

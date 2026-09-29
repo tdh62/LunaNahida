@@ -8,6 +8,7 @@ export const defaultScopeSettings: ScopeSettings = { mode: 'spectrum', fftSize: 
 
 export type StoredSettings = {
   dropAction: 'ask' | 'temporary' | 'library' | 'watch';
+  networkCacheCount: number;
   scanOnStart: boolean;
   scanIntervalMinutes: number;
   autoConvert: boolean;
@@ -28,10 +29,12 @@ export type StoredSettings = {
   equalizer: number[];
 };
 
-export type LibraryState = { tracks: Track[]; tags: string[]; playlists: Playlist[]; liked: number[]; recent: number[]; queue: number[]; folders: string[]; settings: StoredSettings };
-export type ScanResult = { added: number; updated: number; missing: number; folders: number; errors: string[] };
+export type NetworkSource = { id: number; kind: 'webdav' | 'ftp' | 'ftps' | 'playlist'; url: string; username: string };
+export type LibraryState = { tracks: Track[]; tags: string[]; playlists: Playlist[]; liked: number[]; recent: number[]; queue: number[]; folders: string[]; networkSources: NetworkSource[]; settings: StoredSettings };
+export type ScanResult = { added: number; updated: number; missing: number; removed: number; folders: number; converted: number; errors: string[] };
 export type ConversionResult = { source: string; output?: string; backup?: string; status: 'converted' | 'failed'; error?: string; track?: Track };
-export type CacheStats = { coverBytes: number; webviewBytes: number; metadataBytes: number; totalBytes: number; webviewClearPending: boolean };
+export type CacheStats = { coverBytes: number; webviewBytes: number; metadataBytes: number; networkAudioBytes: number; totalBytes: number; webviewClearPending: boolean };
+export type BackupImportResult = { tracks: number; playlists: number; tags: number; covers: number };
 
 async function request<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
   const response = await fetch(path, { method, headers: body === undefined ? undefined : { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
@@ -58,13 +61,33 @@ export const backend = {
   updateTrackMetadata: (id: number, title: string, artist: string, album: string) => request<Track>(`/api/tracks/${id}/metadata`, 'PUT', { title, artist, album }),
   enrichment: (id: number, cover: string, lyric: string, translation: string, fallbackOnly = false) => request<{ ok: boolean }>(`/api/tracks/${id}/enrichment${fallbackOnly ? '?fallback=1' : ''}`, 'PUT', { cover, lyric, translation }),
   saveLyrics: (track: Track) => request<Track>(`/api/tracks/${track.id}/lyrics`, 'POST', { lyrics: track.lyrics }),
-  import: (paths: string[], mode: 'temporary' | 'library' | 'watch') => request<Track[]>('/api/import', 'POST', { paths, mode }),
+  import: (paths: string[], mode: 'temporary' | 'library' | 'watch', skipConversion = false) => request<Track[]>('/api/import', 'POST', { paths, mode, skipConversion }),
+  importNetwork: (url: string) => request<Track>('/api/import/network', 'POST', { url }),
+  addNetworkSource: (kind: NetworkSource['kind'], url: string, username: string, password: string) => request<{ source: NetworkSource; scan: ScanResult }>('/api/network/sources', 'POST', { kind, url, username, password }),
+  removeNetworkSource: (id: number) => request<{ ok: boolean }>(`/api/network/sources/${id}`, 'DELETE'),
   inspectConversion: (paths: string[]) => request<{ paths: string[] }>('/api/conversion/inspect', 'POST', { paths }),
   convert: (path: string, addToLibrary: boolean) => request<ConversionResult>('/api/conversion', 'POST', { path, addToLibrary }),
   playbackStatus: (id: number, status: 'unknown' | 'playable' | 'unplayable') => request<{ ok: boolean }>(`/api/tracks/${id}/playback`, 'PUT', { status }),
-  scan: () => request<ScanResult>('/api/scan', 'POST'),
+  scan: (backupOriginal: boolean) => request<ScanResult>('/api/scan', 'POST', { backupOriginal }),
   cacheStats: () => request<CacheStats>('/api/cache'),
+  saveBackupNative: () => request<{ available: boolean; saved: boolean }>('/api/backup/save', 'POST'),
+  exportBackup: async () => {
+    const response = await fetch('/api/backup');
+    if (!response.ok) throw new Error('导出备份失败');
+    return response.blob();
+  },
+  importBackup: async (file: File) => {
+    const form = new FormData();
+    form.append('archive', file);
+    const response = await fetch('/api/backup/import', { method: 'POST', body: form });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({})) as { error?: string };
+      throw new Error(payload.error || '导入备份失败');
+    }
+    return response.json() as Promise<BackupImportResult>;
+  },
   clearCache: () => request<CacheStats>('/api/cache/clear', 'POST'),
+  clearNetworkCache: () => request<CacheStats>('/api/cache/network/clear', 'POST'),
   addFolder: (path: string) => request<{ ok: boolean }>('/api/folders', 'POST', { path }),
   removeFolder: (path: string) => request<{ ok: boolean }>('/api/folders', 'DELETE', { path }),
   chooseFiles: () => request<{ paths: string[] }>('/api/dialog/files'),

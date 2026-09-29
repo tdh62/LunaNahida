@@ -14,6 +14,7 @@ type CacheStats struct {
 	CoverBytes          int64 `json:"coverBytes"`
 	WebviewBytes        int64 `json:"webviewBytes"`
 	MetadataBytes       int64 `json:"metadataBytes"`
+	NetworkAudioBytes   int64 `json:"networkAudioBytes"`
 	TotalBytes          int64 `json:"totalBytes"`
 	WebviewClearPending bool  `json:"webviewClearPending"`
 }
@@ -54,6 +55,10 @@ func (s *Store) CacheStats() (CacheStats, error) {
 	if err != nil {
 		return stats, err
 	}
+	stats.NetworkAudioBytes, err = s.networkCacheSize()
+	if err != nil {
+		return stats, err
+	}
 	err = s.DB.QueryRow(`SELECT COALESCE(SUM(LENGTH(CAST(key AS BLOB))+LENGTH(CAST(value AS BLOB))),0) FROM metadata_cache`).Scan(&stats.MetadataBytes)
 	if err != nil {
 		return stats, err
@@ -64,7 +69,7 @@ func (s *Store) CacheStats() (CacheStats, error) {
 		return stats, err
 	}
 	stats.WebviewClearPending = pending == "1"
-	stats.TotalBytes = stats.CoverBytes + stats.WebviewBytes + stats.MetadataBytes
+	stats.TotalBytes = stats.CoverBytes + stats.WebviewBytes + stats.MetadataBytes + stats.NetworkAudioBytes
 	return stats, nil
 }
 
@@ -161,7 +166,7 @@ func (s *Store) ClearCache() (CacheStats, error) {
 		}
 	}
 	_, _ = s.DB.Exec(`VACUUM`)
-	return s.CacheStats()
+	return s.ClearNetworkCache()
 }
 
 func (s *Store) ClearPendingWebviewCache() error {
