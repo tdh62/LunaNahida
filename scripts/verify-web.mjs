@@ -5,6 +5,7 @@ import { resolve, extname } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { emptyLibrary } from '../src/lib/runtime.ts';
 import { defaultWorkTimer } from '../src/lib/work-timer.ts';
+import { defaultTimerReminders } from '../src/lib/timer-reminders.ts';
 
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : 'playwright');
 const root = resolve('dist');
@@ -57,6 +58,21 @@ async function setup({ backend = false, desktop = false, lateDesktop = false, vi
     window.releasedURLs = [];
     URL.revokeObjectURL = source => { window.releasedURLs.push(source); revoke(source); };
     const createAnalyser = AudioContext.prototype.createAnalyser;
+    const createOscillator = AudioContext.prototype.createOscillator;
+    window.timerTones = [];
+    AudioContext.prototype.createOscillator = function () {
+      const oscillator = createOscillator.call(this);
+      const start = oscillator.start.bind(oscillator);
+      oscillator.start = time => { window.timerTones.push(oscillator.frequency.value); start(time); };
+      return oscillator;
+    };
+    window.timerNotifications = [];
+    window.notificationPermission = 'granted';
+    window.Notification = class {
+      static get permission() { return window.notificationPermission; }
+      static async requestPermission() { return window.notificationPermission; }
+      constructor(title, options) { window.timerNotifications.push({ title, options }); }
+    };
     window.analysisNodes = [];
     AudioContext.prototype.createAnalyser = function () {
       const node = createAnalyser.call(this);
@@ -90,6 +106,7 @@ async function setup({ backend = false, desktop = false, lateDesktop = false, vi
     if (path === '/api/capabilities') await route.fulfill({ json: { application: 'LunaNahida', nativeFiles: desktop, nativeFolders: desktop, nativeCover: desktop, nativeBackup: desktop } });
     else if (path === '/api/state') await route.fulfill({ json: state });
     else if (path === '/api/timer') await route.fulfill({ json: { timer: defaultWorkTimer, serverNow: Date.now() } });
+    else if (path === '/api/timer/reminders') await route.fulfill({ json: route.request().method() === 'PUT' ? route.request().postDataJSON() : defaultTimerReminders });
     else if (path === '/api/cache') await route.fulfill({ json: { coverBytes: 0, webviewBytes: 100, metadataBytes: 0, networkAudioBytes: 0, totalBytes: 100, webviewClearPending: false } });
     else if (path === '/api/dialog/files' || path === '/api/dialog/folder') await route.fulfill({ json: { paths: [] } });
     else if (path === '/api/conversion/inspect') await route.fulfill({ json: { paths: [] } });
@@ -149,11 +166,32 @@ try {
   assert.equal(await page.getByRole('button', { name: '格式还原', exact: true }).isDisabled(), true);
   assert.equal(await page.getByRole('button', { name: '曲库整理', exact: true }).isDisabled(), true);
   await page.getByRole('button', { name: '计时器', exact: true }).click();
+  assert.equal(await page.getByRole('checkbox', { name: '播放音效' }).isChecked(), false);
+  assert.equal(await page.getByRole('checkbox', { name: '桌面通知' }).isChecked(), false);
+  await page.getByRole('checkbox', { name: '播放音效' }).check();
+  await page.getByRole('combobox', { name: '提醒音效' }).selectOption('bell');
+  await page.getByRole('button', { name: '试听音效' }).click();
+  await page.waitForFunction(() => window.timerTones.length === 3);
+  await page.getByRole('checkbox', { name: '桌面通知' }).check();
   await page.getByRole('spinbutton', { name: '倒计时分钟' }).fill('0');
   await page.getByRole('spinbutton', { name: '倒计时秒' }).fill('2');
+  await page.evaluate(() => Object.defineProperty(document, 'hidden', { configurable: true, value: true }));
   await page.getByRole('button', { name: '开始计时', exact: true }).click();
   await page.getByRole('button', { name: '重新开始', exact: true }).waitFor();
+  await page.waitForFunction(() => window.timerTones.length === 6 && window.timerNotifications.length === 1);
+  await page.evaluate(() => Object.defineProperty(document, 'hidden', { configurable: true, value: false }));
+  assert.deepEqual(await page.evaluate(() => window.timerTones), [880, 1320, 1760, 880, 1320, 1760]);
+  await page.screenshot({ path: resolve(output, 'timer-reminders.png') });
+  await page.getByRole('checkbox', { name: '播放音效' }).uncheck();
+  await page.getByRole('checkbox', { name: '桌面通知' }).uncheck();
+  await page.getByRole('button', { name: '重新开始', exact: true }).click();
+  await page.getByRole('button', { name: '重新开始', exact: true }).waitFor();
+  assert.equal(await page.evaluate(() => window.timerTones.length), 6);
+  assert.equal(await page.evaluate(() => window.timerNotifications.length), 1);
   await page.getByRole('button', { name: '清除计时', exact: true }).click();
+  await page.evaluate(() => { window.notificationPermission = 'denied'; });
+  await page.getByRole('checkbox', { name: '桌面通知' }).click();
+  await page.waitForFunction(() => !document.querySelector('.work-timer-option:last-child input').checked);
   await page.getByRole('button', { name: '返回工具箱', exact: true }).click();
   await page.getByRole('button', { name: '噪音发生器', exact: true }).click();
   await page.getByRole('button', { name: '播放噪音', exact: true }).click();
@@ -288,6 +326,14 @@ try {
   await mobile.page.locator('input[type=file][multiple]').setInputFiles(file);
   await mobile.page.locator('.album-title h2').waitFor();
   await mobile.page.screenshot({ path: resolve(output, 'web-mobile.png'), fullPage: true });
+  await mobile.page.getByRole('button', { name: '音频工具箱', exact: true }).click();
+  await mobile.page.getByRole('button', { name: '计时器', exact: true }).click();
+  await mobile.page.getByRole('button', { name: '试听音效' }).scrollIntoViewIfNeeded();
+  await mobile.page.screenshot({ path: resolve(output, 'timer-reminders-mobile.png') });
+  assert.deepEqual(await mobile.page.locator('.work-timer-reminders').evaluate(element => [...element.querySelectorAll('label, select, button, input')].filter(child => {
+    const bounds = child.getBoundingClientRect();
+    return bounds.left < 0 || bounds.right > innerWidth;
+  }).map(child => child.outerHTML)), []);
   assert.deepEqual(mobile.errors, []);
   await mobile.page.close();
   console.log('PASS mobile Web render');

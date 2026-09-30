@@ -19,6 +19,7 @@ LunaNahida supports three environments. Backend availability and native dialog s
 | Backup import/export | Native export or download | Browser upload/download | Disabled |
 | Appearance and audio settings | Stored by Go | Stored by Go | Current session only |
 | Work timer | Stored by Go | Stored by Go | Current session only |
+| Timer completion reminders | Selectable sound and native notification | Selectable sound and browser notification | Selectable sound and browser notification; current session only |
 | Noise and sleep timer | Available | Available | Available when browser audio support allows |
 
 ## Browser Files
