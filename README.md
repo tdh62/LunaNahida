@@ -26,7 +26,13 @@ The toolbox also includes **噪音发生器** for continuous white, pink, and br
 
 `corepack pnpm install --frozen-lockfile` installs the frontend dependencies.
 `corepack pnpm dev` starts the local Go API on `127.0.0.1:8787` and Vite on `127.0.0.1:8080`.
-The browser preview uses the same Go API as the desktop app. Native dialogs and true file paths require Wails; in the browser preview, enter an absolute folder path in Settings.
+The browser preview uses the same Go API as the desktop app. Browser-selected or dropped songs play only in the current session and never enter the backend library. Native dialogs and true file paths require Wails; to manage watched folders in the browser preview, enter a folder path accessible to the Go backend in Settings.
+
+## Standalone Web
+
+`corepack pnpm dev:web` runs the frontend without a Go API proxy. `corepack pnpm build:web` writes the static frontend to `dist`; `corepack pnpm preview` serves it at `http://127.0.0.1:8082` without proxying to Go.
+
+Standalone Web supports temporary local file playback, queue ordering, audio effects, spectrum, appearance settings, noise (where supported), sleep timing, and a session-only work timer. Library management, native paths, scanning, conversion, organization, online music services, backend caches and backups are disabled. Refreshing clears temporary files and the session timer; no browser music database is created. Static hosting needs an `index.html` fallback for application routes. See `docs/web-mode.md` for the capability matrix and verification commands.
 
 ## Desktop build
 

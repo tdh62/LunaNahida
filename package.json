@@ -11,7 +11,7 @@
     "build": "vite build",
     "build:web": "vite build --mode web",
     "test:frontend": "node --experimental-transform-types --test src/lib/*.test.mjs",
-    "test:web": "node --experimental-transform-types scripts/verify-web.mjs",
+    "test:web": "vite build --mode web && node --experimental-transform-types scripts/verify-web.mjs",
     "build:desktop": "vite build && go build -tags production -o bin/LunaNahida.exe .",
     "build:portable": "vite build && node scripts/build-portable.mjs",
     "build:dev": "vite build --mode development",
