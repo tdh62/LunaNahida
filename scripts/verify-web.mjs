@@ -41,7 +41,7 @@ function wav() {
 const audio = wav();
 const file = { name: 'browser-sample.wav', mimeType: 'audio/wav', buffer: audio };
 
-async function setup({ backend = false, desktop = false, lateDesktop = false, viewport = { width: 1280, height: 800 } } = {}) {
+async function setup({ backend = false, desktop = false, lateDesktop = false, trackTitle = 'Native Song', viewport = { width: 1280, height: 800 } } = {}) {
   const page = await browser.newPage({ viewport });
   const errors = [];
   const requests = [];
@@ -111,7 +111,7 @@ async function setup({ backend = false, desktop = false, lateDesktop = false, vi
     else if (path === '/api/dialog/files' || path === '/api/dialog/folder') await route.fulfill({ json: { paths: [] } });
     else if (path === '/api/conversion/inspect') await route.fulfill({ json: { paths: [] } });
     else if (path === '/api/import') {
-      state.tracks = [{ id: 1, title: 'Native Song', english: '', artist: '本地文件', album: 'Native Album', duration: 30, cover: '/covers/local.svg', genre: '', year: '', color: '#8daab0', source: '/api/media/audio/1', path: 'C:/music/native.wav' }];
+      state.tracks = [{ id: 1, title: trackTitle, english: '', artist: '本地文件', album: 'Native Album', duration: 30, cover: '/covers/local.svg', genre: '', year: '', color: '#8daab0', source: '/api/media/audio/1', path: 'C:/music/native.wav' }];
       await route.fulfill({ json: state.tracks });
     } else if (path === '/api/media/audio/1') await route.fulfill({ contentType: 'audio/wav', body: audio });
     else await route.fulfill({ json: path === '/api/settings' ? JSON.parse(route.request().postData()) : { ok: true } });
@@ -266,6 +266,8 @@ try {
     assert.equal(native.nativeWindow.resizable, false);
     assert.deepEqual(native.page.viewportSize(), { width: 400, height: 168 });
     assert.equal(await mini.locator('strong').innerText(), 'Native Song');
+    assert.equal(await mini.locator('.mini-title.is-scrolling').count(), 0);
+    assert.equal(await mini.getByText('LunaNahida', { exact: true }).count(), 0);
     assert.ok(Number(await mini.getByRole('slider', { name: '播放进度' }).inputValue()) >= Number(playbackBefore), 'switching preserves playback position');
     assert.equal(native.requests.filter(request => request.path === '/api/media/audio/1').length, streamsBefore, 'switching keeps the existing audio element and stream');
     await mini.getByRole('button', { name: '暂停', exact: true }).click();
@@ -313,6 +315,35 @@ try {
   assert.deepEqual(native.errors, []);
   await native.page.close();
   console.log('PASS simulated desktop: native dialogs, drops, mini window round trips, uninterrupted playback and compact controls');
+
+  const longTitle = '一首很长的歌曲名称 / A long song title with a complete ending';
+  const scrolling = await setup({ backend: true, desktop: true, trackTitle: longTitle });
+  await scrolling.page.waitForFunction(() => typeof window._wails?.dispatchWailsEvent === 'function');
+  await scrolling.page.evaluate(() => window._wails.dispatchWailsEvent({ name: 'lunanahida:files-dropped', data: ['C:/music/native.wav'] }));
+  await scrolling.page.locator('.album-title h2').filter({ hasText: longTitle }).waitFor();
+  await scrolling.page.getByRole('button', { name: '迷你模式', exact: true }).click();
+  const scrollingTitle = scrolling.page.locator('.mini-title.is-scrolling');
+  await scrollingTitle.waitFor();
+  assert.equal(await scrollingTitle.innerText(), longTitle);
+  const titleBounds = await scrollingTitle.evaluate(element => {
+    const text = element.querySelector('span');
+    const animation = text.getAnimations()[0];
+    animation.pause();
+    animation.currentTime = 0;
+    const beginning = text.getBoundingClientRect().left;
+    animation.currentTime = animation.effect.getTiming().duration;
+    return { beginning, end: text.getBoundingClientRect().right, left: element.getBoundingClientRect().left, right: element.getBoundingClientRect().right, width: element.clientWidth };
+  });
+  assert.ok(titleBounds.width <= 256);
+  assert.ok(Math.abs(titleBounds.beginning - titleBounds.left) <= 1);
+  assert.ok(Math.abs(titleBounds.end - titleBounds.right) <= 1, 'scrolling reveals the end of the complete title');
+  await scrolling.page.screenshot({ path: resolve(output, 'mini-player-long-title.png') });
+  await scrolling.page.emulateMedia({ reducedMotion: 'reduce' });
+  assert.equal(await scrollingTitle.locator('span').evaluate(element => getComputedStyle(element).animationName), 'none');
+  await scrolling.page.screenshot({ path: resolve(output, 'mini-player-reduced-motion.png') });
+  assert.deepEqual(scrolling.errors, []);
+  await scrolling.page.close();
+  console.log('PASS mini layout: full title scrolling, clipped text bounds, stationary short titles and reduced-motion fallback');
 
   const failure = await browser.newPage();
   await failure.route('**/api/capabilities', route => route.fulfill({ status: 503, json: { error: 'unavailable' } }));
