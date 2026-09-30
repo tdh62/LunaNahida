@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { backend } from '@/lib/backend';
-import { defaultWorkTimer, getWorkTimerView, isWorkTimerResponse, type WorkTimerCommand, type WorkTimerMode, type WorkTimerResponse } from '@/lib/work-timer';
+import { applySessionTimerCommand, completeSessionTimer, defaultWorkTimer, getWorkTimerView, isWorkTimerResponse, type WorkTimerCommand, type WorkTimerMode, type WorkTimerResponse } from '@/lib/work-timer';
+import { useRuntime } from '@/hooks/use-runtime';
 
 export function useWorkTimer() {
+  const runtime = useRuntime();
   const [state, setState] = useState(defaultWorkTimer);
   const stateRef = useRef(state);
   const [clock, setClock] = useState(Date.now);
@@ -25,21 +27,24 @@ export function useWorkTimer() {
     setState(response.timer); setClock(receivedAt); setReady(true); setError('');
   }, []);
   const refresh = useCallback(async () => {
-    try { accept(await backend.workTimer()); }
+    try {
+      if (runtime.backend) accept(await backend.workTimer());
+      else { const now = Date.now(); accept({ timer: completeSessionTimer(stateRef.current, now), serverNow: now }); }
+    }
     catch (failure) {
       if (mounted.current) setError(failure instanceof Error ? failure.message : '无法读取本地计时器');
       throw failure;
     }
-  }, [accept]);
+  }, [accept, runtime.backend]);
   useEffect(() => {
     mounted.current = true;
     void refresh().catch(() => {});
     const tick = window.setInterval(() => { if (stateRef.current.status === 'running' && !document.hidden) setClock(Date.now()); }, 1000);
-    const sync = window.setInterval(() => void refresh().catch(() => {}), 15000);
+    const sync = runtime.backend ? window.setInterval(() => void refresh().catch(() => {}), 15000) : undefined;
     const wake = () => { if (!document.hidden) { setClock(Date.now()); void refresh().catch(() => {}); } };
     window.addEventListener('focus', wake);
     document.addEventListener('visibilitychange', wake);
-    if (typeof BroadcastChannel !== 'undefined') {
+    if (runtime.backend && typeof BroadcastChannel !== 'undefined') {
       channel.current = new BroadcastChannel('luma-work-timer');
       channel.current.onmessage = () => void refresh().catch(() => {});
     }
@@ -49,7 +54,7 @@ export function useWorkTimer() {
       window.removeEventListener('focus', wake); document.removeEventListener('visibilitychange', wake);
       channel.current?.close(); channel.current = null;
     };
-  }, [refresh]);
+  }, [refresh, runtime.backend]);
   const view = getWorkTimerView(state, clock + offset.current);
   useEffect(() => {
     if (state.status === 'running' && view.status === 'completed' && finishing.current !== state.revision) {
@@ -58,14 +63,16 @@ export function useWorkTimer() {
     }
     if (state.status === 'completed' && state.startedAt !== notified.current) {
       notified.current = state.startedAt;
-      toast.success('倒计时结束', { description: '计时结果已保存，可以休息一下了。', duration: 8000 });
+      toast.success('倒计时结束', { description: runtime.backend ? '计时结果已保存，可以休息一下了。' : '可以休息一下了。', duration: 8000 });
     }
-  }, [state.status, state.revision, state.startedAt, view.status, refresh]);
+  }, [state.status, state.revision, state.startedAt, view.status, refresh, runtime.backend]);
   const command = useCallback(async (change: Omit<WorkTimerCommand, 'revision'>) => {
     if (working.current) return false;
     working.current = true; setBusy(true);
     try {
-      accept(await backend.updateWorkTimer({ ...change, revision: stateRef.current.revision }));
+      const command = { ...change, revision: stateRef.current.revision };
+      if (runtime.backend) accept(await backend.updateWorkTimer(command));
+      else { const now = Date.now(); accept({ timer: applySessionTimerCommand(stateRef.current, command, now), serverNow: now }); }
       channel.current?.postMessage('changed');
       return true;
     } catch (failure) {
@@ -74,7 +81,7 @@ export function useWorkTimer() {
       await refresh().catch(() => {});
       return false;
     } finally { working.current = false; if (mounted.current) setBusy(false); }
-  }, [accept, refresh]);
+  }, [accept, refresh, runtime.backend]);
   return { state, view, ready, busy, error, active: ready && state.status !== 'idle', retry: () => void refresh().catch(() => {}), start: (mode: WorkTimerMode, durationMs: number) => command({ action: 'start', mode, durationMs }), pause: () => command({ action: 'pause' }), resume: () => command({ action: 'resume' }), reset: () => command({ action: 'reset' }) };
 }
 

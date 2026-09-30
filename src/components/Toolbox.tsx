@@ -9,6 +9,7 @@ import type { WorkTimerControls } from '@/hooks/use-work-timer';
 import type { NoiseControls } from '@/hooks/use-noise-generator';
 import type { Track } from '@/lib/music';
 import { toast } from 'sonner';
+import { useRuntime } from '@/hooks/use-runtime';
 import '@/toolbox.css';
 import '@/work-timer.css';
 
@@ -36,6 +37,9 @@ const tools = [
 ] as const;
 
 export default function Toolbox({ open, theme, autoClose, onOpenChange, paths, setPaths, addToLibrary, onAddToLibraryChange, onChanged, onOrganized, noise, timer, launchRequest }: Props) {
+  const runtime = useRuntime();
+  const noiseAvailable = typeof AudioWorkletNode !== 'undefined' && typeof AudioContext !== 'undefined' && (runtime.mode === 'desktop' || window.isSecureContext);
+  const [incomingPath, setIncomingPath] = useState('');
   const pathsRef = useRef(paths);
   pathsRef.current = paths;
   const [busy, setBusy] = useState(false);
@@ -73,8 +77,9 @@ export default function Toolbox({ open, theme, autoClose, onOpenChange, paths, s
     window.addEventListener('lunanahida-toolbox-drop', receive);
     return () => window.removeEventListener('lunanahida-toolbox-drop', receive);
   }, [open, tool, busy, organizerBusy, addPaths]);
-  const choose = () => void backend.chooseFiles().then(result => addPaths(result.paths)).catch(error => toast.error(error.message));
+  const choose = () => { if (runtime.nativeFiles) void backend.chooseFiles().then(result => addPaths(result.paths)).catch(error => toast.error(error.message)); };
   const drop = (event: DragEvent) => {
+    if (runtime.mode !== 'desktop') return;
     event.preventDefault();
     const dropped = [...event.dataTransfer.files].map(file => (file as File & { path?: string }).path).filter((value): value is string => Boolean(value));
     if (busy || organizerBusy || tool === 'noise' || tool === 'timer') return;
@@ -122,17 +127,19 @@ export default function Toolbox({ open, theme, autoClose, onOpenChange, paths, s
         <div className="toolbox-apps" role="group" aria-label="工具箱应用">{tools.map(application => {
           const Icon = application.icon;
           const status = application.id === 'noise' && noise.active ? `${noise.name} · ${noise.playing ? '播放中' : '已暂停'}` : application.id === 'timer' && timer.active ? `${timer.state.mode === 'stopwatch' ? '正计时' : '倒计时'} · ${{ running: '计时中', paused: '已暂停', completed: '已结束', idle: '准备开始' }[timer.view.status]}` : application.id === 'conversion' && pendingConversions ? `${pendingConversions} 个文件待处理` : '';
-          return <button type="button" className="toolbox-app-card" key={application.id} aria-label={application.title} onClick={() => setTool(application.id)}>
+          const unavailable = application.id === 'noise' ? !noiseAvailable : (application.id === 'conversion' || application.id === 'organizer') && !runtime.backend;
+          return <button type="button" className="toolbox-app-card" key={application.id} disabled={unavailable} title={unavailable ? application.id === 'noise' ? '当前浏览器不支持噪音播放' : '需要连接音乐库服务' : application.title} aria-label={application.title} onClick={() => setTool(application.id)}>
             <span className="toolbox-app-icon"><Icon size={23} /></span>
             <span className="toolbox-app-label"><strong>{application.title}</strong>{status && <small>{status}</small>}</span>
             <ArrowUpRight size={15} aria-hidden="true" />
           </button>;
         })}</div>
       </> : tool === 'timer' ? <WorkTimer timer={timer} /> : tool === 'noise' ? <NoiseGenerator noise={noise} /> : tool === 'organizer' ? <MusicOrganizer paths={organizerPaths} setPaths={setOrganizerPaths} onBusyChange={setOrganizerBusy} onChanged={onOrganized} /> : <>
-      <div className="toolbox-drop" onClick={choose} role="button" tabIndex={0} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') choose(); }}>
+      {runtime.nativeFiles && <div className="toolbox-drop" onClick={choose} role="button" tabIndex={0} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') choose(); }}>
         <FolderOpen size={25} /><strong>拖入或选择加密音频</strong><small>输出至原文件夹</small>
-      </div>
-      <div className="toolbox-controls"><label><input type="checkbox" checked={addToLibrary} onChange={event => onAddToLibraryChange(event.target.checked)} /> 加入音乐库</label><button type="button" onClick={choose} disabled={busy}><Plus size={15} />添加文件</button></div>
+      </div>}
+      {!runtime.nativeFiles && <form className="organizer-path-entry" onSubmit={event => { event.preventDefault(); void addPaths([incomingPath.trim()]); setIncomingPath(''); }}><input aria-label="加密音频绝对路径" placeholder="后端可访问的音频绝对路径" value={incomingPath} disabled={busy} onChange={event => setIncomingPath(event.target.value)} /><button type="submit" disabled={busy || !incomingPath.trim()} aria-label="添加音频路径"><Plus size={15} /></button></form>}
+      <div className="toolbox-controls"><label><input type="checkbox" checked={addToLibrary} onChange={event => onAddToLibraryChange(event.target.checked)} /> 加入音乐库</label><button type="button" onClick={choose} disabled={busy || !runtime.nativeFiles}><Plus size={15} />添加文件</button></div>
       {paths.length > 0 && <div className="toolbox-list" aria-live="polite">{paths.map(path => <div key={path} className="toolbox-item"><div><strong title={path}>{path.split(/[\\/]/).at(-1)}</strong><small title={results[path]?.error || results[path]?.output || path}>{results[path]?.status === 'converted' ? results[path].error || `已转换 · ${results[path].output?.split(/[\\/]/).at(-1)}` : current === path ? '转换中…' : results[path]?.error || path}</small></div>{results[path]?.status === 'converted' ? <Check size={17} className="toolbox-success" /> : <button type="button" title="移除" aria-label={`移除 ${path}`} disabled={busy} onClick={() => setPaths(previous => previous.filter(value => value !== path))}><X size={16} /></button>}</div>)}</div>}
       <div className="toolbox-actions"><button type="button" onClick={() => { setPaths([]); setResults({}); }} disabled={busy || !paths.length}>清空</button><button type="button" className="toolbox-convert" onClick={() => void convert()} disabled={busy || !paths.length || paths.every(path => results[path]?.status === 'converted')}>{busy ? '转换中' : '开始转换'}</button></div>
       </>}

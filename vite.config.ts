@@ -2,12 +2,13 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import { fileURLToPath } from "node:url";
 
-export default defineConfig(() => ({
+export default defineConfig(({ mode }) => ({
   server: {
     host: "127.0.0.1",
     port: 8080,
-    proxy: { "/api": `http://127.0.0.1:${process.env.LUNANAHIDA_API_PORT || "8787"}` },
+    proxy: mode === 'web' ? {} : { "/api": `http://127.0.0.1:${process.env.LUNANAHIDA_API_PORT || "8787"}` },
   },
+  preview: { host: '127.0.0.1', port: 8082, proxy: {} },
   plugins: [react()],
   resolve: {
     alias: {

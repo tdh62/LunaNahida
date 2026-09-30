@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { defaultWorkTimer, formatWorkTimerTime, getWorkTimerView, isWorkTimerResponse } from './work-timer.ts';
+import { applySessionTimerCommand, completeSessionTimer, defaultWorkTimer, formatWorkTimerTime, getWorkTimerView, isWorkTimerResponse } from './work-timer.ts';
 
 test('countdown restores from absolute start time across app downtime', () => {
   const state = { ...defaultWorkTimer, status: 'running', durationMs: 60000, startedAt: 100000, anchorAt: 100000 };
@@ -41,4 +41,30 @@ test('timer response rejects missing and invalid database snapshots', () => {
   assert.ok(!isWorkTimerResponse({ timer: { ...defaultWorkTimer, revision: -1 }, serverNow: 1 }));
   assert.ok(!isWorkTimerResponse({ timer: { ...defaultWorkTimer, startedAt: '1000' }, serverNow: 1 }));
   assert.ok(!isWorkTimerResponse({ timer: { ...defaultWorkTimer, status: 'invalid' }, serverNow: 1 }));
+});
+
+test('session countdown survives pause and completes once using absolute time', () => {
+  let state = applySessionTimerCommand(defaultWorkTimer, { action: 'start', revision: 0, mode: 'countdown', durationMs: 10000 }, 1000);
+  state = applySessionTimerCommand(state, { action: 'pause', revision: state.revision }, 4000);
+  assert.equal(state.elapsedMs, 3000);
+  state = applySessionTimerCommand(state, { action: 'resume', revision: state.revision }, 20000);
+  assert.equal(getWorkTimerView(state, 25000).remainingMs, 2000);
+  state = completeSessionTimer(state, 99999);
+  assert.equal(state.status, 'completed');
+  assert.equal(state.completedAt, 27000);
+  assert.equal(completeSessionTimer(state, 100000), state);
+  state = applySessionTimerCommand(state, { action: 'reset', revision: state.revision }, 100000);
+  assert.equal(state.status, 'idle');
+  assert.equal(state.startedAt, 0);
+});
+
+test('session stopwatch resumes without counting paused time and rejects invalid commands', () => {
+  let state = applySessionTimerCommand(defaultWorkTimer, { action: 'start', revision: 0, mode: 'stopwatch' }, 1000);
+  assert.equal(completeSessionTimer(state, 100000), state);
+  state = applySessionTimerCommand(state, { action: 'pause', revision: state.revision }, 2000);
+  state = applySessionTimerCommand(state, { action: 'resume', revision: state.revision }, 9000);
+  assert.equal(getWorkTimerView(state, 10000).elapsedMs, 2000);
+  assert.throws(() => applySessionTimerCommand(state, { action: 'reset', revision: 0 }, 10000));
+  assert.throws(() => applySessionTimerCommand(defaultWorkTimer, { action: 'start', revision: 0, mode: 'countdown', durationMs: 0 }, 1));
+  assert.throws(() => applySessionTimerCommand(defaultWorkTimer, { action: 'resume', revision: 0 }, 1));
 });

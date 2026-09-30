@@ -3,6 +3,7 @@ import { FolderOpen, Plus, X } from 'lucide-react';
 import { backend, type OrganizerOptions, type OrganizerPlan, type OrganizerProgress, type OrganizerResult } from '@/lib/backend';
 import { organizerProgressPercent } from '@/lib/organizer-progress';
 import { toast } from 'sonner';
+import { useRuntime } from '@/hooks/use-runtime';
 
 type Props = {
   paths: string[];
@@ -20,6 +21,7 @@ const modes: { id: OrganizerOptions['mode']; title: string }[] = [
 const message = (error: unknown) => error instanceof Error ? error.message : '整理失败';
 
 export default function MusicOrganizer({ paths, setPaths, onBusyChange, onChanged }: Props) {
+  const runtime = useRuntime();
   const [mode, setMode] = useState<OrganizerOptions['mode']>('rename');
   const [target, setTarget] = useState('');
   const [template, setTemplate] = useState('{artist} - {title}');
@@ -84,12 +86,12 @@ export default function MusicOrganizer({ paths, setPaths, onBusyChange, onChange
       </div>}
       <label htmlFor="organizer-source">来源路径 <span>包含子文件夹</span></label>
       <form className="organizer-path-entry" onSubmit={event => { event.preventDefault(); add([incoming]); setIncoming(''); }}>
-        <input id="organizer-source" value={incoming} onChange={event => setIncoming(event.target.value)} placeholder="输入文件夹或音乐文件的绝对路径" />
+        <input id="organizer-source" value={incoming} onChange={event => setIncoming(event.target.value)} placeholder="后端可访问的文件夹或音乐文件绝对路径" />
         <button type="submit" disabled={!incoming.trim()} aria-label="添加来源路径"><Plus size={15} /></button>
-        <button type="button" onClick={() => void choose()}><FolderOpen size={15} />选择文件夹</button>
+        <button type="button" disabled={!runtime.nativeFolders} title={runtime.nativeFolders ? '选择文件夹' : '请填写后端可访问的路径'} onClick={() => void choose()}><FolderOpen size={15} />选择文件夹</button>
       </form>
       <div className="organizer-sources">{paths.map(path => <div key={path}><span title={path}>{path}</span><button type="button" aria-label={`移除来源 ${path}`} onClick={() => { invalidate(); setPaths(previous => previous.filter(value => value !== path)); }}><X size={14} /></button></div>)}</div>
-      {mode !== 'deduplicate' && <><label htmlFor="organizer-target">目标路径 {mode === 'rename' && <span>留空则在原位置命名</span>}</label><div className="organizer-path-entry"><input id="organizer-target" value={target} onChange={event => { invalidate(); setTarget(event.target.value); }} placeholder="输入目标文件夹的绝对路径" /><button type="button" onClick={() => void choose(true)}><FolderOpen size={15} />选择</button></div></>}
+      {mode !== 'deduplicate' && <><label htmlFor="organizer-target">目标路径 {mode === 'rename' && <span>留空则在原位置命名</span>}</label><div className="organizer-path-entry"><input id="organizer-target" value={target} onChange={event => { invalidate(); setTarget(event.target.value); }} placeholder="后端可访问的目标文件夹绝对路径" /><button type="button" disabled={!runtime.nativeFolders} title={runtime.nativeFolders ? '选择文件夹' : '请填写后端可访问的路径'} onClick={() => void choose(true)}><FolderOpen size={15} />选择</button></div></>}
       {mode === 'rename' && <><label htmlFor="organizer-template">命名格式</label><input id="organizer-template" value={template} onChange={event => { invalidate(); setTemplate(event.target.value); }} /><div className="organizer-presets">{['{artist} - {title}', '{title} - {artist}', '{artist} - {album} - {title}', '{title}'].map(value => <button type="button" key={value} onClick={() => { invalidate(); setTemplate(value); }}>{value}</button>)}</div><p className="organizer-hint">{'{title}'} 歌名 · {'{artist}'} 歌手 · {'{album}'} 专辑 · {'{filename}'} 原文件名</p></>}
     </fieldset>
     {busy === 'preview' && progress && <section className="organizer-progress" aria-label="扫描进度">

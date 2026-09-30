@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { backend } from '@/lib/backend';
+import { useRuntime } from '@/hooks/use-runtime';
+import { BrowserTrackPool, isBrowserTrack } from '@/lib/browser-tracks';
 import type { Track } from '@/lib/music';
 import { toast } from 'sonner';
 import { playbackCoordinator, type PlaybackOwner } from '@/lib/playback-coordinator';
@@ -13,6 +15,9 @@ type FilterLane = { node: ConvolverNode | null; gain: GainNode };
 type Graph = { context: AudioContext; bands: BiquadFilterNode[]; frequencyInput: GainNode; timeInput: GainNode; analyser: AnalyserNode; scopeAnalyser: AnalyserNode; frequencyLane: FilterLane; timeLane: FilterLane };
 
 export function usePlayer() {
+  const runtime = useRuntime();
+  const browserTracks = useRef(new BrowserTrackPool());
+  const mounted = useRef(true);
   const noise = useNoiseGenerator();
   const musicOwner = useRef<PlaybackOwner | null>(null);
   const [queue, setQueue] = useState<Track[]>([]), [trackId, setTrackId] = useState<number | null>(null);
@@ -62,12 +67,21 @@ export function usePlayer() {
     const owner = { stop: () => { shouldPlay.current = false; element.pause(); setPlaying(false); } };
     musicOwner.current = owner;
     element.ontimeupdate = () => setTime(element.currentTime);
-    element.onloadedmetadata = () => { const id = currentId.current; if (id !== null && Number.isFinite(element.duration)) { const updated = queueRef.current.map(item => item.id === id ? { ...item, duration: element.duration } : item); updateQueue(updated); if (id > 0) void backend.duration(id, element.duration).catch(() => {}); } };
-    element.oncanplay = () => { const id = currentId.current; if (id === null) return; const item = queueRef.current.find(track => track.id === id); if (item?.playbackStatus === 'playable') return; updateQueue(queueRef.current.map(track => track.id === id ? { ...track, playbackStatus: 'playable' } : track)); if (id > 0) void backend.playbackStatus(id, 'playable').then(() => window.dispatchEvent(new Event('lunanahida-library-changed'))).catch(() => {}); };
+    element.onloadedmetadata = () => { const id = currentId.current; if (id !== null && Number.isFinite(element.duration)) { const updated = queueRef.current.map(item => item.id === id ? { ...item, duration: element.duration } : item); updateQueue(updated); if (id > 0 && runtime.backend) void backend.duration(id, element.duration).catch(() => {}); } };
+    element.oncanplay = () => { const id = currentId.current; if (id === null) return; const item = queueRef.current.find(track => track.id === id); if (item?.playbackStatus === 'playable') return; updateQueue(queueRef.current.map(track => track.id === id ? { ...track, playbackStatus: 'playable' } : track)); if (id > 0 && runtime.backend) void backend.playbackStatus(id, 'playable').then(() => window.dispatchEvent(new Event('lunanahida-library-changed'))).catch(() => {}); };
     element.onerror = () => {
       const id = currentId.current;
       if (id === null) return;
       const current = queueRef.current.find(track => track.id === id);
+      if (current && isBrowserTrack(current)) {
+        shouldPlay.current = false;
+        setPlaying(false);
+        if ([3, 4].includes(element.error?.code ?? 0)) {
+          updateQueue(queueRef.current.map(track => track.id === id ? { ...track, playbackStatus: 'unplayable' } : track));
+        }
+        toast.error('当前浏览器无法播放这个音频文件');
+        return;
+      }
       if (current?.kind === 'network') {
         shouldPlay.current = false;
         setPlaying(false);
@@ -82,14 +96,14 @@ export function usePlayer() {
       void fetch(source, { method: 'HEAD' }).then(response => {
         if (currentId.current !== id || !response.ok) { window.dispatchEvent(new Event('lunanahida-library-changed')); return; }
         updateQueue(queueRef.current.map(track => track.id === id ? { ...track, playbackStatus: 'unplayable' } : track));
-        if (id > 0) void backend.playbackStatus(id, 'unplayable').then(() => window.dispatchEvent(new Event('lunanahida-library-changed'))).catch(() => {});
+        if (id > 0 && runtime.backend) void backend.playbackStatus(id, 'unplayable').then(() => window.dispatchEvent(new Event('lunanahida-library-changed'))).catch(() => {});
       }).catch(() => {});
     };
     element.onended = () => { if (shouldPlay.current) nextRef.current(); };
     element.onplay = () => {
       if (!shouldPlay.current || !coordinator.owns(owner)) { element.pause(); return; }
       setPlaying(true);
-      if (currentId.current !== null && currentId.current > 0) { const id = currentId.current; setRecent(prev => [id, ...prev.filter(item => item !== id)].slice(0, 50)); void backend.history(id).catch(() => {}); }
+      if (currentId.current !== null && currentId.current > 0 && runtime.backend) { const id = currentId.current; setRecent(prev => [id, ...prev.filter(item => item !== id)].slice(0, 50)); void backend.history(id).catch(() => {}); }
     };
     element.onpause = () => { if (!shouldPlay.current) coordinator.release(owner); setPlaying(false); };
     return () => { owner.stop(); coordinator.release(owner); musicOwner.current = null; element.removeAttribute('src'); element.load(); audio.current = null; void graph.current?.context.close(); graph.current = null; };
@@ -140,6 +154,14 @@ export function usePlayer() {
     el.src = track.source; setTime(0);
     if (shouldPlay.current) void el.play().catch(() => setPlaying(false));
   }, [trackId]);
+  useEffect(() => {
+    browserTracks.current.retain(new Set([...queue.map(track => track.source), audio.current?.src ?? '']));
+  }, [queue, trackId]);
+  useEffect(() => {
+    const pool = browserTracks.current;
+    mounted.current = true;
+    return () => { mounted.current = false; pool.dispose(); };
+  }, []);
   useEffect(() => { if (audio.current) audio.current.volume = volume / 100; }, [volume]);
   useEffect(() => {
     const g = graph.current;
@@ -222,5 +244,11 @@ export function usePlayer() {
   const move = (from: number, to: number) => { const list = [...queueRef.current], start = list.findIndex(item => item.id === from), end = list.findIndex(item => item.id === to); if (start < 0 || end < 0 || start === end) return; list.splice(end, 0, list.splice(start, 1)[0]); updateQueue(list); };
   const markLyricsSaved = (saved: Track) => updateQueue(queueRef.current.map(item => item.id === saved.id ? { ...item, lyrics: saved.lyrics, translation: saved.translation, localLyrics: true, embeddedLyrics: false } : item));
   const addTracks = (items: Track[], replace = false) => { if (!items.length) return; if (replace) { audio.current?.pause(); shouldPlay.current = false; updateQueue(items); setTrackId(items[0].id); return; } const ids = new Set(queueRef.current.map(item => item.id)); const paths = new Set(queueRef.current.map(item => item.path).filter((path): path is string => Boolean(path))); const additions = items.filter(item => { if (ids.has(item.id) || (item.path && paths.has(item.path))) return false; ids.add(item.id); if (item.path) paths.add(item.path); return true; }); const empty = queueRef.current.length === 0; updateQueue([...queueRef.current, ...additions]); if (empty && additions.length) setTrackId(additions[0].id); };
-  return { track: track ?? emptyTrack, hasTrack: Boolean(track), trackId, queue, recent, playing, time, volume, setVolume, mode, setMode, effect, effectName: selectedEffect(effect, customEffects).name, setEffect, setPreviewFilter, customEffects, saveEffect, deleteEffect, filterError, frequencyResponse, equalizer, setBand, resetEqualizer, analyser, scopeAnalyser, select, playTracks, next, previous, toggle, seek, clearQueue, removeTracks, move, addTracks, markLyricsSaved, setCatalog, updateTrack, hydrate, noise };
+  const addFiles = async (files: File[]) => {
+    const result = await browserTracks.current.add(files);
+    if (!mounted.current) { browserTracks.current.dispose(); return { tracks: [], rejected: [] }; }
+    addTracks(result.tracks);
+    return result;
+  };
+  return { track: track ?? emptyTrack, hasTrack: Boolean(track), trackId, queue, recent, playing, time, volume, setVolume, mode, setMode, effect, effectName: selectedEffect(effect, customEffects).name, setEffect, setPreviewFilter, customEffects, saveEffect, deleteEffect, filterError, frequencyResponse, equalizer, setBand, resetEqualizer, analyser, scopeAnalyser, select, playTracks, next, previous, toggle, seek, clearQueue, removeTracks, move, addTracks, addFiles, markLyricsSaved, setCatalog, updateTrack, hydrate, noise };
 }

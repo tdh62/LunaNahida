@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { Track } from '@/lib/music';
 import { backend } from '@/lib/backend';
+import { useRuntime } from '@/hooks/use-runtime';
 
 export type TimedLine = { time: number; text: string; translation?: string };
 type Enrichment = { cover?: string; lyric?: string; translation?: string };
@@ -39,6 +40,7 @@ function parseLrc(value: string): TimedLine[] {
 }
 
 export function useMusicEnrichment(track: Track, playing: boolean) {
+  const runtime = useRuntime();
   const key = track.source ? keyOf(track) : '';
   const [result, setResult] = useState<{ key: string; value: Enrichment } | null>(null);
   useEffect(() => {
@@ -51,7 +53,7 @@ export function useMusicEnrichment(track: Track, playing: boolean) {
   const needCover = !track.embeddedCover && track.cover === '/covers/local.svg';
   const needLyrics = !track.embeddedLyrics && !track.localLyrics && !track.lyrics;
   useEffect(() => {
-    if (!key || !playing || (!needCover && !needLyrics) || track.artist === '未知歌手') return;
+    if (!runtime.backend || !key || !playing || (!needCover && !needLyrics) || track.artist === '未知歌手' || track.artist === '本地文件') return;
     const controller = new AbortController();
     const params = new URLSearchParams({ title: track.title, artist: track.artist, album: albumOf(track), cover: needCover ? '1' : '0', lyric: needLyrics ? '1' : '0' });
     if (track.provider && track.providerId) { params.set('source', track.provider); params.set('id', track.providerId); }
@@ -60,7 +62,7 @@ export function useMusicEnrichment(track: Track, playing: boolean) {
       .then(async value => { if (!controller.signal.aborted) { if (track.id > 0 && (value.cover || value.lyric || value.translation)) { await backend.enrichment(track.id, value.cover ?? '', value.lyric ?? '', value.translation ?? ''); window.dispatchEvent(new Event('lunanahida-library-changed')); } current.set(key, value); setResult({ key, value }); window.dispatchEvent(new CustomEvent('lunanahidatune-music-refreshed', { detail: { id: track.id, key, value } })); } })
       .catch(() => {});
     return () => controller.abort();
-  }, [key, playing, needCover, needLyrics, track.id, track.title, track.artist, track.album]);
+  }, [key, playing, needCover, needLyrics, track.id, track.title, track.artist, track.album, runtime.backend]);
   const value = result?.key === key ? result.value : current.get(key);
   const lines = parseLrc(track.lyrics || (track.embeddedLyrics || track.localLyrics ? '' : value?.lyric) || '');
   const translations = parseLrc(track.embeddedLyrics || track.localLyrics ? '' : track.translation || value?.translation || '');

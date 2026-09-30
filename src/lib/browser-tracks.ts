@@ -15,17 +15,19 @@ export class BrowserTrackPool {
   async add(files: File[]) {
     const tracks: Track[] = [];
     const rejected: string[] = [];
-    for (const file of files.slice(0, 1000)) {
+    // Inspect before allocating URLs so queue updates cannot release a half-built batch.
+    const inspected = await Promise.all(files.slice(0, 1000).map(async file => {
       if (!file.size || encryptedExtensions.test(file.name) || !audioExtensions.test(file.name) && !file.type.startsWith('audio/')) {
-        rejected.push(file.name);
-        continue;
+        return { file, rejected: true, sampleRate: null };
       }
+      try { return { file, rejected: false, sampleRate: detectSampleRate(new Uint8Array(await file.slice(0, 262144).arrayBuffer())) }; }
+      catch { return { file, rejected: true, sampleRate: null }; }
+    }));
+    for (const { file, rejected: invalid, sampleRate } of inspected) {
+      if (invalid) { rejected.push(file.name); continue; }
       const key = JSON.stringify([file.name, file.size, file.lastModified, file.type]);
       const existing = [...this.entries.values()].find(entry => entry.key === key);
       if (existing) { tracks.push(existing.track); continue; }
-      let sampleRate: number | null = null;
-      try { sampleRate = detectSampleRate(new Uint8Array(await file.slice(0, 262144).arrayBuffer())); }
-      catch { rejected.push(file.name); continue; }
       const source = this.urls.createObjectURL(file);
       const track: Track = {
         id: this.nextId--, title: file.name.replace(/\.[^.]+$/, ''), english: '', artist: '本地文件', album: '本次播放',

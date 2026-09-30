@@ -23,3 +23,32 @@ export function formatWorkTimerTime(milliseconds: number, roundUp = false) {
   const seconds = Math.max(0, roundUp ? Math.ceil(milliseconds / 1000) : Math.floor(milliseconds / 1000));
   return `${String(Math.floor(seconds / 3600)).padStart(2, '0')}:${String(Math.floor(seconds / 60) % 60).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 }
+
+export function applySessionTimerCommand(state: WorkTimerState, command: WorkTimerCommand, now: number): WorkTimerState {
+  if (command.revision !== state.revision) throw new Error('计时状态已更新，请重试');
+  const view = getWorkTimerView(state, now);
+  const next = { ...state, revision: state.revision + 1 };
+  switch (command.action) {
+    case 'start': {
+      if (!['countdown', 'stopwatch'].includes(command.mode)) throw new Error('请选择计时模式');
+      const durationMs = command.durationMs ?? state.durationMs;
+      if (command.mode === 'countdown' && (!Number.isSafeInteger(durationMs) || durationMs < 1000 || durationMs > 604800000)) throw new Error('请输入 1 秒至 7 天的倒计时时长');
+      return { ...next, mode: command.mode, status: 'running', durationMs: command.mode === 'countdown' ? durationMs : state.durationMs, elapsedMs: 0, startedAt: now, anchorAt: now, completedAt: 0 };
+    }
+    case 'pause':
+      if (state.status !== 'running' || view.status === 'completed') throw new Error('计时器当前无法暂停');
+      return { ...next, status: 'paused', elapsedMs: view.elapsedMs, anchorAt: 0 };
+    case 'resume':
+      if (state.status !== 'paused') throw new Error('计时器当前无法继续');
+      return { ...next, status: 'running', anchorAt: now };
+    case 'reset':
+      return { ...next, status: 'idle', elapsedMs: 0, startedAt: 0, anchorAt: 0, completedAt: 0 };
+    default:
+      throw new Error('未知计时操作');
+  }
+}
+
+export function completeSessionTimer(state: WorkTimerState, now: number): WorkTimerState {
+  if (state.status !== 'running' || getWorkTimerView(state, now).status !== 'completed') return state;
+  return { ...state, status: 'completed', elapsedMs: state.durationMs, completedAt: state.anchorAt + Math.max(0, state.durationMs - state.elapsedMs), anchorAt: 0, revision: state.revision + 1 };
+}

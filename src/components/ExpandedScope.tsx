@@ -13,6 +13,7 @@ type Props = {
   title: string;
   artist: string;
   sampleRate?: number;
+  browserFile?: boolean;
   settings: ScopeSettings;
   onSettingsChange: (settings: ScopeSettings) => void;
   onClose: () => void;
@@ -25,7 +26,7 @@ function formatHz(value: number) {
   return value >= 1000 ? `${Number((value / 1000).toFixed(1))}k` : `${Math.round(value)}`;
 }
 
-export default function ExpandedScope({ analyser, response, active, trackId, title, artist, sampleRate, settings, onSettingsChange, onClose }: Props) {
+export default function ExpandedScope({ analyser, response, active, trackId, title, artist, sampleRate, browserFile = false, settings, onSettingsChange, onClose }: Props) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const redraw = useRef<() => void>(() => {});
   const pointer = useRef<number | null>(null);
@@ -58,14 +59,14 @@ export default function ExpandedScope({ analyser, response, active, trackId, tit
 
   useEffect(() => {
     setDetectedRate(null);
-    if (sampleRate || trackId === null) return;
+    if (sampleRate || trackId === null || browserFile) return;
     const controller = new AbortController();
     void fetch(`/api/media/audio/${trackId}`, { headers: { Range: 'bytes=0-262143' }, signal: controller.signal })
       .then(async response => response.status === 206 ? detectSampleRate(new Uint8Array(await response.arrayBuffer())) : null)
       .then(rate => { if (!controller.signal.aborted) setDetectedRate(rate); })
       .catch(() => {});
     return () => controller.abort();
-  }, [trackId, sampleRate]);
+  }, [trackId, sampleRate, browserFile]);
 
   useEffect(() => {
     if (!analyser) return;

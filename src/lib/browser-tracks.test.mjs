@@ -40,3 +40,13 @@ test('releasing removed files preserves remaining and currently loaded files', a
   pool.dispose();
   assert.deepEqual(released, ['blob:0', 'blob:1']);
 });
+
+test('overlapping imports of the same file reuse the URL', async () => {
+  let created = 0;
+  const pool = new BrowserTrackPool({ createObjectURL: () => `blob:${created++}`, revokeObjectURL() {} });
+  const file = new File(['x'], 'a.mp3', { lastModified: 1 });
+  const [first, second] = await Promise.all([pool.add([file]), pool.add([file])]);
+  assert.equal(first.tracks[0].id, second.tracks[0].id);
+  assert.equal(created, 1);
+  pool.dispose();
+});
