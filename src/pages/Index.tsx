@@ -1,10 +1,13 @@
-import { type CSSProperties, type DragEvent, type PointerEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { type CSSProperties, type DragEvent, type PointerEvent, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import PlayerSettings from '@/components/PlayerSettings';
 import ExpandedScope from '@/components/ExpandedScope';
 import AudioProcessor from '@/components/AudioProcessor';
 import Toolbox from '@/components/Toolbox';
 import QueuePanel from '@/components/QueuePanel';
+import LocateCurrentTrackButton from '@/components/LocateCurrentTrackButton';
+import { locateCurrentTrack } from '@/lib/track-location';
+import { scrollToCurrentLyric } from '@/lib/lyric-scroll';
 import LibraryView from '@/components/LibraryView';
 import TagsView from '@/components/TagsView';
 import TrackTagEditor from '@/components/TrackTagEditor';
@@ -20,6 +23,8 @@ import { Events } from '@wailsio/runtime';
 import { toast } from 'sonner';
 import '@/settings.css';
 import '@/sleep-timer.css';
+import { useWorkTimer } from '@/hooks/use-work-timer';
+import TimerShortcut from '@/components/TimerShortcut';
 import { AudioLines, Check, ChevronDown, ChevronsLeft, Disc3, X, FolderOpen, Globe2, Heart, ListEnd, ListMusic, Maximize2, Mic2, Minimize2, PanelLeftClose, PanelLeftOpen, Pause, Play, Plus, Repeat, Repeat1, Save, Settings2, Shuffle, SkipBack, SkipForward, SlidersHorizontal, Square, Tag, Timer, Volume2, VolumeX, Waves, Wrench } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -94,6 +99,10 @@ function Spectrum({ analyser, response, active }: { analyser: AnalyserNode | nul
 }
 export default function Index() {
   const p = usePlayer();
+  const workTimer = useWorkTimer();
+  const outputPlaying = p.playing || p.noise.playing;
+  const outputVolume = p.noise.active ? p.noise.volume : p.volume;
+  const setOutputVolume = p.noise.active ? p.noise.setVolume : p.setVolume;
   const navigate = useNavigate();
   const pathname = useLocation().pathname;
   const search = useLocation().search;
@@ -134,6 +143,8 @@ export default function Index() {
   const [browsingLyrics, setBrowsingLyrics] = useState(false);
   const lyricsWindow = useRef<HTMLDivElement>(null);
   const immersiveLyricsWindow = useRef<HTMLDivElement>(null);
+  const previousLyricsWindow = useRef<HTMLDivElement>(null);
+  const previousImmersiveLyricsWindow = useRef<HTMLDivElement>(null);
   const lyricDrag = useRef<{ pointerId: number; y: number; scrollTop: number; moved: boolean } | null>(null);
   const suppressLyricClick = useRef(false);
   const followTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -147,11 +158,13 @@ export default function Index() {
   const [networkURL, setNetworkURL] = useState('');
   const [networkLoading, setNetworkLoading] = useState(false);
   const [toolboxOpen, setToolboxOpen] = useState(false);
+  const [toolboxLaunchRequest, setToolboxLaunchRequest] = useState<{ tool: 'conversion' | 'timer' | null; revision: number }>({ tool: null, revision: 0 });
   const [toolboxPaths, setToolboxPaths] = useState<string[]>([]);
   const [toolboxAddToLibrary, setToolboxAddToLibrary] = useState(false);
   const [toolboxQueueOnConvert, setToolboxQueueOnConvert] = useState(false);
   const [toolboxAutoClose, setToolboxAutoClose] = useState(false);
   usePlaybackProbe(libraryTracks);
+  const quickQueueRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!queueOpen || p.trackId === null) return;
     const list = document.querySelector<HTMLDivElement>('.quick-queue-list');
@@ -215,6 +228,7 @@ export default function Index() {
         setToolboxAddToLibrary(true);
         setToolboxQueueOnConvert(pathname === '/');
         setToolboxAutoClose(true);
+        setToolboxLaunchRequest(previous => ({ tool: 'conversion', revision: previous.revision + 1 }));
         setToolboxOpen(true);
       }
       return;
@@ -224,6 +238,7 @@ export default function Index() {
       setToolboxAddToLibrary(false);
       setToolboxQueueOnConvert(false);
       setToolboxAutoClose(false);
+      setToolboxLaunchRequest(previous => ({ tool: 'conversion', revision: previous.revision + 1 }));
       setToolboxOpen(true);
       const encryptedSet = new Set(encrypted);
       paths = paths.filter(path => !encryptedSet.has(path));
@@ -252,7 +267,7 @@ export default function Index() {
     }
   };
   useEffect(() => {
-    const offDrop = Events.On('lunanahida:files-dropped', event => { dragDepth.current = 0; setDropActive(false); const paths = event.data as string[]; if (toolboxOpen) { void backend.inspectConversion(paths).then(result => { setToolboxPaths(previous => [...new Set([...previous, ...result.paths])]); if (!result.paths.length) toast.info('没有找到可转换的加密音频'); }).catch(error => toast.error(error.message)); } else void handlePaths(paths, true); });
+    const offDrop = Events.On('lunanahida:files-dropped', event => { dragDepth.current = 0; setDropActive(false); const paths = event.data as string[]; if (toolboxOpen) { window.dispatchEvent(new CustomEvent('lunanahida-toolbox-drop', { detail: paths })); } else void handlePaths(paths, true); });
     const offScan = Events.On('lunanahida:scan-complete', () => void reloadLibrary());
     return () => { offDrop(); offScan(); };
   }, [storedSettings, toolboxOpen, pathname]);
@@ -311,24 +326,27 @@ export default function Index() {
     if (followTimer.current) clearTimeout(followTimer.current);
   }, [p.trackId]);
   useEffect(() => () => { if (followTimer.current) clearTimeout(followTimer.current); }, []);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const windowElement = lyricsWindow.current;
-    if (!windowElement || browsingLyrics) return;
+    const entering = windowElement !== previousLyricsWindow.current;
+    previousLyricsWindow.current = windowElement;
+    if (!windowElement || (browsingLyrics && !entering)) return;
+    if (entering) {
+      if (followTimer.current) clearTimeout(followTimer.current);
+      setBrowsingLyrics(false);
+      lyricDrag.current = null;
+    }
     const line = windowElement.querySelectorAll<HTMLButtonElement>('.lyric-line')[activeLine];
-    if (line) windowElement.scrollTo({ top: line.offsetTop + line.offsetHeight / 2 - windowElement.clientHeight / 2, behavior: lyricScroll === '即时' ? 'instant' : 'smooth' });
-  }, [activeLine, browsingLyrics, lyricScroll, p.trackId, view]);
-  useEffect(() => {
-    if (!focus || !hasLyrics) return;
+    scrollToCurrentLyric(windowElement, line, entering || lyricScroll === '即时' ? 'instant' : 'smooth');
+  }, [activeLine, browsingLyrics, lyricScroll, p.trackId, pathname, scopeOpen, focus, hasLyrics, lyricAppearance]);
+  useLayoutEffect(() => {
     const windowElement = immersiveLyricsWindow.current;
-    const line = windowElement?.querySelectorAll<HTMLParagraphElement>('p')[activeLine];
-    if (!windowElement || !line) return;
-    const windowRect = windowElement.getBoundingClientRect();
-    const lineRect = line.getBoundingClientRect();
-    windowElement.scrollTo({
-      top: windowElement.scrollTop + lineRect.top - windowRect.top + lineRect.height / 2 - windowRect.height / 2,
-      behavior: lyricScroll === '即时' ? 'instant' : 'smooth',
-    });
-  }, [focus, hasLyrics, activeLine, lyricScroll, p.trackId]);
+    const entering = windowElement !== previousImmersiveLyricsWindow.current;
+    previousImmersiveLyricsWindow.current = windowElement;
+    if (!focus || !hasLyrics || !windowElement) return;
+    const line = windowElement.querySelectorAll<HTMLParagraphElement>('p')[activeLine];
+    scrollToCurrentLyric(windowElement, line, entering || lyricScroll === '即时' ? 'instant' : 'smooth');
+  }, [focus, hasLyrics, activeLine, lyricScroll, p.trackId, pathname, lyricAppearance]);
   const onLyricWheel = () => pauseLyricFollow();
   const onLyricPointerDown = (event: PointerEvent<HTMLDivElement>) => {
     if (event.pointerType === 'touch') { pauseLyricFollow(); return; }
@@ -364,7 +382,7 @@ export default function Index() {
       if (event.defaultPrevented || event.isComposing || event.altKey || event.ctrlKey || event.metaKey) return;
       const target = event.target;
       const mediaKey = ['MediaPlayPause', 'MediaTrackNext', 'MediaTrackPrevious'].includes(event.key);
-      if (!mediaKey && target instanceof Element && target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="combobox"], [role="dialog"], [role="alertdialog"], [role="menu"], [role="slider"]')) return;
+      if (!mediaKey && target instanceof Element && target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="combobox"], [role="dialog"], [role="alertdialog"], [role="menu"], [role="slider"], .work-timer-trigger')) return;
       const handled = () => { event.preventDefault(); event.stopPropagation(); };
 
       if (event.key === 'Escape') {
@@ -377,22 +395,22 @@ export default function Index() {
       }
       if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
         handled();
-        p.setVolume(Math.max(0, Math.min(100, p.volume + (event.key === 'ArrowUp' ? 5 : -5))));
+        setOutputVolume(Math.max(0, Math.min(100, outputVolume + (event.key === 'ArrowUp' ? 5 : -5))));
         return;
       }
       if (event.key.toLowerCase() === 'm') {
-        handled(); p.setVolume(p.volume ? 0 : 65); return;
+        handled(); setOutputVolume(outputVolume ? 0 : p.noise.active ? 20 : 65); return;
       }
-      if (!p.hasTrack) return;
+      if (!p.hasTrack && !p.noise.active) return;
       switch (event.key) {
         case ' ': case 'k': case 'K': case 'MediaPlayPause':
           handled(); if (!event.repeat) p.toggle(); break;
         case 'ArrowRight': case 'l': case 'L':
-          handled(); p.seek(Math.min(p.time + (event.key === 'ArrowRight' ? 5 : 10), p.track.duration)); break;
+          handled(); if (!p.noise.active) p.seek(Math.min(p.time + (event.key === 'ArrowRight' ? 5 : 10), p.track.duration)); break;
         case 'ArrowLeft': case 'j': case 'J':
-          handled(); p.seek(Math.max(p.time - (event.key === 'ArrowLeft' ? 5 : 10), 0)); break;
-        case 'Home': handled(); p.seek(0); break;
-        case 'End': handled(); p.seek(p.track.duration); break;
+          handled(); if (!p.noise.active) p.seek(Math.max(p.time - (event.key === 'ArrowLeft' ? 5 : 10), 0)); break;
+        case 'Home': handled(); if (!p.noise.active) p.seek(0); break;
+        case 'End': handled(); if (!p.noise.active) p.seek(p.track.duration); break;
         case 'n': case 'N': case 'MediaTrackNext':
           handled(); if (!event.repeat) p.next(); break;
         case 'p': case 'P': case 'MediaTrackPrevious':
@@ -403,7 +421,7 @@ export default function Index() {
     return () => window.removeEventListener('keydown', key, true);
   }, [p, focus, scopeOpen, pathname]);
   useEffect(() => { if (!sleep) return; const timer = window.setInterval(() => setSleep(v => Math.max(0, v - 1)), 1000); return () => window.clearInterval(timer); }, [sleep > 0]);
-  useEffect(() => { if (sleep === 1 && p.playing) p.toggle(); }, [sleep]);
+  useEffect(() => { if (sleep === 1 && outputPlaying) p.toggle(); }, [sleep]);
   const allTracks = libraryTracks;
   const catalog = useMemo(() => buildCatalog(allTracks, mappings), [allTracks, mappings]);
   const selectedArtist = isArtists && catalogPath[2] ? catalog.artists.find(item => item.key === decodeURIComponent(catalogPath[2])) : undefined;
@@ -619,19 +637,21 @@ export default function Index() {
     <Dialog open={createPlaylistOpen} onOpenChange={open => { setCreatePlaylistOpen(open); if (!open) { setPlaylistName(''); setPlaylistQueueSnapshot(null); } }}><DialogContent className={`music-dialog playlist-dialog theme-${theme}`}><DialogTitle>{playlistQueueSnapshot ? '播放队列存为歌单' : '新建歌单'}</DialogTitle><DialogDescription>{playlistQueueSnapshot ? `将 ${playlistQueueSnapshot.ids.length} 首歌曲保存为新歌单。${playlistQueueSnapshot.skipped ? `${playlistQueueSnapshot.skipped} 首临时歌曲不会保存。` : ''}` : '给你的新歌单取个名字。'}</DialogDescription><form onSubmit={event => { event.preventDefault(); createPlaylist(); }}><div className="playlist-create-row"><Input autoFocus maxLength={40} placeholder="歌单名称" aria-label="歌单名称" value={playlistName} onChange={event => setPlaylistName(event.target.value)} /><button type="submit" className="playlist-primary" disabled={!playlistName.trim()}>{playlistQueueSnapshot ? '确认保存' : '确认创建'}</button></div></form></DialogContent></Dialog>
     <Dialog open={deletePlaylistId !== null} onOpenChange={open => { if (!open) setDeletePlaylistId(null); }}><DialogContent className="music-dialog playlist-dialog"><DialogTitle>删除歌单？</DialogTitle><DialogDescription>「{playlists.find(item => item.id === deletePlaylistId)?.name}」将从歌单列表移除，歌曲不会从音乐库删除。</DialogDescription><div className="playlist-dialog-actions"><button type="button" onClick={() => setDeletePlaylistId(null)}>取消</button><button type="button" className="playlist-danger" onClick={deletePlaylist}>删除歌单</button></div></DialogContent></Dialog>
     <Dialog open={deleteTrackIds.length > 0} onOpenChange={open => { if (!open) setDeleteTrackIds([]); }}><DialogContent className="music-dialog playlist-dialog"><DialogTitle>从曲库移除{deleteTrackIds.length} 首歌曲？</DialogTitle><DialogDescription>歌曲将从曲库、歌单和播放队列中移除。本地音频文件不会删除。</DialogDescription><div className="playlist-dialog-actions"><button type="button" onClick={() => setDeleteTrackIds([])}>取消</button><button type="button" className="playlist-danger" onClick={() => void deleteTracks()}>移除歌曲</button></div></DialogContent></Dialog>
-    {dropActive && <div className="file-drop-overlay"><Plus size={32} /><strong>{toolboxOpen ? '添加加密音频' : pathname === '/' ? '加入音乐库和播放队列' : '加入音乐库'}</strong></div>}
-    <Toolbox open={toolboxOpen} theme={theme} autoClose={toolboxAutoClose} onOpenChange={setToolboxOpen} paths={toolboxPaths} setPaths={setToolboxPaths} addToLibrary={toolboxAddToLibrary} onAddToLibraryChange={setToolboxAddToLibrary} onChanged={async tracks => { await reloadLibrary(); if (toolboxQueueOnConvert) p.addTracks(tracks); }} />
+    {dropActive && <div className="file-drop-overlay"><Plus size={32} /><strong>{toolboxOpen ? '添加文件或文件夹' : pathname === '/' ? '加入音乐库和播放队列' : '加入音乐库'}</strong></div>}
+    <Toolbox open={toolboxOpen} launchRequest={toolboxLaunchRequest} theme={theme} noise={p.noise} timer={workTimer} autoClose={toolboxAutoClose} onOpenChange={setToolboxOpen} paths={toolboxPaths} setPaths={setToolboxPaths} addToLibrary={toolboxAddToLibrary} onAddToLibraryChange={setToolboxAddToLibrary} onChanged={async tracks => { await reloadLibrary(); if (toolboxQueueOnConvert) p.addTracks(tracks); }} onOrganized={async result => { const state = await backend.state(); for (const track of result.temporaryTracks) p.updateTrack(track); p.setCatalog(state.tracks, result.remappedIds); setLibraryTracks(state.tracks); setCustomTags(state.tags); setPlaylists(state.playlists); setLiked(state.liked); setFolders(state.folders); }} />
     <Dialog open={pendingPaths.length > 0 && !toolboxOpen} onOpenChange={open => { if (!open) setPendingPaths([]); }}><DialogContent className="music-dialog folder-dialog"><DialogTitle>如何处理这些文件？</DialogTitle><DialogDescription>{pendingPaths.length} 个本地路径</DialogDescription><div className="folder-dialog-actions"><button onClick={() => { void importPaths(pendingPaths, 'temporary'); setPendingPaths([]); }}>仅本次播放</button><button onClick={() => { void importPaths(pendingPaths, 'library'); setPendingPaths([]); }}>加入音乐库</button><button onClick={() => { void importPaths(pendingPaths, 'watch'); setPendingPaths([]); }}>监听所在文件夹</button></div></DialogContent></Dialog>
     <Dialog open={networkOpen} onOpenChange={setNetworkOpen}><DialogContent className="music-dialog folder-dialog"><DialogTitle>打开网络歌曲</DialogTitle><DialogDescription>HTTP 或 HTTPS 音频文件地址</DialogDescription><form className="network-song-form" onSubmit={event => { event.preventDefault(); void openNetworkSong(); }}><Input type="url" autoFocus required value={networkURL} onChange={event => setNetworkURL(event.target.value)} placeholder="https://example.com/music/song.mp3" aria-label="网络歌曲地址" /><div className="folder-dialog-actions"><button type="button" onClick={() => setNetworkOpen(false)}>取消</button><button type="submit" disabled={networkLoading || !networkURL.trim()}>{networkLoading ? '正在打开' : '打开并播放'}</button></div></form></DialogContent></Dialog>
-    <footer className="playback-bar">
-      <div className="mini-track"><button type="button" className="mini-cover-link" aria-label="前往正在播放" title="前往正在播放" onClick={() => navigate('/')}><img className="mini-cover" src={cover} alt="" /></button><div><strong>{p.track.title}</strong><small>{p.track.artist}</small></div>{p.hasTrack && !p.track.source && <IconButton label="喜欢" onClick={toggleLike} active={favorite}><Heart size={17} fill={favorite ? 'currentColor' : 'none'} /></IconButton>}</div>
-      <div className="transport"><div className="transport-buttons"><IconButton label="随机播放" active={p.mode === 'shuffle'} onClick={() => p.setMode(p.mode === 'shuffle' ? 'list' : 'shuffle')}><Shuffle size={17} /></IconButton><IconButton label="上一首" onClick={p.previous}><SkipBack size={20} fill="currentColor" /></IconButton><button className="play-button" disabled={!p.hasTrack} aria-label={p.playing ? '暂停' : '播放'} onClick={p.toggle}>{p.playing ? <Pause size={21} fill="currentColor" /> : <Play size={21} fill="currentColor" />}</button><IconButton label="下一首" onClick={p.next}><SkipForward size={20} fill="currentColor" /></IconButton><IconButton label={({ list: '列表循环', repeat: '单曲循环', shuffle: '列表循环', 'stop-track': '播完单曲停止', 'stop-list': '播完列表停止' })[p.mode]} active={p.mode !== 'list' && p.mode !== 'shuffle'} onClick={() => { const modes = ['list', 'repeat', 'stop-track', 'stop-list'] as const; p.setMode(modes[(modes.indexOf(p.mode as typeof modes[number]) + 1) % modes.length]); }}>{p.mode === 'repeat' ? <Repeat1 size={18} /> : p.mode === 'stop-track' ? <Square size={18} /> : p.mode === 'stop-list' ? <ListEnd size={18} /> : <Repeat size={18} />}</IconButton></div><div className="seek-row"><span>{formatTime(p.time)}</span><input aria-label="播放进度" type="range" min="0" max={Math.max(1, p.track.duration)} step="0.1" value={p.time} disabled={!p.hasTrack} onChange={e => p.seek(Number(e.target.value))} style={{ '--fill': `${p.time / Math.max(1, p.track.duration) * 100}%` } as React.CSSProperties} /><span>{formatTime(p.track.duration)}</span></div></div>
-      <div className="playback-extras">{p.track.quality && <span className="quality-badge" title={[p.track.quality.sampleRate && `${(p.track.quality.sampleRate / 1000).toFixed(1)} kHz`, p.track.quality.bitDepth && `${p.track.quality.bitDepth}-bit`, p.track.quality.bitrate && `${Math.round(p.track.quality.bitrate / 1000)} kbps`, p.track.quality.codec].filter(Boolean).join(' · ')}>{p.track.quality.lossless ? p.track.quality.sampleRate && p.track.quality.sampleRate >= 88200 ? 'Hi-Res' : '无损' : p.track.quality.bitrate ? `${Math.round(p.track.quality.bitrate / 1000)} kbps` : '音频'}</span>}
-        <IconButton label="音频工具箱" className="toolbox-trigger" active={toolboxOpen} onClick={() => { setToolboxAddToLibrary(false); setToolboxQueueOnConvert(false); setToolboxAutoClose(false); setToolboxOpen(true); }}><Wrench size={19} /></IconButton>
-        <Popover><PopoverTrigger asChild><button type="button" className={`icon-button ${sleep > 0 ? 'is-active' : ''}`} aria-label="睡眠定时" title={sleep > 0 ? `睡眠定时：${formatTime(sleep)}` : '睡眠定时'}><Timer size={19} /></button></PopoverTrigger><PopoverContent align="end" className="sleep-quick-popover"><strong>睡眠定时</strong><p>{sleep > 0 ? `剩余 ${formatTime(sleep)}` : '到时间后暂停播放'}</p><div className="sleep-quick-options">{[5, 10, 15, 30, 45, 60].map(minutes => <button key={minutes} type="button" onClick={() => setSleep(minutes * 60)}>{minutes} 分钟</button>)}</div><form onSubmit={event => { event.preventDefault(); const form = new FormData(event.currentTarget); const minutes = Number(form.get('minutes')); if (Number.isFinite(minutes) && minutes > 0) setSleep(Math.round(minutes * 60)); }}><label>自定义分钟<input name="minutes" type="number" min="1" max="1440" step="1" defaultValue="20" /></label><button type="submit">设置</button></form>{sleep > 0 && <button type="button" className="sleep-quick-cancel" onClick={() => setSleep(0)}>关闭定时</button>}</PopoverContent></Popover><IconButton label={p.volume ? '静音' : '恢复音量'} className="volume-trigger" onClick={() => p.setVolume(p.volume ? 0 : 65)}>{p.volume ? <Volume2 size={19} /> : <VolumeX size={19} />}</IconButton><input aria-label="音量" type="range" min="0" max="100" value={p.volume} onChange={e => p.setVolume(Number(e.target.value))} style={{ '--fill': `${p.volume}%` } as React.CSSProperties} /><span className="header-separator" /><IconButton label="播放队列" onClick={() => setQueueOpen(true)}><ListMusic size={20} /></IconButton>
+    <footer className={`playback-bar ${p.noise.active ? 'noise-active' : ''} ${workTimer.active ? 'timer-active' : ''}`}>
+      <div className="mini-track"><button type="button" className="mini-cover-link" aria-label="前往正在播放" title="前往正在播放" onClick={() => navigate('/')}><img className="mini-cover" src={p.noise.active ? '/covers/local.svg' : cover} alt="" /></button><div><strong>{p.noise.active ? p.noise.name : p.track.title}</strong><small>{p.noise.active ? p.noise.status === 'paused' ? '后台噪音 · 已暂停' : '后台噪音 · 原队列保留' : p.track.artist}</small></div>{!p.noise.active && p.hasTrack && !p.track.source && <IconButton label="喜欢" onClick={toggleLike} active={favorite}><Heart size={17} fill={favorite ? 'currentColor' : 'none'} /></IconButton>}</div>
+      <div className="transport"><div className="transport-buttons"><IconButton label="随机播放" active={p.mode === 'shuffle'} onClick={() => p.setMode(p.mode === 'shuffle' ? 'list' : 'shuffle')}><Shuffle size={17} /></IconButton><IconButton label="上一首" onClick={p.previous}><SkipBack size={20} fill="currentColor" /></IconButton><button className="play-button" disabled={!p.hasTrack && !p.noise.active} aria-label={outputPlaying ? '暂停' : '播放'} onClick={p.toggle}>{outputPlaying ? <Pause size={21} fill="currentColor" /> : <Play size={21} fill="currentColor" />}</button><IconButton label="下一首" onClick={p.next}><SkipForward size={20} fill="currentColor" /></IconButton><IconButton label={({ list: '列表循环', repeat: '单曲循环', shuffle: '列表循环', 'stop-track': '播完单曲停止', 'stop-list': '播完列表停止' })[p.mode]} active={p.mode !== 'list' && p.mode !== 'shuffle'} onClick={() => { const modes = ['list', 'repeat', 'stop-track', 'stop-list'] as const; p.setMode(modes[(modes.indexOf(p.mode as typeof modes[number]) + 1) % modes.length]); }}>{p.mode === 'repeat' ? <Repeat1 size={18} /> : p.mode === 'stop-track' ? <Square size={18} /> : p.mode === 'stop-list' ? <ListEnd size={18} /> : <Repeat size={18} />}</IconButton></div><div className="seek-row"><span>{p.noise.active ? '—' : formatTime(p.time)}</span><input aria-label="播放进度" type="range" min="0" max={Math.max(1, p.track.duration)} step="0.1" value={p.time} disabled={!p.hasTrack || p.noise.active} onChange={e => p.seek(Number(e.target.value))} style={{ '--fill': `${p.time / Math.max(1, p.track.duration) * 100}%` } as React.CSSProperties} /><span>{p.noise.active ? '—' : formatTime(p.track.duration)}</span></div></div>
+      <div className="playback-extras">{!p.noise.active && p.track.quality && <span className="quality-badge" title={[p.track.quality.sampleRate && `${(p.track.quality.sampleRate / 1000).toFixed(1)} kHz`, p.track.quality.bitDepth && `${p.track.quality.bitDepth}-bit`, p.track.quality.bitrate && `${Math.round(p.track.quality.bitrate / 1000)} kbps`, p.track.quality.codec].filter(Boolean).join(' · ')}>{p.track.quality.lossless ? p.track.quality.sampleRate && p.track.quality.sampleRate >= 88200 ? 'Hi-Res' : '无损' : p.track.quality.bitrate ? `${Math.round(p.track.quality.bitrate / 1000)} kbps` : '音频'}</span>}
+        {p.noise.active && <IconButton label="停止噪音" className="noise-stop-trigger" onClick={p.noise.stop}><Square size={17} /></IconButton>}
+        <IconButton label="音频工具箱" className="toolbox-trigger" active={toolboxOpen} onClick={() => { setToolboxAddToLibrary(false); setToolboxQueueOnConvert(false); setToolboxAutoClose(false); setToolboxLaunchRequest(previous => ({ tool: null, revision: previous.revision + 1 })); setToolboxOpen(true); }}><Wrench size={19} /></IconButton>
+        <TimerShortcut timer={workTimer} onOpen={() => { setToolboxAutoClose(false); setToolboxLaunchRequest(previous => ({ tool: 'timer', revision: previous.revision + 1 })); setToolboxOpen(true); }} />
+        <Popover><PopoverTrigger asChild><button type="button" className={`icon-button ${sleep > 0 ? 'is-active' : ''}`} aria-label="睡眠定时" title={sleep > 0 ? `睡眠定时：${formatTime(sleep)}` : '睡眠定时'}><Timer size={19} /></button></PopoverTrigger><PopoverContent side="top" align="end" sideOffset={12} collisionPadding={12} className="sleep-quick-popover"><strong>睡眠定时</strong><p>{sleep > 0 ? `剩余 ${formatTime(sleep)}` : '到时间后暂停播放'}</p><div className="sleep-quick-options">{[5, 10, 15, 30, 45, 60].map(minutes => <button key={minutes} type="button" onClick={() => setSleep(minutes * 60)}>{minutes} 分钟</button>)}</div><form onSubmit={event => { event.preventDefault(); const form = new FormData(event.currentTarget); const minutes = Number(form.get('minutes')); if (Number.isFinite(minutes) && minutes > 0) setSleep(Math.round(minutes * 60)); }}><label>自定义分钟<input name="minutes" type="number" min="1" max="1440" step="1" defaultValue="20" /></label><button type="submit">设置</button></form>{sleep > 0 && <button type="button" className="sleep-quick-cancel" onClick={() => setSleep(0)}>关闭定时</button>}</PopoverContent></Popover><IconButton label={outputVolume ? '静音' : '恢复音量'} className="volume-trigger" onClick={() => setOutputVolume(outputVolume ? 0 : p.noise.active ? 20 : 65)}>{outputVolume ? <Volume2 size={19} /> : <VolumeX size={19} />}</IconButton><input aria-label="音量" type="range" min="0" max="100" value={outputVolume} onChange={e => setOutputVolume(Number(e.target.value))} style={{ '--fill': `${outputVolume}%` } as React.CSSProperties} /><span className="header-separator" /><IconButton label="播放队列" onClick={() => setQueueOpen(true)}><ListMusic size={20} /></IconButton>
       </div>
     </footer>
-    {queueOpen && <section className={`quick-queue-panel ${trackDropTarget === 'queue' ? 'track-drop-target' : ''}`} aria-label="播放队列" onDragOver={event => onTrackDragOver(event, 'queue')} onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setTrackDropTarget(null); }} onDrop={onDropToQueue}><header><div><h2>播放队列</h2><span>{p.queue.length} 首歌曲</span></div><div className="quick-queue-actions"><button type="button" aria-label="存为歌单" title="存为歌单" disabled={!p.queue.some(track => track.id > 0 && !track.temporary)} onClick={saveQueueAsPlaylist}><Save size={17} /></button><button type="button" aria-label="关闭播放队列" onClick={() => setQueueOpen(false)}><X size={17} /></button></div></header><div className="quick-queue-list">{p.queue.map((track, index) => <button type="button" key={track.id} className={'queue-track ' + (p.trackId === track.id ? 'current' : '')} aria-current={p.trackId === track.id ? 'true' : undefined} onClick={() => p.select(track.id)}><span className="track-number">{p.trackId === track.id ? <AudioLines size={14} /> : String(index + 1).padStart(2, '0')}</span><img src={track.cover} alt="" /><span className="queue-track-label"><span>{track.title}</span><small>{track.artist}</small></span><span className="track-duration">{formatTime(track.duration)}</span></button>)}{p.queue.length === 0 && <div className="queue-empty">队列为空</div>}</div></section>}
+    {queueOpen && <section className={`quick-queue-panel ${trackDropTarget === 'queue' ? 'track-drop-target' : ''}`} aria-label="播放队列" onDragOver={event => onTrackDragOver(event, 'queue')} onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setTrackDropTarget(null); }} onDrop={onDropToQueue}><header><div><h2>播放队列</h2><span>{p.queue.length} 首歌曲</span></div><div className="quick-queue-actions"><LocateCurrentTrackButton iconOnly available={p.trackId !== null && p.queue.some(track => track.id === p.trackId)} onLocate={() => locateCurrentTrack(quickQueueRef.current)} /><button type="button" aria-label="存为歌单" title="存为歌单" disabled={!p.queue.some(track => track.id > 0 && !track.temporary)} onClick={saveQueueAsPlaylist}><Save size={17} /></button><button type="button" aria-label="关闭播放队列" onClick={() => setQueueOpen(false)}><X size={17} /></button></div></header><div ref={quickQueueRef} className="quick-queue-list">{p.queue.map((track, index) => <button type="button" key={track.id} className={'queue-track ' + (p.trackId === track.id ? 'current' : '')} aria-current={p.trackId === track.id ? 'true' : undefined} onClick={() => p.select(track.id)}><span className="track-number">{p.trackId === track.id ? <AudioLines size={14} /> : String(index + 1).padStart(2, '0')}</span><img src={track.cover} alt="" /><span className="queue-track-label"><span>{track.title}</span><small>{track.artist}</small></span><span className="track-duration">{formatTime(track.duration)}</span></button>)}{p.queue.length === 0 && <div className="queue-empty">队列为空</div>}</div></section>}
     {focus && p.hasTrack && <section className="immersive-overlay"><img src={cover} alt="" className="immersive-backdrop" /><div className="immersive-shade" /><header><span>{p.track.title}</span><IconButton label="收起歌词" onClick={() => setFocus(false)}><Minimize2 size={20} /></IconButton></header><div className="immersive-main"><div className="immersive-art"><img src={cover} alt={`${p.track.album}专辑封面`} /><Spectrum analyser={p.analyser} response={p.frequencyResponse} active={p.playing} /></div><div className="immersive-lyrics"><span className="eyebrow">{p.track.album} · {p.track.artist}</span><h1>{p.track.title}</h1>{hasLyrics && <div ref={immersiveLyricsWindow}>{lines.map((line, i) => <p key={i} className={i === activeLine ? 'current' : ''}>{lyricEffect === '逐字' && i === activeLine && wordLines[i].length > 0 ? wordLines[i].map((word, wi) => <span key={wi} className={wi < activeWord ? 'spoken' : wi === activeWord ? 'speaking' : ''}>{word.text}</span>) : line}</p>)}</div>}</div></div></section>}
     {detailTrack && <TrackDetails track={detailTrack} theme={theme} onClose={() => setDetailTrack(null)} onSaved={updated => { p.updateTrack(updated); if (!updated.temporary) setLibraryTracks(tracks => tracks.map(track => track.id === updated.id ? updated : track)); setDetailTrack(updated); }} onArtist={openArtist} onAlbum={openAlbum} onTag={name => { setDetailTrack(null); openTag(name); }} />}
   </div>;

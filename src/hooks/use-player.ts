@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { backend } from '@/lib/backend';
 import type { Track } from '@/lib/music';
 import { toast } from 'sonner';
+import { playbackCoordinator, type PlaybackOwner } from '@/lib/playback-coordinator';
+import { useNoiseGenerator } from '@/hooks/use-noise-generator';
 import { calculateFIRResponse, effectDefinitions, makeFrequencyImpulse, makeTimeImpulse, selectedEffect, validateFilter, type CustomFilter, type FrequencyResponse, type SavedEffect } from '@/lib/audio-filter';
 
 const frequencies = [60, 230, 910, 3600, 12000];
@@ -9,9 +11,10 @@ const emptyBands = [0, 0, 0, 0, 0];
 const emptyTrack: Track = { id: -1, title: '暂无歌曲', english: '', artist: '打开歌曲或文件夹', album: '本地音乐', duration: 0, cover: '/covers/local.svg', genre: '', year: '', color: '#8daab0', source: '' };
 type FilterLane = { node: ConvolverNode | null; gain: GainNode };
 type Graph = { context: AudioContext; bands: BiquadFilterNode[]; frequencyInput: GainNode; timeInput: GainNode; analyser: AnalyserNode; scopeAnalyser: AnalyserNode; frequencyLane: FilterLane; timeLane: FilterLane };
-let activePlayback: { element: HTMLAudioElement; stop: () => void } | null = null;
 
 export function usePlayer() {
+  const noise = useNoiseGenerator();
+  const musicOwner = useRef<PlaybackOwner | null>(null);
   const [queue, setQueue] = useState<Track[]>([]), [trackId, setTrackId] = useState<number | null>(null);
   const [recent, setRecent] = useState<number[]>([]);
   const [playing, setPlaying] = useState(false), [time, setTime] = useState(0);
@@ -25,15 +28,21 @@ export function usePlayer() {
   currentId.current = trackId;
   const track = queue.find(t => t.id === trackId) ?? null;
   const updateQueue = (value: Track[]) => { queueRef.current = value; setQueue(value); };
-  const setCatalog = (items: Track[]) => {
+  const setCatalog = (items: Track[], remappedIds: Record<string, number> = {}) => {
     catalogRef.current = items;
     const byId = new Map(items.map(item => [item.id, item]));
-    const next = queueRef.current.map(item => byId.get(item.id) ?? (item.temporary ? item : null)).filter((item): item is Track => item !== null);
-    if (currentId.current !== null && !next.some(item => item.id === currentId.current)) {
+    const seen = new Set<number>();
+    const next = queueRef.current.map(item => byId.get(remappedIds[item.id] ?? item.id) ?? (item.temporary ? item : null)).filter((item): item is Track => { if (!item || seen.has(item.id)) return false; seen.add(item.id); return true; });
+    const selectedId = currentId.current === null ? null : remappedIds[currentId.current] ?? currentId.current;
+    if (selectedId !== null && !next.some(item => item.id === selectedId)) {
       audio.current?.pause();
       shouldPlay.current = false;
       setTrackId(next[0]?.id ?? null);
+    } else if (selectedId !== currentId.current) {
+      currentId.current = selectedId;
+      setTrackId(selectedId);
     }
+    if (Object.keys(remappedIds).length) setRecent(previous => [...new Set(previous.map(id => remappedIds[id] ?? id))]);
     updateQueue(next);
   };
   const updateTrack = (track: Track) => updateQueue(queueRef.current.map(item => item.id === track.id ? track : item));
@@ -49,9 +58,9 @@ export function usePlayer() {
 
   useEffect(() => {
     const element = new Audio(); audio.current = element;
-    const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('lunanahidatune-playback') : null;
-    const stop = () => { shouldPlay.current = false; element.pause(); };
-    channel?.addEventListener('message', event => { if (event.data === 'play') stop(); });
+    const coordinator = playbackCoordinator();
+    const owner = { stop: () => { shouldPlay.current = false; element.pause(); setPlaying(false); } };
+    musicOwner.current = owner;
     element.ontimeupdate = () => setTime(element.currentTime);
     element.onloadedmetadata = () => { const id = currentId.current; if (id !== null && Number.isFinite(element.duration)) { const updated = queueRef.current.map(item => item.id === id ? { ...item, duration: element.duration } : item); updateQueue(updated); if (id > 0) void backend.duration(id, element.duration).catch(() => {}); } };
     element.oncanplay = () => { const id = currentId.current; if (id === null) return; const item = queueRef.current.find(track => track.id === id); if (item?.playbackStatus === 'playable') return; updateQueue(queueRef.current.map(track => track.id === id ? { ...track, playbackStatus: 'playable' } : track)); if (id > 0) void backend.playbackStatus(id, 'playable').then(() => window.dispatchEvent(new Event('lunanahida-library-changed'))).catch(() => {}); };
@@ -76,14 +85,14 @@ export function usePlayer() {
         if (id > 0) void backend.playbackStatus(id, 'unplayable').then(() => window.dispatchEvent(new Event('lunanahida-library-changed'))).catch(() => {});
       }).catch(() => {});
     };
-    element.onended = () => nextRef.current();
+    element.onended = () => { if (shouldPlay.current) nextRef.current(); };
     element.onplay = () => {
-      if (activePlayback?.element !== element) activePlayback?.stop();
-      activePlayback = { element, stop }; channel?.postMessage('play'); setPlaying(true);
+      if (!shouldPlay.current || !coordinator.owns(owner)) { element.pause(); return; }
+      setPlaying(true);
       if (currentId.current !== null && currentId.current > 0) { const id = currentId.current; setRecent(prev => [id, ...prev.filter(item => item !== id)].slice(0, 50)); void backend.history(id).catch(() => {}); }
     };
-    element.onpause = () => { if (activePlayback?.element === element) activePlayback = null; setPlaying(false); };
-    return () => { stop(); channel?.close(); if (activePlayback?.element === element) activePlayback = null; element.removeAttribute('src'); element.load(); audio.current = null; void graph.current?.context.close(); graph.current = null; };
+    element.onpause = () => { if (!shouldPlay.current) coordinator.release(owner); setPlaying(false); };
+    return () => { owner.stop(); coordinator.release(owner); musicOwner.current = null; element.removeAttribute('src'); element.load(); audio.current = null; void graph.current?.context.close(); graph.current = null; };
   }, []);
 
   useEffect(() => {
@@ -165,11 +174,17 @@ export function usePlayer() {
   }, [effect, customEffects, previewFilter, playing]);
   useEffect(() => { graph.current?.bands.forEach((band, index) => { band.gain.setTargetAtTime(equalizer[index], graph.current!.context.currentTime, .04); }); }, [equalizer]);
 
+  const claimMusic = () => {
+    noise.stop();
+    if (musicOwner.current) playbackCoordinator().claim(musicOwner.current);
+    shouldPlay.current = true;
+    ensureGraph();
+  };
   const select = (id: number) => {
     let list = queueRef.current;
     if (!list.some(item => item.id === id)) { const item = catalogRef.current.find(item => item.id === id); if (!item || item.available === false || item.playbackStatus === 'unplayable') return; list = [...list, item]; updateQueue(list); }
     if (list.find(item => item.id === id)?.available === false || list.find(item => item.id === id)?.playbackStatus === 'unplayable') return;
-    ensureGraph(); shouldPlay.current = true; currentId.current = id;
+    claimMusic(); currentId.current = id;
     if (id === trackId) { if (audio.current) { audio.current.currentTime = 0; void audio.current.play().catch(() => setPlaying(false)); } }
     else { audio.current?.pause(); setTrackId(id); }
   };
@@ -177,7 +192,7 @@ export function usePlayer() {
     const playable = items.filter(item => item.available !== false && item.playbackStatus !== 'unplayable');
     if (!playable.length) return false;
     const target = playable.find(item => item.id === startId) ?? playable[0];
-    ensureGraph(); shouldPlay.current = true; currentId.current = target.id;
+    claimMusic(); currentId.current = target.id;
     updateQueue(playable);
     if (target.id === trackId) {
       if (audio.current) { audio.current.currentTime = 0; void audio.current.play().catch(() => setPlaying(false)); }
@@ -187,7 +202,7 @@ export function usePlayer() {
   const next = () => { const list = queueRef.current.filter(item => item.available !== false && item.playbackStatus !== 'unplayable'); if (!list.length) return; const index = list.findIndex(item => item.id === trackId); const target = mode === 'shuffle' && list.length > 1 ? list[(index + 1 + Math.floor(Math.random() * (list.length - 1))) % list.length] : list[(index + 1) % list.length]; select(target.id); };
   nextRef.current = () => { const list = queueRef.current; const atEnd = list.findIndex(item => item.id === trackId) === list.length - 1; if (mode === 'stop-track' || (mode === 'stop-list' && atEnd)) { shouldPlay.current = false; setPlaying(false); if (audio.current) audio.current.currentTime = 0; setTime(0); } else if (mode === 'repeat' && trackId !== null) select(trackId); else next(); };
   const previous = () => { const list = queueRef.current.filter(item => item.available !== false && item.playbackStatus !== 'unplayable'); if (!list.length) return; const index = list.findIndex(item => item.id === trackId); select(list[(index - 1 + list.length) % list.length].id); };
-  const toggle = () => { if (!audio.current || !track) return; ensureGraph(); if (playing) { audio.current.pause(); shouldPlay.current = false; } else { shouldPlay.current = true; void audio.current.play().catch(() => setPlaying(false)); } };
+  const toggle = () => { if (noise.active) { noise.toggle(); return; } if (!audio.current || !track) return; if (playing) { shouldPlay.current = false; audio.current.pause(); } else { claimMusic(); void audio.current.play().catch(() => setPlaying(false)); } };
   const seek = (value: number) => { if (audio.current && track) audio.current.currentTime = value; setTime(value); };
   const setBand = (index: number, value: number) => setEqualizer(prev => prev.map((band, i) => i === index ? value : band));
   const resetEqualizer = () => setEqualizer([...emptyBands]);
@@ -207,5 +222,5 @@ export function usePlayer() {
   const move = (from: number, to: number) => { const list = [...queueRef.current], start = list.findIndex(item => item.id === from), end = list.findIndex(item => item.id === to); if (start < 0 || end < 0 || start === end) return; list.splice(end, 0, list.splice(start, 1)[0]); updateQueue(list); };
   const markLyricsSaved = (saved: Track) => updateQueue(queueRef.current.map(item => item.id === saved.id ? { ...item, lyrics: saved.lyrics, translation: saved.translation, localLyrics: true, embeddedLyrics: false } : item));
   const addTracks = (items: Track[], replace = false) => { if (!items.length) return; if (replace) { audio.current?.pause(); shouldPlay.current = false; updateQueue(items); setTrackId(items[0].id); return; } const ids = new Set(queueRef.current.map(item => item.id)); const paths = new Set(queueRef.current.map(item => item.path).filter((path): path is string => Boolean(path))); const additions = items.filter(item => { if (ids.has(item.id) || (item.path && paths.has(item.path))) return false; ids.add(item.id); if (item.path) paths.add(item.path); return true; }); const empty = queueRef.current.length === 0; updateQueue([...queueRef.current, ...additions]); if (empty && additions.length) setTrackId(additions[0].id); };
-  return { track: track ?? emptyTrack, hasTrack: Boolean(track), trackId, queue, recent, playing, time, volume, setVolume, mode, setMode, effect, effectName: selectedEffect(effect, customEffects).name, setEffect, setPreviewFilter, customEffects, saveEffect, deleteEffect, filterError, frequencyResponse, equalizer, setBand, resetEqualizer, analyser, scopeAnalyser, select, playTracks, next, previous, toggle, seek, clearQueue, removeTracks, move, addTracks, markLyricsSaved, setCatalog, updateTrack, hydrate };
+  return { track: track ?? emptyTrack, hasTrack: Boolean(track), trackId, queue, recent, playing, time, volume, setVolume, mode, setMode, effect, effectName: selectedEffect(effect, customEffects).name, setEffect, setPreviewFilter, customEffects, saveEffect, deleteEffect, filterError, frequencyResponse, equalizer, setBand, resetEqualizer, analyser, scopeAnalyser, select, playTracks, next, previous, toggle, seek, clearQueue, removeTracks, move, addTracks, markLyricsSaved, setCatalog, updateTrack, hydrate, noise };
 }

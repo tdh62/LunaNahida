@@ -1,0 +1,40 @@
+.toolbox-dialog.timer-dialog { top: calc((100dvh - 120px) / 2); width: min(480px, calc(100vw - 28px)); max-width: 480px; max-height: calc(100dvh - 152px); overflow-y: auto; }
+.work-timer { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.work-timer button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 6px; color: inherit; background: transparent; font-size: 12px; }
+.work-timer button:disabled { opacity: .5; cursor: not-allowed; }
+.work-timer button:focus-visible, .work-timer input:focus-visible { outline: 2px solid var(--toolbox-accent); outline-offset: 3px; }
+.work-timer-modes { display: flex; gap: 8px; }
+.work-timer-modes button { flex: 1; }
+.work-timer button[aria-pressed="true"] { color: var(--toolbox-accent); border-color: var(--toolbox-accent); background: color-mix(in srgb, var(--toolbox-accent) 8%, transparent); }
+.work-timer-face { display: flex; flex-direction: column; align-items: center; gap: 13px; padding: 18px 10px; border: 1px solid var(--line); border-radius: 10px; background: color-mix(in srgb, var(--toolbox-accent) 4%, transparent); }
+.work-timer-face > span { color: var(--text-muted, #a2a7aa); font-size: 12px; }
+.work-timer-face > output { color: var(--toolbox-accent); font: 42px 'DM Mono', monospace; font-variant-numeric: tabular-nums; }
+.work-timer-face.completed > span { color: var(--toolbox-accent); }
+.work-timer progress, .work-timer-preview progress { width: 100%; height: 6px; accent-color: var(--toolbox-accent, var(--accent)); }
+.work-timer-hint { margin: 0; color: var(--text-muted, #a2a7aa); font-size: 11px; line-height: 1.8; overflow-wrap: anywhere; }
+.work-timer-duration { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 6px; }
+.work-timer-duration legend { font-size: 12px; }
+.work-timer-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.work-timer-presets button { flex: 1; padding: 5px 7px; font-size: 11px; white-space: nowrap; }
+.work-timer-custom { display: flex; gap: 12px; }
+.work-timer-custom label { display: flex; flex: 1; align-items: center; gap: 6px; font-size: 12px; white-space: nowrap; }
+.work-timer-custom input { width: 100%; min-width: 0; height: 32px; border: 1px solid var(--line); border-radius: 5px; padding: 0 7px; background: transparent; color: inherit; font: 12px 'DM Mono', monospace; }
+.work-timer-duration p, .work-timer-error { margin: 0; font-size: 11px; color: #db9c69; line-height: 1.7; }
+.work-timer-actions { display: flex; gap: 8px; }
+.work-timer-actions button { flex: 1; }
+.work-timer-actions button:first-child { border-color: var(--toolbox-accent); background: var(--toolbox-accent); color: var(--toolbox-accent-text); }
+.playback-extras > button.work-timer-trigger { display: inline-grid; position: relative; color: var(--accent); flex: none; }
+.work-timer-trigger > i { position: absolute; right: 2px; top: 2px; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.work-timer-trigger.paused { opacity: .65; }
+.work-timer-trigger.completed { color: #d89a55; }
+html .work-timer-preview { z-index: 80; width: min(260px, calc(100vw - 24px)); max-height: var(--radix-hover-card-content-available-height); overflow-y: auto; padding: 14px; border: 1px solid #3b4440; border-radius: 8px; background: #202523; color: #eff3ed; box-shadow: 0 14px 36px #0005; }
+.work-timer-preview > div { display: flex; justify-content: space-between; font-size: 12px; }
+.work-timer-preview > div > span { color: #a4ada7; font-size: 10px; }
+.work-timer-preview output { display: block; margin: 14px 0; color: var(--accent, #a5cdb0); font: 30px 'DM Mono', monospace; }
+html.mode-light .work-timer-preview { background: #fff; border-color: #d8e1dc; color: #25343a; }
+html.mode-light .work-timer-preview > div > span, html.mode-light .work-timer-hint, html.mode-light .work-timer-face > span { color: #586968; }
+@media (max-width: 440px) { .work-timer-face > output { font-size: 34px; } .work-timer-presets button { flex-basis: 100%; } }
+@media (max-width: 480px) {
+  .playback-bar.timer-active .transport { width: calc(100% - 136px); justify-self: start; margin-inline: 0; }
+  .playback-bar.noise-active.timer-active .transport { width: calc(100% - 170px); }
+}

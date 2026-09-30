@@ -58,6 +58,8 @@ func decode(r *http.Request, value any) error {
 
 func (a *API) Handler() http.Handler {
 	mux := http.NewServeMux()
+	newOrganizer(a.Store).register(mux)
+	a.registerWorkTimer(mux)
 	mux.HandleFunc("GET /api/backup", func(w http.ResponseWriter, r *http.Request) {
 		file, err := os.CreateTemp("", "lunanahida-export-*.zip")
 		if err != nil {

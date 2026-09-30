@@ -350,7 +350,7 @@ func (s *Store) importPaths(paths []string, mode string, skipConversion bool) ([
 					return nil
 				}
 				if entry.IsDir() {
-					if entry.Name() == backupFolder {
+					if entry.Name() == backupFolder || entry.Name() == organizerRecoveryFolder {
 						return filepath.SkipDir
 					}
 					return nil
@@ -611,7 +611,7 @@ func (s *Store) scan(ctx context.Context, manualBackup *bool) (ScanResult, error
 				return nil
 			}
 			if entry.IsDir() {
-				if entry.Name() == backupFolder {
+				if entry.Name() == backupFolder || entry.Name() == organizerRecoveryFolder {
 					return filepath.SkipDir
 				}
 				return nil

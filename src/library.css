@@ -1,8 +1,16 @@
 .library-rows { max-height: max(260px, calc(100dvh - 300px)); overflow-y: auto; scrollbar-width: thin; scrollbar-color: #555 transparent; }
+.locate-current-track { display: inline-flex; align-items: center; justify-content: center; flex: none; gap: 6px; height: 40px; padding: 0 11px; border: 1px solid var(--line); border-radius: 6px; background: transparent; color: var(--accent); font-size: 12px; white-space: nowrap; cursor: pointer; }
+.locate-current-track:hover:not(:disabled), .locate-current-track:focus-visible { background: var(--tint); }
+.locate-current-track:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; }
+.locate-current-track:disabled { opacity: .4; cursor: not-allowed; }
+.locate-current-track.icon-only { width: 28px; height: 28px; padding: 0; border: 0; border-radius: 4px; }
+.queue-view-actions { display: flex; align-items: center; gap: 3px; }
+.library-row { scroll-margin-top: 12px; scroll-margin-bottom: 130px; }
 .track-tags button, .detail-tags button { padding: 3px 6px; border: 1px solid var(--line); border-radius: 3px; background: transparent; color: var(--muted); font-size: 9px; }
 .track-tags button:hover, .detail-tags button:hover { border-color: var(--accent); color: var(--accent); }
 .detail-tags { display: flex; flex-wrap: wrap; gap: 4px; }
 .library-rows.is-virtualized .library-row { height: 72px; min-height: 72px; box-sizing: border-box; }
+.library-rows.is-virtualized { overflow-anchor: none; }
 @media (max-width: 760px) {
   .library-rows { max-height: max(260px, calc(100dvh - 335px)); }
   .library-rows.is-virtualized .library-row { height: 66px; min-height: 66px; }

@@ -1,5 +1,5 @@
 
-.sleep-quick-popover { width: 250px; padding: 14px; border: 1px solid #424347; border-radius: 8px; background: #202123; color: #f1f0ed; box-shadow: 0 12px 36px rgba(0,0,0,.35); }
+html .sleep-quick-popover { z-index: 70; width: 250px; max-width: calc(100vw - 24px); max-height: var(--radix-popover-content-available-height); overflow-y: auto; overscroll-behavior: contain; padding: 14px; border: 1px solid #424347; border-radius: 8px; background: #202123; color: #f1f0ed; box-shadow: 0 12px 36px rgba(0,0,0,.35); }
 .sleep-quick-popover > strong { font-size: 13px; }
 .sleep-quick-popover > p { margin: 4px 0 12px; color: #aaa9ad; font-size: 11px; }
 .sleep-quick-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }

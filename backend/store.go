@@ -159,6 +159,7 @@ type Store struct {
 	mu            sync.Mutex
 	coverMu       sync.Mutex
 	convertMu     sync.Mutex
+	timerMu       sync.Mutex
 	temporary     map[int64]Track
 	nextTemporary int64
 	scanning      bool

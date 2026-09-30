@@ -59,7 +59,9 @@
 .playlist-delete { display: grid; place-items: center; width: 38px; height: 38px; border: 1px solid #444548; border-radius: 7px; background: none; color: #aaa9ad; }
 .playlist-delete:hover { color: #f6a9a9; border-color: #a76565; }
 .playlist-detail .library-view { min-height: 0; padding: 0; }
-.playlist-detail .library-heading { display: none; }
+.playlist-detail .library-heading { display: flex; margin-bottom: 14px; }
+.playlist-detail .library-heading > div:first-child, .playlist-detail .library-filters > :not(.locate-current-track) { display: none; }
+.playlist-detail .library-filters { justify-content: flex-end; }
 .playlist-dialog { --accent: #a5b5ff; }
 .playlist-dialog.theme-anime { --accent: #e4a9da; }
 .playlist-dialog.theme-forest { --accent: #a5cdb0; }

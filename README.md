@@ -10,6 +10,20 @@ Windows desktop music player built with React, Go, SQLite, and Wails v3 beta.26.
 
 ## Development
 
+The toolbox includes **计时器** with a stopwatch, countdown, focus/break presets, pause, resume and reset. Its start time and state are saved in the existing SQLite database; reopening the app counts time spent closed unless paused, and elapsed countdowns restore as completed. An active timer adds a button beside the toolbox entry with a hover preview and direct access to the non-modal timer window. Timing and completion never change music/noise playback or the queue. See `docs/work-timer.md` for persistence and behavior details.
+
+The expanded spectrum view has its own **显示标准音阶** switch and **标记数量** slider (4–128, default 24), without visiting Settings. Markers follow the visible frequency range using equal temperament with A4 = 440 Hz; A4 stays highlighted whenever it is in range. The requested count is a maximum, labels use two collision-free rows on narrow charts, and pointer readouts still identify any frequency's nearest note. Visibility and count are remembered in local storage across view changes and restarts, separately from backend playback settings.
+
+Song lists provide **定位当前播放** to bring the current track into view without changing playback, the queue, or multi-selection. This is available in the library, favorites, recent tracks, playlist/artist/album song lists, and both queue panels. The button is disabled when the current track is absent from the displayed search/tag results. Large song lists reserve the full filtered list height immediately and only render the viewport with overscan, so scrolling or jumping to a distant track does not grow the scrollbar in batches. Returning to the playback page immediately centers the current lyric before the page is painted, clears any previous manual-browsing delay, and then resumes the selected lyric scrolling style.
+
+The toolbox entry opens an application menu. Choose a tool card to open its dedicated panel, and use **返回工具箱** to return to the menu. New tools are listed through the toolbox application registry rather than adding tabs. The menu shows pending conversion files and active noise status; imported encrypted audio still opens format restoration directly.
+
+The toolbox includes **曲库整理** with independent template renaming, artist-folder filing, duplicate cleanup, and multi-folder consolidation. Every operation requires a preview and confirmation. Matching lyrics and images follow the audio; destination conflicts never overwrite files. Duplicate versions require a retention choice and are moved to a recovery folder instead of being permanently deleted. See `docs/music-organizer.md` for behavior, safety, and recovery details.
+
+Organizer previews stream scan progress (discovered/processed tracks, current file, bytes and percentage) and can be canceled without modifying files. Deduplication offers optional **快速匹配** using fresh library metadata, or matching filenames and sizes when no usable metadata is cached, without opening audio or sidecar contents. All quick matches remain unverified candidates and require a retention choice. Full content checks remain the default; execution still verifies copied files, and directory sidecar indexes are reused for large collections.
+
+The toolbox also includes **噪音发生器** for continuous white, pink, and brown noise. Its panel does not block the page, and closing it keeps noise playing in the background. Noise and music never play together; the original music queue, selection, and position are retained. The main playback button, volume controls, media shortcuts, and sleep timer also control noise. Stop noise to manually resume music, or select a song to switch back to music. See `docs/noise-generator.md`.
+
 `corepack pnpm install --frozen-lockfile` installs the frontend dependencies.
 `corepack pnpm dev` starts the local Go API on `127.0.0.1:8787` and Vite on `127.0.0.1:8080`.
 The browser preview uses the same Go API as the desktop app. Native dialogs and true file paths require Wails; in the browser preview, enter an absolute folder path in Settings.

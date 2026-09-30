@@ -2,6 +2,14 @@ import type { Track } from './music';
 import type { Playlist } from './playlists';
 import type { ArtistMapping } from './catalog';
 import type { SavedEffect } from './audio-filter';
+import { readOrganizerPreview } from './organizer-progress';
+import type { WorkTimerCommand, WorkTimerResponse } from './work-timer';
+
+export type OrganizerOptions = { paths: string[]; target: string; mode: 'rename' | 'artist' | 'deduplicate' | 'consolidate'; template: string; matchMode?: 'content' | 'quick' };
+export type OrganizerProgress = { phase: 'discover' | 'scan' | 'group' | 'ready'; processed: number; total: number; current: string; bytes: number; totalBytes: number; quick: boolean };
+export type OrganizerFile = { path: string; title: string; artist: string; album: string; quality: string; size: number; companions: string[] };
+export type OrganizerPlan = { id: string; mode: OrganizerOptions['mode']; matchMode?: 'content' | 'quick'; scanned: number; warnings: string[]; moves: { source: string; destination: string; companions: string[] }[]; groups: { id: string; match: 'exact' | 'metadata' | 'filename'; files: OrganizerFile[]; suggestedKeep: string }[] };
+export type OrganizerResult = { moved: number; quarantined: number; companions: number; recoveryPaths: string[]; manifest: string; remappedIds: Record<string, number>; temporaryTracks: Track[]; warnings: string[] };
 
 export type ScopeSettings = { mode: 'spectrum' | 'waveform'; fftSize: 2048 | 4096 | 8192 | 16384; minFrequency: number; maxFrequency: number; smoothing: number };
 export const defaultScopeSettings: ScopeSettings = { mode: 'spectrum', fftSize: 8192, minFrequency: 20, maxFrequency: 20000, smoothing: 0.72 };
@@ -46,6 +54,10 @@ async function request<T>(path: string, method = 'GET', body?: unknown): Promise
 }
 
 export const backend = {
+  workTimer: () => request<WorkTimerResponse>('/api/timer'),
+  updateWorkTimer: (command: WorkTimerCommand) => request<WorkTimerResponse>('/api/timer', 'POST', command),
+  previewOrganizer: async (options: OrganizerOptions, onProgress?: (progress: OrganizerProgress) => void, signal?: AbortSignal) => readOrganizerPreview(await fetch('/api/organizer/preview', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/x-ndjson' }, body: JSON.stringify(options), signal }), onProgress),
+  executeOrganizer: (id: string, keep: Record<string, string>) => request<OrganizerResult>('/api/organizer/execute', 'POST', { id, keep }),
   state: () => request<LibraryState>('/api/state'),
   deleteTracks: (ids: number[]) => request<{ ok: boolean }>('/api/tracks', 'DELETE', { ids }),
   createTag: (name: string) => request<{ ok: boolean }>('/api/tags', 'POST', { name }),
