@@ -18,10 +18,13 @@ export function useMiniMode(desktop: boolean) {
     setBusy(true);
     try {
       if (!controller.current) {
-        const { Window } = await import('@wailsio/runtime');
-        controller.current = createMiniModeController(Window);
+        const { Window, Screens } = await import('@wailsio/runtime');
+        controller.current = createMiniModeController(Window, {
+          storage: { getItem: key => window.localStorage.getItem(key), setItem: (key, value) => window.localStorage.setItem(key, value) },
+          getWorkAreas: async () => (await Screens.GetAll()).map(screen => screen.WorkArea),
+        });
       }
-      if (next) await controller.current.enter();
+      if (next) setPinned(await controller.current.enter());
       else await controller.current.exit();
       setActive(next);
       if (!next) setPinned(false);
@@ -36,15 +39,18 @@ export function useMiniMode(desktop: boolean) {
     pending.current = true;
     setBusy(true);
     try {
-      const { Window } = await import('@wailsio/runtime');
-      await Window.SetAlwaysOnTop(!pinned);
+      await controller.current?.setPinned(!pinned);
       setPinned(!pinned);
     } catch (error) { toast.error(error instanceof Error ? error.message : '置顶失败'); }
     finally { pending.current = false; setBusy(false); }
   };
   const windowAction = async (action: 'Minimise' | 'Close') => {
     if (!desktop || pending.current) return;
-    try { const { Window } = await import('@wailsio/runtime'); await Window[action](); }
+    try {
+      if (action === 'Close') await controller.current?.remember();
+      const { Window } = await import('@wailsio/runtime');
+      await Window[action]();
+    }
     catch (error) { toast.error(error instanceof Error ? error.message : '窗口操作失败'); }
   };
   return { active, busy, pinned, change, pin, minimise: () => void windowAction('Minimise'), close: () => void windowAction('Close') };

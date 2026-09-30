@@ -86,7 +86,7 @@ export default function PlaylistView({ playlists, playlist, displayCover, tracks
   };
 
   if (!playlist) return <section className="playlists-view">
-    <header className="playlists-heading"><div><span className="eyebrow"><span /> YOUR COLLECTION</span><h1>我的歌单</h1><p>{playlists.length} 个歌单 · 为不同的心情留一处角落</p></div><button type="button" className="playlist-primary" onClick={onCreate}><Plus size={16} /> 新建歌单</button></header>
+    <header className="playlists-heading"><div><span className="eyebrow"><span /> YOUR COLLECTION</span><h1>我的歌单</h1><p>{playlists.length} 个歌单</p></div><button type="button" className="playlist-primary" onClick={onCreate}><Plus size={16} /> 新建歌单</button></header>
     <div className="playlist-grid">{playlists.map(item => {
       const playableTracks = item.trackIds.map(id => tracks.find(track => track.id === id)).filter((track): track is Track => Boolean(track));
       return <div className={`playlist-card ${dropOverId === item.id ? 'track-drop-target' : ''}`} key={item.id} onDragOver={event => onDragOverPlaylist(event, item.id)} onDragLeave={event => { if (event.target === event.currentTarget) setDropOverId(null); }} onDrop={event => onDropPlaylist(event, item.id)}>
