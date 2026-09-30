@@ -6,11 +6,13 @@ import (
 	"log"
 	"net/http"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
+	"github.com/wailsapp/wails/v3/pkg/services/notifications"
 	"lunanahida/backend"
 )
 
@@ -37,9 +39,11 @@ func main() {
 	defer cancel()
 	var api *backend.API
 	var apiHandler http.Handler
+	notifier := notifications.New()
 	app := application.New(application.Options{
-		Name: "LunaNahida",
-		Icon: appIcon,
+		Name:     "LunaNahida",
+		Icon:     appIcon,
+		Services: []application.Service{application.NewService(notifier)},
 		Windows: application.WindowsOptions{
 			WebviewUserDataPath: filepath.Join(store.Root, "cache", "webview"),
 			WebviewBrowserPath:  browserPath,
@@ -79,6 +83,10 @@ func main() {
 			return app.Dialog.SaveFile().SetFilename("LunaNahida-"+time.Now().Format("2006-01-02")+".zip").AddFilter("ZIP 备份", "*.zip").PromptForSingleSelection()
 		},
 	})
+	api.AuthorizeTimerNotification = notifier.RequestNotificationAuthorization
+	api.SendTimerNotification = func(startedAt int64) error {
+		return notifier.SendNotification(notifications.NotificationOptions{ID: "work-timer-" + strconv.FormatInt(startedAt, 10), Title: "LunaNahida · 倒计时结束", Body: "可以休息一下了。", Sound: &notifications.NotificationSound{Silent: true}})
+	}
 	apiHandler = api.Handler()
 	window := app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Name: "main", Title: "LunaNahida", Width: 1280, Height: 800,

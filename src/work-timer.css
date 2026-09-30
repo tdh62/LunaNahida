@@ -6,7 +6,7 @@
 .work-timer-modes { display: flex; gap: 8px; }
 .work-timer-modes button { flex: 1; }
 .work-timer button[aria-pressed="true"] { color: var(--toolbox-accent); border-color: var(--toolbox-accent); background: color-mix(in srgb, var(--toolbox-accent) 8%, transparent); }
-.work-timer-face { display: flex; flex-direction: column; align-items: center; gap: 13px; padding: 18px 10px; border: 1px solid var(--line); border-radius: 10px; background: color-mix(in srgb, var(--toolbox-accent) 4%, transparent); }
+.work-timer-face { display: flex; flex-direction: column; align-items: center; gap: 13px; padding: 18px 10px; border: 1px solid var(--line); border-radius: 8px; background: color-mix(in srgb, var(--toolbox-accent) 4%, transparent); }
 .work-timer-face > span { color: var(--text-muted, #a2a7aa); font-size: 12px; }
 .work-timer-face > output { color: var(--toolbox-accent); font: 42px 'DM Mono', monospace; font-variant-numeric: tabular-nums; }
 .work-timer-face.completed > span { color: var(--toolbox-accent); }
@@ -21,6 +21,15 @@
 .work-timer-custom input { width: 100%; min-width: 0; height: 32px; border: 1px solid var(--line); border-radius: 5px; padding: 0 7px; background: transparent; color: inherit; font: 12px 'DM Mono', monospace; }
 .work-timer-duration p, .work-timer-error { margin: 0; font-size: 11px; color: #db9c69; line-height: 1.7; }
 .work-timer-actions { display: flex; gap: 8px; }
+.work-timer-reminders { display: flex; flex-direction: column; gap: 10px; min-width: 0; margin: 0; padding: 12px; border: 1px solid var(--line); border-radius: 6px; font-size: 12px; }
+.work-timer-option, .work-timer-volume { display: flex; align-items: center; gap: 8px; }
+.work-timer-option input { accent-color: var(--toolbox-accent); }
+.work-timer-sound { display: flex; align-items: center; gap: 8px; }
+.work-timer-sound select { flex: 1; min-width: 0; height: 34px; padding: 0 8px; border: 1px solid var(--line); border-radius: 5px; background: var(--bg, #202523); color: inherit; }
+html.mode-light .work-timer-sound select { background: #fff; color: #25343a; }
+.work-timer-sound button { width: 34px; padding: 0; flex: none; }
+.work-timer-volume input { flex: 1; min-width: 0; accent-color: var(--toolbox-accent); }
+.work-timer-volume span { width: 34px; text-align: right; font-variant-numeric: tabular-nums; }
 .work-timer-actions button { flex: 1; }
 .work-timer-actions button:first-child { border-color: var(--toolbox-accent); background: var(--toolbox-accent); color: var(--toolbox-accent-text); }
 .playback-extras > button.work-timer-trigger { display: inline-grid; position: relative; color: var(--accent); flex: none; }

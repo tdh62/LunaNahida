@@ -4,6 +4,7 @@ import type { ArtistMapping } from './catalog';
 import type { SavedEffect } from './audio-filter';
 import { readOrganizerPreview } from './organizer-progress';
 import type { WorkTimerCommand, WorkTimerResponse } from './work-timer';
+import type { TimerReminders } from './timer-reminders';
 
 export type OrganizerOptions = { paths: string[]; target: string; mode: 'rename' | 'artist' | 'deduplicate' | 'consolidate'; template: string; matchMode?: 'content' | 'quick' };
 export type OrganizerProgress = { phase: 'discover' | 'scan' | 'group' | 'ready'; processed: number; total: number; current: string; bytes: number; totalBytes: number; quick: boolean };
@@ -54,6 +55,10 @@ async function request<T>(path: string, method = 'GET', body?: unknown): Promise
 }
 
 export const backend = {
+  timerReminders: () => request<TimerReminders>('/api/timer/reminders'),
+  saveTimerReminders: (value: TimerReminders) => request<TimerReminders>('/api/timer/reminders', 'PUT', value),
+  authorizeTimerNotification: () => request<{ granted: boolean }>('/api/timer/notification/authorize', 'POST'),
+  claimTimerAlert: (startedAt: number, desktopNotification: boolean) => request<{ claimed: boolean; notificationError: string }>('/api/timer/alert', 'POST', { startedAt, desktopNotification }),
   workTimer: () => request<WorkTimerResponse>('/api/timer'),
   updateWorkTimer: (command: WorkTimerCommand) => request<WorkTimerResponse>('/api/timer', 'POST', command),
   previewOrganizer: async (options: OrganizerOptions, onProgress?: (progress: OrganizerProgress) => void, signal?: AbortSignal) => readOrganizerPreview(await fetch('/api/organizer/preview', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/x-ndjson' }, body: JSON.stringify(options), signal }), onProgress),

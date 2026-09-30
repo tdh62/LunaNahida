@@ -24,9 +24,11 @@ type Dialogs struct {
 }
 
 type API struct {
-	Store   *Store
-	Dialogs Dialogs
-	Music   *Music
+	Store                      *Store
+	Dialogs                    Dialogs
+	Music                      *Music
+	AuthorizeTimerNotification func() (bool, error)
+	SendTimerNotification      func(int64) error
 }
 
 func NewAPI(store *Store, dialogs Dialogs) *API {
@@ -69,6 +71,7 @@ func (a *API) Handler() http.Handler {
 	})
 	newOrganizer(a.Store).register(mux)
 	a.registerWorkTimer(mux)
+	a.registerTimerReminders(mux)
 	mux.HandleFunc("GET /api/backup", func(w http.ResponseWriter, r *http.Request) {
 		file, err := os.CreateTemp("", "lunanahida-export-*.zip")
 		if err != nil {
