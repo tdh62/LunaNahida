@@ -36,6 +36,8 @@ Standalone Web supports temporary local file playback, queue ordering, audio eff
 
 ## Desktop build
 
+The playback bar's **迷你模式** icon switches the Wails window to a 400 x 168 player without a title bar, showing the cover, track information and essential controls. Drag the header to move it, optionally pin it above other windows, and use **退出迷你模式** or Escape to restore the previous full window. Playback continues through both transitions. The entry is absent in browsers. See `docs/mini-mode.md`.
+
 `corepack pnpm build:desktop` writes `bin/LunaNahida.exe`. The executable embeds `dist` and serves the Go API inside the Wails asset handler. It does not open a network API port.
 
 To build a portable package, first place the Microsoft WebView2 Fixed Version Runtime for Windows x64 in `resources/WebView2`. This locally supplied runtime is not tracked in Git. `corepack pnpm build:portable` writes `bin/portable/LunaNahida.exe` and copies the runtime into `bin/portable/WebView2`. Move the whole `bin/portable` folder together. Any `.cab` source archive in `resources` is not included in the package. This build requires Windows x64.

@@ -40,18 +40,19 @@ function wav() {
 const audio = wav();
 const file = { name: 'browser-sample.wav', mimeType: 'audio/wav', buffer: audio };
 
-async function setup({ backend = false, desktop = false, viewport = { width: 1280, height: 800 } } = {}) {
+async function setup({ backend = false, desktop = false, lateDesktop = false, viewport = { width: 1280, height: 800 } } = {}) {
   const page = await browser.newPage({ viewport });
   const errors = [];
   const requests = [];
   const state = emptyLibrary();
+  const nativeWindow = { width: viewport.width, height: viewport.height, x: 100, y: 80, frameless: false, resizable: true, pinned: false, calls: [] };
   state.settings.dropAction = 'watch';
   let disconnected = false;
   page.on('pageerror', error => errors.push(error.message));
   page.on('request', request => { if (new URL(request.url()).pathname.startsWith('/api/')) requests.push({ path: new URL(request.url()).pathname, method: request.method(), body: request.postData() }); });
   await page.route('https://fonts.googleapis.com/**', route => route.abort());
-  await page.addInitScript(({ desktop }) => {
-    if (desktop) window._wails = { environment: { OS: 'windows' }, flags: { enableFileDrop: false } };
+  await page.addInitScript(({ desktop, lateDesktop }) => {
+    if (desktop && !lateDesktop) window._wails = { environment: { OS: 'windows' }, flags: { enableFileDrop: false } };
     const revoke = URL.revokeObjectURL.bind(URL);
     window.releasedURLs = [];
     URL.revokeObjectURL = source => { window.releasedURLs.push(source); revoke(source); };
@@ -62,7 +63,27 @@ async function setup({ backend = false, desktop = false, viewport = { width: 128
       window.analysisNodes.push(node);
       return node;
     };
-  }, { desktop });
+  }, { desktop, lateDesktop });
+  if (desktop) await page.route('**/wails/runtime', async route => {
+    const call = route.request().postDataJSON();
+    nativeWindow.calls.push(call);
+    let result = null;
+    if (call.object === 6) {
+      if (call.method === 0) result = { x: nativeWindow.x, y: nativeWindow.y };
+      else if (call.method === 13 || call.method === 14) result = false;
+      else if (call.method === 22) result = nativeWindow.resizable;
+      else if (call.method === 37) result = { width: nativeWindow.width, height: nativeWindow.height };
+      else if (call.method === 27) nativeWindow.frameless = call.args.frameless;
+      else if (call.method === 25) nativeWindow.pinned = call.args.alwaysOnTop;
+      else if (call.method === 32) nativeWindow.resizable = call.args.resizable;
+      else if (call.method === 24) { nativeWindow.x = call.args.x; nativeWindow.y = call.args.y; }
+      else if (call.method === 33) {
+        nativeWindow.width = call.args.width; nativeWindow.height = call.args.height;
+        await page.setViewportSize({ width: nativeWindow.width, height: nativeWindow.height });
+      }
+    }
+    await route.fulfill({ json: result });
+  });
   if (backend) await page.route('**/api/**', async route => {
     const path = new URL(route.request().url()).pathname;
     if (disconnected) { await route.fulfill({ status: 503, json: { error: 'test backend unavailable' } }); return; }
@@ -80,13 +101,14 @@ async function setup({ backend = false, desktop = false, viewport = { width: 128
   });
   await page.goto(url);
   await page.locator('.music-app').waitFor();
-  return { page, errors, requests, disconnect: () => { disconnected = true; } };
+  return { page, errors, requests, nativeWindow, disconnect: () => { disconnected = true; } };
 }
 
 try {
   browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}) });
   const web = await setup();
   const { page, requests } = web;
+  assert.equal(await page.getByRole('button', { name: '迷你模式', exact: true }).count(), 0);
   assert.equal(await page.getByRole('button', { name: '我的音乐', exact: true }).isDisabled(), true);
   assert.equal(await page.getByRole('button', { name: '打开文件夹', exact: true }).isDisabled(), true);
   await page.locator('input[type=file][multiple]').setInputFiles(file);
@@ -157,6 +179,7 @@ try {
   console.log('PASS static Web: playback, audio graph, scope, session metadata, settings, timer, noise, drag/drop, URL cleanup, refresh, no background API requests');
 
   const connected = await setup({ backend: true });
+  assert.equal(await connected.page.getByRole('button', { name: '迷你模式', exact: true }).count(), 0);
   assert.equal(await connected.page.getByRole('button', { name: '我的音乐', exact: true }).isDisabled(), false);
   await connected.page.locator('input[type=file][multiple]').setInputFiles(file);
   await connected.page.locator('.album-title h2').filter({ hasText: 'browser-sample' }).waitFor();
@@ -176,7 +199,16 @@ try {
   await connected.page.close();
   console.log('PASS browser with backend: temporary files do not enter the library, native dialogs disabled, backend controls retained');
 
-  const native = await setup({ backend: true, desktop: true });
+  const native = await setup({ backend: true, desktop: true, lateDesktop: true });
+  assert.equal(await native.page.getByRole('button', { name: '迷你模式', exact: true }).count(), 0);
+  await native.page.evaluate(() => {
+    window._wails = { environment: { OS: 'windows' }, flags: { enableFileDrop: false } };
+    window.dispatchEvent(new Event('wails:runtime-config-ready'));
+  });
+  await native.page.getByRole('button', { name: '迷你模式', exact: true }).click();
+  await native.page.getByRole('region', { name: '迷你播放器' }).waitFor();
+  assert.equal(await native.page.getByRole('button', { name: '播放', exact: true }).isDisabled(), true);
+  await native.page.getByRole('button', { name: '退出迷你模式', exact: true }).click();
   await native.page.getByRole('button', { name: '打开歌曲', exact: true }).click();
   assert.ok(native.requests.some(request => request.path === '/api/dialog/files'));
   assert.equal(await native.page.getByRole('button', { name: '打开文件夹', exact: true }).isDisabled(), false);
@@ -184,9 +216,65 @@ try {
   await native.page.evaluate(() => window._wails.dispatchWailsEvent({ name: 'lunanahida:files-dropped', data: ['C:/music/native.wav'] }));
   await native.page.locator('.album-title h2').filter({ hasText: 'Native Song' }).waitFor();
   assert.ok(native.requests.some(request => request.path === '/api/import' && JSON.parse(request.body).mode === 'library'));
+  await native.page.getByRole('button', { name: '播放', exact: true }).click();
+  await native.page.getByRole('button', { name: '暂停', exact: true }).waitFor();
+  for (let pass = 0; pass < 2; pass++) {
+    const playbackBefore = await native.page.locator('.seek-row input').inputValue();
+    const streamsBefore = native.requests.filter(request => request.path === '/api/media/audio/1').length;
+    await native.page.getByRole('button', { name: '迷你模式', exact: true }).click();
+    const mini = native.page.getByRole('region', { name: '迷你播放器' });
+    await mini.waitFor();
+    assert.equal(native.nativeWindow.frameless, true);
+    assert.equal(native.nativeWindow.resizable, false);
+    assert.deepEqual(native.page.viewportSize(), { width: 400, height: 168 });
+    assert.equal(await mini.locator('strong').innerText(), 'Native Song');
+    assert.ok(Number(await mini.getByRole('slider', { name: '播放进度' }).inputValue()) >= Number(playbackBefore), 'switching preserves playback position');
+    assert.equal(native.requests.filter(request => request.path === '/api/media/audio/1').length, streamsBefore, 'switching keeps the existing audio element and stream');
+    await mini.getByRole('button', { name: '暂停', exact: true }).click();
+    await mini.getByRole('button', { name: '播放', exact: true }).waitFor();
+    await mini.getByRole('slider', { name: '播放进度' }).fill('5');
+    await mini.getByRole('slider', { name: '音量' }).fill('30');
+    await mini.getByRole('button', { name: '窗口置顶', exact: true }).click();
+    await mini.getByRole('button', { name: '取消置顶', exact: true }).waitFor();
+    assert.equal(native.nativeWindow.pinned, true);
+    await mini.getByRole('button', { name: '播放', exact: true }).click();
+    await mini.getByRole('button', { name: '暂停', exact: true }).waitFor();
+    const bounds = await mini.evaluate(element => {
+      const outside = [...element.querySelectorAll('button, input, img, strong, small')].filter(child => {
+        const box = child.getBoundingClientRect();
+        return box.left < 0 || box.top < 0 || box.right > innerWidth || box.bottom > innerHeight;
+      });
+      return { outside: outside.map(child => child.outerHTML), overflow: document.documentElement.scrollWidth > innerWidth || document.documentElement.scrollHeight > innerHeight };
+    });
+    assert.deepEqual(bounds, { outside: [], overflow: false });
+    await native.page.screenshot({ path: resolve(output, `mini-player-${pass}.png`) });
+    if (pass === 0) await mini.getByRole('button', { name: '退出迷你模式', exact: true }).click();
+    else await native.page.keyboard.press('Escape');
+    await native.page.locator('.music-app:not(.is-mini)').waitFor();
+    assert.equal(native.nativeWindow.frameless, false);
+    assert.equal(native.nativeWindow.pinned, false);
+    assert.equal(native.nativeWindow.resizable, true);
+    assert.deepEqual(native.page.viewportSize(), { width: 1280, height: 800 });
+    assert.equal(await native.page.getByRole('slider', { name: '音量', exact: true }).inputValue(), '30');
+  }
+  await native.page.getByRole('button', { name: '音频工具箱', exact: true }).click();
+  await native.page.getByRole('button', { name: '噪音发生器', exact: true }).click();
+  await native.page.getByRole('button', { name: '播放噪音', exact: true }).click();
+  await native.page.keyboard.press('Escape');
+  await native.page.getByRole('button', { name: '迷你模式', exact: true }).click();
+  const noiseMini = native.page.getByRole('region', { name: '迷你播放器' });
+  await noiseMini.waitFor();
+  assert.equal(await noiseMini.getByRole('slider', { name: '播放进度' }).isDisabled(), true);
+  assert.equal(await noiseMini.getByRole('button', { name: '下一首', exact: true }).isDisabled(), true);
+  await noiseMini.getByRole('button', { name: '暂停', exact: true }).click();
+  await noiseMini.getByRole('button', { name: '播放', exact: true }).click();
+  await noiseMini.getByRole('button', { name: '停止噪音', exact: true }).click();
+  await noiseMini.locator('strong').filter({ hasText: 'Native Song' }).waitFor();
+  await native.page.screenshot({ path: resolve(output, 'mini-player-paused.png') });
+  await noiseMini.getByRole('button', { name: '退出迷你模式', exact: true }).click();
   assert.deepEqual(native.errors, []);
   await native.page.close();
-  console.log('PASS simulated desktop: native dialogs and Wails drop-to-library behavior preserved');
+  console.log('PASS simulated desktop: native dialogs, drops, mini window round trips, uninterrupted playback and compact controls');
 
   const failure = await browser.newPage();
   await failure.route('**/api/capabilities', route => route.fulfill({ status: 503, json: { error: 'unavailable' } }));

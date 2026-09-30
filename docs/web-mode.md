@@ -4,6 +4,7 @@ LunaNahida supports three environments. Backend availability and native dialog s
 
 | Feature | Wails desktop | Browser with Go API | Standalone Web |
 | --- | --- | --- | --- |
+| Frameless mini player | Available | Not offered | Not offered |
 | Native file selection and drops | Existing path-based import behavior | Browser files play temporarily | Browser files play temporarily |
 | Playback, seeking, volume, queue ordering | Available | Available | Available |
 | EQ, custom effects, spectrum | Available | Available | Available |
@@ -36,7 +37,7 @@ On a static host, a missing API or an HTML SPA fallback selects standalone Web m
 
 Wails startup failures and errors from an identified backend show a retry screen. A connected session does not silently change to standalone mode when Go stops responding. Existing music and settings remain in memory; backend requests report failures. Refresh or restart the page after restoring the backend connection. A page that initially selected standalone mode also needs a refresh to detect a newly started backend.
 
-The initial discovery is bounded to five seconds. Native dialogs are enabled only in a desktop host that advertises the corresponding capability. Browser path fields refer to files accessible to the Go process, which may differ from the browser's computer.
+The initial discovery is bounded to five seconds. If Wails injects its environment after frontend startup, its runtime-ready event triggers capability rediscovery without remounting an already running player. Native dialogs are enabled only in a desktop host that advertises the corresponding capability. Browser path fields refer to files accessible to the Go process, which may differ from the browser's computer.
 
 ## Run and Deploy
 
