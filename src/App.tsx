@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
+import { RuntimeProvider } from '@/hooks/use-runtime';
 
 const queryClient = new QueryClient();
 
@@ -14,6 +15,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <RuntimeProvider>
         <Routes>
           <Route path="/" element={<Index />}>
             <Route index element={null} />
@@ -32,6 +34,7 @@ const App = () => (
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
+        </RuntimeProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

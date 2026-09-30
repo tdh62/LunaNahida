@@ -1,0 +1,7 @@
+.runtime-status { min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 24px; background: #f7faf5; color: #26382f; }
+.runtime-status img { width: 72px; height: 72px; }
+.runtime-status h1 { font-size: 24px; }
+.runtime-status button { padding: 8px 20px; border: 1px solid #92ac98; border-radius: 6px; }
+.nav-item:disabled, .toolbox-app-card:disabled { opacity: .45; cursor: not-allowed; }
+.settings-group > fieldset { min-width: 0; padding: 0; border: 0; }
+.settings-group > fieldset:disabled { opacity: .5; }

@@ -19,7 +19,8 @@ import { artistKey, buildCatalog, normalizeName, type ArtistMapping } from '@/li
 import { playlistCover, type Playlist } from '@/lib/playlists';
 import { backend, defaultScopeSettings, type ScopeSettings, type StoredSettings } from '@/lib/backend';
 import { effectNames, responseAt, type FrequencyResponse } from '@/lib/audio-filter';
-import { Events } from '@wailsio/runtime';
+import { useRuntime } from '@/hooks/use-runtime';
+import { isBrowserTrack } from '@/lib/browser-tracks';
 import { toast } from 'sonner';
 import '@/settings.css';
 import '@/sleep-timer.css';
@@ -98,6 +99,7 @@ function Spectrum({ analyser, response, active }: { analyser: AnalyserNode | nul
   return <canvas ref={canvas} className="spectrum-canvas" aria-label="实时频谱" />;
 }
 export default function Index() {
+  const runtime = useRuntime();
   const p = usePlayer();
   const workTimer = useWorkTimer();
   const outputPlaying = p.playing || p.noise.playing;
@@ -177,22 +179,21 @@ export default function Index() {
     else if (rowBounds.bottom > listBounds.bottom) list.scrollTop += rowBounds.bottom - listBounds.bottom;
   }, [queueOpen, p.trackId]);
   useEffect(() => {
-    backend.state().then(state => {
-      setLibraryTracks(state.tracks); setCustomTags(state.tags); setPlaylists(state.playlists); setLiked(state.liked); setFolders(state.folders);
-      setTheme(state.settings.theme); setAppearance(state.settings.appearance); setVisual(state.settings.visual);
-      setScopeSettings(state.settings.scope ?? defaultScopeSettings);
-      setLyricEffect(state.settings.lyricEffect); setLyricScroll(state.settings.lyricScroll);
-      setShowTranslation(state.settings.showTranslation); setLyricAppearance(state.settings.lyricAppearance);
-      setMappings(state.settings.artistMappings); setStoredSettings(state.settings);
-      p.hydrate(state.tracks, state.queue, state.recent, state.settings); setReady(true);
-    }).catch(error => toast.error(error instanceof Error ? error.message : '音乐库加载失败'));
+    const state = runtime.initialState;
+    setLibraryTracks(state.tracks); setCustomTags(state.tags); setPlaylists(state.playlists); setLiked(state.liked); setFolders(state.folders);
+    setTheme(state.settings.theme); setAppearance(state.settings.appearance); setVisual(state.settings.visual);
+    setScopeSettings(state.settings.scope ?? defaultScopeSettings);
+    setLyricEffect(state.settings.lyricEffect); setLyricScroll(state.settings.lyricScroll);
+    setShowTranslation(state.settings.showTranslation); setLyricAppearance(state.settings.lyricAppearance);
+    setMappings(state.settings.artistMappings); setStoredSettings(state.settings);
+    p.hydrate(state.tracks, state.queue, state.recent, state.settings); setReady(true);
   }, []);
   useEffect(() => { if (ready) p.setCatalog(libraryTracks); }, [libraryTracks, ready]);
-  useEffect(() => { if (ready) void backend.playlists(playlists).catch(error => toast.error(error.message)); }, [playlists, ready]);
-  useEffect(() => { if (ready) void backend.liked(liked).catch(error => toast.error(error.message)); }, [liked, ready]);
-  useEffect(() => { if (ready) void backend.queue(p.queue.filter(track => !track.temporary).map(track => track.id)).catch(error => toast.error(error.message)); }, [p.queue.map(track => track.id).join(','), ready]);
+  useEffect(() => { if (ready && runtime.backend) void backend.playlists(playlists).catch(error => toast.error(error.message)); }, [playlists, ready]);
+  useEffect(() => { if (ready && runtime.backend) void backend.liked(liked).catch(error => toast.error(error.message)); }, [liked, ready]);
+  useEffect(() => { if (ready && runtime.backend) void backend.queue(p.queue.filter(track => !track.temporary).map(track => track.id)).catch(error => toast.error(error.message)); }, [p.queue.map(track => track.id).join(','), ready]);
   useEffect(() => {
-    if (!ready || !storedSettings) return;
+    if (!ready || !storedSettings || !runtime.backend) return;
     const next: StoredSettings = { ...storedSettings, theme, appearance, visual, scope: scopeSettings, lyricEffect, lyricScroll, showTranslation, lyricAppearance, artistMappings: mappings, volume: p.volume, mode: p.mode, effect: p.effect, equalizer: p.equalizer, customEffects: p.customEffects };
     const timer = window.setTimeout(() => void backend.settings(next).catch(error => toast.error(error.message)), 250);
     return () => window.clearTimeout(timer);
@@ -202,7 +203,7 @@ export default function Index() {
     document.documentElement.style.colorScheme = appearance;
     return () => { document.documentElement.classList.remove('mode-light'); document.documentElement.style.colorScheme = ''; };
   }, [appearance]);
-  const reloadLibrary = async () => { const state = await backend.state(); setLibraryTracks(state.tracks); setCustomTags(state.tags); setFolders(state.folders); };
+  const reloadLibrary = async () => { if (!runtime.backend) return; const state = await backend.state(); setLibraryTracks(state.tracks); setCustomTags(state.tags); setFolders(state.folders); };
   const importPaths = async (paths: string[], mode: 'temporary' | 'library' | 'watch', options: { addToQueue?: boolean; skipConversion?: boolean; quietEmpty?: boolean } = {}) => {
     if (!paths.length) return;
     try {
@@ -267,11 +268,20 @@ export default function Index() {
     }
   };
   useEffect(() => {
-    const offDrop = Events.On('lunanahida:files-dropped', event => { dragDepth.current = 0; setDropActive(false); const paths = event.data as string[]; if (toolboxOpen) { window.dispatchEvent(new CustomEvent('lunanahida-toolbox-drop', { detail: paths })); } else void handlePaths(paths, true); });
-    const offScan = Events.On('lunanahida:scan-complete', () => void reloadLibrary());
-    return () => { offDrop(); offScan(); };
+    if (runtime.mode !== 'desktop') return;
+    let disposed = false;
+    let cleanups: (() => void)[] = [];
+    void import('@wailsio/runtime').then(({ Events }) => {
+      if (disposed) return;
+      cleanups = [
+        Events.On('lunanahida:files-dropped', event => { dragDepth.current = 0; setDropActive(false); const paths = event.data as string[]; if (toolboxOpen) { window.dispatchEvent(new CustomEvent('lunanahida-toolbox-drop', { detail: paths })); } else void handlePaths(paths, true); }),
+        Events.On('lunanahida:scan-complete', () => void reloadLibrary()),
+      ];
+    }).catch(error => toast.error(error.message));
+    return () => { disposed = true; cleanups.forEach(off => off()); };
   }, [storedSettings, toolboxOpen, pathname]);
   useEffect(() => {
+    if (!runtime.backend) return;
     const settingsChanged = (event: Event) => setStoredSettings((event as CustomEvent<StoredSettings>).detail);
     const libraryChanged = () => void reloadLibrary();
     const backupImported = () => void backend.state().then(state => {

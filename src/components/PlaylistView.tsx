@@ -2,7 +2,7 @@ import { ArrowLeft, ImagePlus, ListMusic, Play, Plus, Trash2, Upload, Disc3 } fr
 import { useRef, useState, type DragEvent } from 'react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
-import { System } from '@wailsio/runtime';
+import { useRuntime } from '@/hooks/use-runtime';
 import LibraryView from '@/components/LibraryView';
 import { type Track } from '@/lib/music';
 import { type Playlist } from '@/lib/playlists';
@@ -33,6 +33,7 @@ type Props = {
 type CoverMode = 'upload' | 'first-track';
 
 export default function PlaylistView({ playlists, playlist, displayCover, tracks, currentId, liked, onCreate, onDelete, onPlayPlaylist, onToggleLike, onViewInfo, onRefreshInfo, onSaveLyrics, onArtist, onAlbum, onAddToPlaylist, onRemoveFromPlaylist, onEditPlaylist }: Props) {
+  const runtime = useRuntime();
   const navigate = useNavigate();
   const fileInput = useRef<HTMLInputElement>(null);
   const [editing, setEditing] = useState(false);
@@ -70,7 +71,7 @@ export default function PlaylistView({ playlists, playlist, displayCover, tracks
     catch (error) { toast.error(error instanceof Error ? error.message : '封面上传失败'); }
   };
   const selectCover = () => {
-    if (!System.IsDesktop()) { fileInput.current?.click(); return; }
+    if (!runtime.nativeCover) { fileInput.current?.click(); return; }
     void backend.chooseCover().then(({ cover }) => {
       if (cover) { setUploadedCover(cover); setCoverMode('upload'); }
     }).catch(error => toast.error(error instanceof Error ? error.message : '封面选择失败'));

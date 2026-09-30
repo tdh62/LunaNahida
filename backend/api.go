@@ -58,6 +58,15 @@ func decode(r *http.Request, value any) error {
 
 func (a *API) Handler() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/capabilities", func(w http.ResponseWriter, r *http.Request) {
+		respond(w, 200, map[string]any{
+			"application":   "LunaNahida",
+			"nativeFiles":   a.Dialogs.Files != nil,
+			"nativeFolders": a.Dialogs.Folder != nil,
+			"nativeCover":   a.Dialogs.Cover != nil,
+			"nativeBackup":  a.Dialogs.BackupSave != nil,
+		})
+	})
 	newOrganizer(a.Store).register(mux)
 	a.registerWorkTimer(mux)
 	mux.HandleFunc("GET /api/backup", func(w http.ResponseWriter, r *http.Request) {
