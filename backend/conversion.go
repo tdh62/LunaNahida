@@ -446,7 +446,9 @@ func writeConvertedMeta(ctx context.Context, path, ext string, meta common.Audio
 		args = append(args, "-y", out)
 		commandCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
 		defer cancel()
-		if output, err := exec.CommandContext(commandCtx, "ffmpeg", args...).CombinedOutput(); err != nil {
+		command := exec.CommandContext(commandCtx, "ffmpeg", args...)
+		hideCommandWindow(command)
+		if output, err := command.CombinedOutput(); err != nil {
 			return fmt.Errorf("ffmpeg: %w: %s", err, output)
 		}
 		if err := os.Remove(path); err != nil {

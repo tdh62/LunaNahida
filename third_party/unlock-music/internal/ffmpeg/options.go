@@ -64,7 +64,9 @@ func (b *ffmpegBuilder) Command(ctx context.Context) *exec.Cmd {
 		bin = b.binary
 	}
 
-	return exec.CommandContext(ctx, bin, b.Args()...)
+	command := exec.CommandContext(ctx, bin, b.Args()...)
+	hideCommandWindow(command)
+	return command
 }
 
 // inputBuilder is the builder for ffmpeg input options

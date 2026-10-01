@@ -4,8 +4,10 @@ import (
 	"context"
 	"embed"
 	"log"
+	"log/slog"
 	"net/http"
 	"path/filepath"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
@@ -14,6 +16,7 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/events"
 	"github.com/wailsapp/wails/v3/pkg/services/notifications"
 	"lunanahida/backend"
+	"lunanahida/internal/logging"
 )
 
 //go:embed all:dist
@@ -24,6 +27,25 @@ var appIcon []byte
 
 func main() {
 	dataRoot, browserPath, err := desktopPaths()
+	dataRoot, rootErr := backend.ResolveDataRoot(dataRoot)
+	if rootErr != nil {
+		log.Fatal(rootErr)
+	}
+	logs, logErr := logging.Open(filepath.Join(dataRoot, "logs"))
+	if logErr != nil {
+		log.Fatal(logErr)
+	}
+	defer logs.Close()
+	log.SetOutput(logs)
+	log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
+	logger := slog.New(slog.NewTextHandler(logs, nil))
+	slog.SetDefault(logger)
+	defer func() {
+		if value := recover(); value != nil {
+			log.Printf("panic: %v\n%s", value, debug.Stack())
+			panic(value)
+		}
+	}()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -37,11 +59,27 @@ func main() {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	go func() {
+		ticker := time.NewTicker(time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if err := logs.Prune(); err != nil {
+					log.Printf("log cleanup: %v", err)
+				}
+			}
+		}
+	}()
+	log.Print("desktop application starting")
 	var api *backend.API
 	var apiHandler http.Handler
 	notifier := notifications.New()
 	app := application.New(application.Options{
 		Name:     "LunaNahida",
+		Logger:   logger,
 		Icon:     appIcon,
 		Services: []application.Service{application.NewService(notifier)},
 		Windows: application.WindowsOptions{

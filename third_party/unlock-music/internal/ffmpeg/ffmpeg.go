@@ -23,6 +23,7 @@ func ExtractAlbumArt(ctx context.Context, rd io.Reader) (*bytes.Buffer, error) {
 		"pipe:1", // output to stdout
 	)
 
+	hideCommandWindow(cmd)
 	cmd.Stdin = rd
 	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
 	cmd.Stdout, cmd.Stderr = stdout, stderr

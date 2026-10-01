@@ -58,26 +58,28 @@ type Playlist struct {
 }
 
 type Settings struct {
-	DropAction          string          `json:"dropAction"`
-	NetworkCacheCount   int             `json:"networkCacheCount"`
-	ScanOnStart         bool            `json:"scanOnStart"`
-	ScanIntervalMinutes int             `json:"scanIntervalMinutes"`
-	AutoConvert         bool            `json:"autoConvert"`
-	BackupOriginal      bool            `json:"backupOriginal"`
-	Theme               string          `json:"theme"`
-	Appearance          string          `json:"appearance"`
-	Visual              string          `json:"visual"`
-	Scope               ScopeSettings   `json:"scope"`
-	LyricEffect         string          `json:"lyricEffect"`
-	LyricScroll         string          `json:"lyricScroll"`
-	ShowTranslation     bool            `json:"showTranslation"`
-	LyricAppearance     json.RawMessage `json:"lyricAppearance"`
-	ArtistMappings      json.RawMessage `json:"artistMappings"`
-	Volume              int             `json:"volume"`
-	Mode                string          `json:"mode"`
-	Effect              string          `json:"effect"`
-	Equalizer           []float64       `json:"equalizer"`
-	CustomEffects       []SavedEffect   `json:"customEffects"`
+	DropAction              string          `json:"dropAction"`
+	NetworkCacheCount       int             `json:"networkCacheCount"`
+	ScanOnStart             bool            `json:"scanOnStart"`
+	ScanIntervalMinutes     int             `json:"scanIntervalMinutes"`
+	AutoConvert             bool            `json:"autoConvert"`
+	HideLocalMusicActions   bool            `json:"hideLocalMusicActions"`
+	HideNetworkMusicActions bool            `json:"hideNetworkMusicActions"`
+	BackupOriginal          bool            `json:"backupOriginal"`
+	Theme                   string          `json:"theme"`
+	Appearance              string          `json:"appearance"`
+	Visual                  string          `json:"visual"`
+	Scope                   ScopeSettings   `json:"scope"`
+	LyricEffect             string          `json:"lyricEffect"`
+	LyricScroll             string          `json:"lyricScroll"`
+	ShowTranslation         bool            `json:"showTranslation"`
+	LyricAppearance         json.RawMessage `json:"lyricAppearance"`
+	ArtistMappings          json.RawMessage `json:"artistMappings"`
+	Volume                  int             `json:"volume"`
+	Mode                    string          `json:"mode"`
+	Effect                  string          `json:"effect"`
+	Equalizer               []float64       `json:"equalizer"`
+	CustomEffects           []SavedEffect   `json:"customEffects"`
 }
 
 type SavedEffect struct {
@@ -173,18 +175,22 @@ type Store struct {
 	networkEpoch  uint64
 }
 
-func Open(root string) (*Store, error) {
+func ResolveDataRoot(root string) (string, error) {
 	if root == "" {
 		root = os.Getenv("LUNANAHIDA_DATA_DIR")
 	}
 	if root == "" {
 		base, err := os.UserCacheDir()
 		if err != nil {
-			return nil, err
+			return "", err
 		}
 		root = filepath.Join(base, "LunaNahida")
 	}
-	root, err := filepath.Abs(root)
+	return filepath.Abs(root)
+}
+
+func Open(root string) (*Store, error) {
+	root, err := ResolveDataRoot(root)
 	if err != nil {
 		return nil, err
 	}

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent } from 'react';
 import { AudioLines, Info, List, ListMusic, Music2, Play, RefreshCw, Rows3, Save, Trash2 } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
@@ -20,6 +20,7 @@ export default function QueuePanel({ player: p, onViewInfo, onRefreshInfo, onSav
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const anchor = useRef<number | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const previousList = useRef<HTMLDivElement>(null);
   const lastTrackId = useRef(p.trackId);
   const [dragged, setDragged] = useState<number | null>(null);
   const [over, setOver] = useState<number | null>(null);
@@ -28,15 +29,17 @@ export default function QueuePanel({ player: p, onViewInfo, onRefreshInfo, onSav
   const selected = selectedIds.filter(id => p.queue.some(track => track.id === id));
   const selectedTracks = p.queue.filter(track => selected.includes(track.id) && track.available !== false && track.playbackStatus !== 'unplayable');
 
-  useEffect(() => {
-    if (lastTrackId.current === p.trackId) return;
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    const entering = list !== null && list !== previousList.current;
+    previousList.current = list;
+    if (!list || (!entering && lastTrackId.current === p.trackId)) return;
     lastTrackId.current = p.trackId;
-    if (p.trackId === null || selected.length > 1 || !p.queue.some(track => track.id === p.trackId)) return;
+    if (p.trackId === null || (!entering && selected.length > 1) || !p.queue.some(track => track.id === p.trackId)) return;
 
     setSelectedIds([p.trackId]);
     anchor.current = p.trackId;
     if (document.querySelector('.quick-queue-panel')) return;
-    const list = document.querySelector<HTMLDivElement>('.queue-panel .queue-list');
     const row = list?.querySelector<HTMLButtonElement>('.queue-track.current');
     if (!list || !row) return;
     row.focus({ preventScroll: true });
@@ -44,7 +47,7 @@ export default function QueuePanel({ player: p, onViewInfo, onRefreshInfo, onSav
     const rowBounds = row.getBoundingClientRect();
     if (rowBounds.top < listBounds.top) list.scrollTop -= listBounds.top - rowBounds.top;
     else if (rowBounds.bottom > listBounds.bottom) list.scrollTop += rowBounds.bottom - listBounds.bottom;
-  }, [p.trackId, p.queue, selected.length]);
+  }, [p.trackId, p.queue, selected.length, tab]);
 
   useEffect(() => {
     const selectAll = (event: globalThis.KeyboardEvent) => {

@@ -16,6 +16,8 @@ export type ScopeSettings = { mode: 'spectrum' | 'waveform'; fftSize: 2048 | 409
 export const defaultScopeSettings: ScopeSettings = { mode: 'spectrum', fftSize: 8192, minFrequency: 20, maxFrequency: 20000, smoothing: 0.72 };
 
 export type StoredSettings = {
+  hideLocalMusicActions?: boolean;
+  hideNetworkMusicActions?: boolean;
   dropAction: 'ask' | 'temporary' | 'library' | 'watch';
   networkCacheCount: number;
   scanOnStart: boolean;

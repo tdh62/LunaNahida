@@ -124,6 +124,7 @@ func ProbeReader(ctx context.Context, rd io.Reader) (*Result, error) {
 		"pipe:0", // input from stdin
 	)
 
+	hideCommandWindow(cmd)
 	cmd.Stdin = rd
 	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
 	cmd.Stdout, cmd.Stderr = stdout, stderr

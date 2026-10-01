@@ -18,7 +18,7 @@ for (const name of ['msedgewebview2.exe', join('EBWebView', 'x64', 'EmbeddedBrow
 const output = join(root, 'bin', 'portable');
 const runtime = join(output, 'WebView2');
 mkdirSync(output, { recursive: true });
-const build = spawnSync('go', ['build', '-tags', 'production,portable', '-o', join(output, 'LunaNahida.exe'), '.'], {
+const build = spawnSync('go', ['build', '-tags', 'production,portable', '-ldflags', '-H windowsgui', '-o', join(output, 'LunaNahida.exe'), '.'], {
   cwd: root,
   stdio: 'inherit',
   shell: false,

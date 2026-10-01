@@ -1,5 +1,6 @@
-import { Check, Download, FolderOpen, HardDrive, Headphones, Leaf, Moon, Palette, Pencil, Plus, RefreshCw, SlidersHorizontal, Sparkles, Sun, Timer, Trash2, Upload, Users, Waves, Globe2 } from 'lucide-react';
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { Check, Download, FolderOpen, HardDrive, Headphones, Leaf, ListMusic, Moon, Palette, Pencil, Plus, RefreshCw, SlidersHorizontal, Sparkles, Sun, Timer, Trash2, Upload, Users, Waves, Globe2 } from 'lucide-react';
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
+import { useLocation } from 'react-router';
 import { normalizeName, type ArtistMapping } from '@/lib/catalog';
 import { formatTime } from '@/lib/music';
 import { backend, type CacheStats, type LibraryState, type NetworkSource, type StoredSettings } from '@/lib/backend';
@@ -50,6 +51,13 @@ type SettingsProps = {
 
 export default function PlayerSettings({ theme, setTheme, appearance, setAppearance, visual, setVisual, lyricEffect, setLyricEffect, lyricScroll, setLyricScroll, showTranslation, setShowTranslation, sleep, setSleep, effectName, onEditEffects, equalizer, setBand, resetEqualizer, mappings, setMappings, lyricAppearance, setLyricAppearance, artistNames }: SettingsProps) {
   const runtime = useRuntime();
+  const { hash } = useLocation();
+  const pageRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const targetId = ({ '#player-style': 'player-style', '#lyrics-layout': 'lyrics-layout' } as Record<string, string>)[hash];
+    const target = targetId ? pageRef.current?.querySelector<HTMLElement>(`#${targetId}`) : null;
+    if (target) target.scrollIntoView({ block: 'start', behavior: 'instant' });
+  }, [hash]);
   const [library, setLibrary] = useState<LibraryState | null>(null);
   const [newFolder, setNewFolder] = useState('');
   const [sourceKind, setSourceKind] = useState<NetworkSource['kind']>('webdav');
@@ -179,8 +187,12 @@ export default function PlayerSettings({ theme, setTheme, appearance, setAppeara
     setMappings(editing === null ? [...mappings, updated] : mappings.map((item, index) => index === editing ? updated : item));
     setRoot(''); setAliases(''); setEditing(null); setError('');
   };
-  return <div className="settings-page">
+  return <div ref={pageRef} className="settings-page">
     <header className="settings-heading"><h1>设置</h1>{!runtime.backend && <span className="runtime-mode">仅本次有效</span>}</header>
+    <section className="settings-group"><div className="settings-group-title"><ListMusic size={19} /><div><h2>左侧菜单</h2></div></div><fieldset disabled={!library}>
+      <div className="settings-row"><div><strong>显示本地音乐入口</strong></div><button type="button" role="switch" aria-checked={!library?.settings.hideLocalMusicActions} aria-label="显示本地音乐入口" className={`settings-switch ${!library?.settings.hideLocalMusicActions ? 'on' : ''}`} onClick={() => saveLibrarySettings({ hideLocalMusicActions: !library?.settings.hideLocalMusicActions })}><span /></button></div>
+      <div className="settings-row"><div><strong>显示网络音乐入口</strong></div><button type="button" role="switch" aria-checked={!library?.settings.hideNetworkMusicActions} aria-label="显示网络音乐入口" className={`settings-switch ${!library?.settings.hideNetworkMusicActions ? 'on' : ''}`} onClick={() => saveLibrarySettings({ hideNetworkMusicActions: !library?.settings.hideNetworkMusicActions })}><span /></button></div>
+    </fieldset></section>
     <section className="settings-group"><div className="settings-group-title"><FolderOpen size={19} /><div><h2>本地音乐库</h2></div></div><fieldset disabled={!runtime.backend}>
         <div className="settings-row"><div><strong>打开文件或文件夹</strong></div><select className="lyric-font-select" aria-label="打开文件或文件夹处理方式" disabled={!runtime.nativeFiles} title={runtime.nativeFiles ? undefined : '浏览器文件仅本次播放'} value={runtime.nativeFiles ? library?.settings.dropAction ?? 'ask' : 'temporary'} onChange={event => saveLibrarySettings({ dropAction: event.target.value as StoredSettings['dropAction'] })}><option value="ask">每次询问</option><option value="temporary">仅本次播放</option><option value="library">加入音乐库</option><option value="watch">监听所在文件夹</option></select></div>
       <div className="settings-row"><div><strong>启动时扫描</strong></div><button type="button" role="switch" aria-checked={library?.settings.scanOnStart ?? false} aria-label="启动时扫描" className={`settings-switch ${library?.settings.scanOnStart ? 'on' : ''}`} onClick={() => saveLibrarySettings({ scanOnStart: !library?.settings.scanOnStart })}><span /></button></div>
@@ -216,13 +228,13 @@ export default function PlayerSettings({ theme, setTheme, appearance, setAppeara
     <section className="settings-group"><div className="settings-group-title"><Palette size={19} /><div><h2>界面主题</h2></div></div>
       <div className="settings-themes">{themes.map(t => <button type="button" key={t.id} aria-pressed={theme === t.id} onClick={() => setTheme(t.id)} className={`settings-theme ${theme === t.id ? 'selected' : ''}`}><span className={`settings-theme-preview preview-${t.id}`}><t.icon size={24} /></span><span className="settings-theme-label"><strong><t.icon size={15} /> {t.name}</strong></span><span className="settings-theme-check">{theme === t.id && <Check size={15} />}</span></button>)}</div>
     </section>
-    <section className="settings-group"><div className="settings-group-title"><Headphones size={19} /><div><h2>播放器样式</h2></div></div>
+    <section id="player-style" className="settings-group"><div className="settings-group-title"><Headphones size={19} /><div><h2>播放器样式</h2></div></div>
       <div className="settings-row"><div><strong>播放氛围</strong></div><div className="settings-options">{['频谱', '唱片', '呼吸'].map(v => <button key={v} aria-pressed={visual === v} className={visual === v ? 'active' : ''} onClick={() => setVisual(v)}>{v}</button>)}</div></div>
       <div className="settings-row"><div><strong>歌词效果</strong></div><div className="settings-options">{['流动', '聚焦', '逐字'].map(v => <button key={v} aria-pressed={lyricEffect === v} className={lyricEffect === v ? 'active' : ''} onClick={() => setLyricEffect(v)}>{v}</button>)}</div></div>
       <div className="settings-row"><div><strong>歌词滚动</strong></div><div className="settings-options">{['平滑', '即时'].map(v => <button key={v} aria-pressed={lyricScroll === v} className={lyricScroll === v ? 'active' : ''} onClick={() => setLyricScroll(v)}>{v}</button>)}</div></div>
       <div className="settings-row"><div><strong>显示翻译</strong></div><button type="button" role="switch" aria-checked={showTranslation} aria-label="显示翻译" onClick={() => setShowTranslation(!showTranslation)} className={`settings-switch ${showTranslation ? 'on' : ''}`}><span /></button></div>
     </section>
-    <section className="settings-group"><div className="settings-group-title"><SlidersHorizontal size={19} /><div><h2>歌词排版</h2></div></div>
+    <section id="lyrics-layout" className="settings-group"><div className="settings-group-title"><SlidersHorizontal size={19} /><div><h2>歌词排版</h2></div></div>
       <div className="settings-row"><div><strong>字体</strong></div><select className="lyric-font-select" aria-label="歌词字体" value={lyricAppearance.font} onChange={event => setLyricAppearance({ ...lyricAppearance, font: event.target.value })}><option value="default">默认黑体</option><option value="sans">清晰无衬线</option><option value="serif">衬线字体</option></select></div>
       <div className="lyric-setting-control"><label htmlFor="lyric-size">字号 <strong>{lyricAppearance.size}px</strong></label><input id="lyric-size" type="range" min="12" max="28" value={lyricAppearance.size} onChange={event => setLyricAppearance({ ...lyricAppearance, size: Number(event.target.value) })} /></div>
       <div className="lyric-setting-control"><label htmlFor="lyric-line-height">行高 <strong>{lyricAppearance.lineHeight}px</strong></label><input id="lyric-line-height" type="range" min="40" max="100" value={lyricAppearance.lineHeight} onChange={event => setLyricAppearance({ ...lyricAppearance, lineHeight: Number(event.target.value) })} /></div>
