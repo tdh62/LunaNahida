@@ -18,17 +18,19 @@ import { useMusicEnrichment, refreshMusicInfo } from '@/hooks/use-music-enrichme
 import { artistKey, buildCatalog, normalizeName, type ArtistMapping } from '@/lib/catalog';
 import { playlistCover, type Playlist } from '@/lib/playlists';
 import { backend, defaultScopeSettings, type ScopeSettings, type StoredSettings } from '@/lib/backend';
-import { effectNames, responseAt, type FrequencyResponse } from '@/lib/audio-filter';
+import { effectNames, frequencyResponseBounds, responseAt, type FrequencyResponse } from '@/lib/audio-filter';
 import { useRuntime } from '@/hooks/use-runtime';
 import { useMiniMode } from '@/hooks/use-mini-mode';
+import { useSystemMedia } from '@/hooks/use-system-media';
 import MiniPlayer, { MiniModeButton } from '@/components/MiniPlayer';
+import PlaybackModeControl from '@/components/PlaybackModeControl';
 import { isBrowserTrack } from '@/lib/browser-tracks';
 import { toast } from 'sonner';
 import '@/settings.css';
 import '@/sleep-timer.css';
 import { useWorkTimer } from '@/hooks/use-work-timer';
 import TimerShortcut from '@/components/TimerShortcut';
-import { AudioLines, Check, ChevronDown, ChevronsLeft, Disc3, X, FolderOpen, Globe2, Heart, ListEnd, ListMusic, Maximize2, Mic2, Minimize2, PanelLeftClose, PanelLeftOpen, Pause, PictureInPicture2, Play, Plus, Repeat, Repeat1, Save, Settings2, Shuffle, SkipBack, SkipForward, SlidersHorizontal, Square, Tag, Timer, Volume2, VolumeX, Waves, Wrench } from 'lucide-react';
+import { AudioLines, Check, ChevronDown, ChevronsLeft, Disc3, X, FolderOpen, Globe2, Heart, ListMusic, Maximize2, Mic2, Minimize2, PanelLeftClose, PanelLeftOpen, Pause, PictureInPicture2, Play, Plus, Save, Settings2, SkipBack, SkipForward, SlidersHorizontal, Square, Tag, Timer, Volume2, VolumeX, Waves, Wrench } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -56,6 +58,7 @@ function IconButton({ children, label, onClick, active = false, className = '' }
 function Spectrum({ analyser, response, active }: { analyser: AnalyserNode | null; response: FrequencyResponse | null; active: boolean }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
+    const bounds = frequencyResponseBounds(response);
     const element = canvas.current; if (!element) return;
     const context = element.getContext('2d'); if (!context) return;
     const data = new Uint8Array(analyser?.frequencyBinCount ?? 64);
@@ -86,7 +89,7 @@ function Spectrum({ analyser, response, active }: { analyser: AnalyserNode | nul
           for (let x = 0; x <= pixelWidth; x += Math.max(1, Math.round(scale))) {
             const hz = x / pixelWidth * analyser.context.sampleRate / 2;
             const gain = responseAt(response, hz);
-            const y = pixelHeight * (24 - Math.max(-48, Math.min(24, gain))) / 72;
+            const y = pixelHeight * (bounds.maximum - gain) / (bounds.maximum - bounds.minimum);
             if (x === 0) context.moveTo(x, y); else context.lineTo(x, y);
           }
           context.stroke();
@@ -173,6 +176,15 @@ export default function Index() {
   usePlaybackProbe(libraryTracks);
   const quickQueueRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
+    const enter = () => {
+      setFocus(false); setScopeOpen(false); setQueueOpen(false); setDetailTrack(null); setEffectEditorOpen(false);
+      setToolboxOpen(false); setCreatePlaylistOpen(false); setDeletePlaylistId(null); setDeleteTrackIds([]); setPendingPaths([]); setNetworkOpen(false);
+      void mini.change(true);
+    };
+    window.addEventListener('lunanahida:enter-mini-mode', enter);
+    return () => window.removeEventListener('lunanahida:enter-mini-mode', enter);
+  }, [mini.change]);
+  useEffect(() => {
     if (!queueOpen || p.trackId === null) return;
     const list = document.querySelector<HTMLDivElement>('.quick-queue-list');
     const row = list?.querySelector<HTMLButtonElement>('.queue-track.current');
@@ -199,10 +211,10 @@ export default function Index() {
   useEffect(() => { if (ready && runtime.backend) void backend.queue(p.queue.filter(track => !track.temporary).map(track => track.id)).catch(error => toast.error(error.message)); }, [p.queue.map(track => track.id).join(','), ready, runtime.backend]);
   useEffect(() => {
     if (!ready || !storedSettings || !runtime.backend) return;
-    const next: StoredSettings = { ...storedSettings, theme, appearance, visual, scope: scopeSettings, lyricEffect, lyricScroll, showTranslation, lyricAppearance, artistMappings: mappings, volume: p.volume, mode: p.mode, effect: p.effect, equalizer: p.equalizer, customEffects: p.customEffects };
+    const next: StoredSettings = { ...storedSettings, theme, appearance, visual, scope: scopeSettings, lyricEffect, lyricScroll, showTranslation, lyricAppearance, artistMappings: mappings, volume: p.volume, mode: p.mode, effect: p.effect, professionalAudio: p.professionalAudio, equalizer: p.equalizer, customEffects: p.customEffects };
     const timer = window.setTimeout(() => void backend.settings(next).catch(error => toast.error(error.message)), 250);
     return () => window.clearTimeout(timer);
-  }, [ready, storedSettings, theme, appearance, visual, scopeSettings, lyricEffect, lyricScroll, showTranslation, lyricAppearance, mappings, p.volume, p.mode, p.effect, p.equalizer, p.customEffects, runtime.backend]);
+  }, [ready, storedSettings, theme, appearance, visual, scopeSettings, lyricEffect, lyricScroll, showTranslation, lyricAppearance, mappings, p.volume, p.mode, p.effect, p.professionalAudio, p.equalizer, p.customEffects, runtime.backend]);
   useEffect(() => {
     document.documentElement.classList.toggle('mode-light', appearance === 'light');
     document.documentElement.style.colorScheme = appearance;
@@ -353,6 +365,10 @@ export default function Index() {
   const activeLine = hasLyrics ? timedLines.every(line => line.time === 0) ? 0 : Math.max(0, timedLines.reduce((index, line, i) => p.time >= line.time ? i : index, 0)) : 0;
   const activeWord = hasLyrics && wordLines[activeLine]?.length ? wordLines[activeLine].findIndex((word, i) => p.time >= word.start && (p.time < word.end || i === wordLines[activeLine].length - 1)) : -1;
   const cover = enrichment.cover;
+  useSystemMedia({ desktop: runtime.mode === 'desktop', available: p.hasTrack || p.noise.active, playing: outputPlaying,
+    title: p.noise.active ? p.noise.name : p.track.title, artist: p.noise.active ? '后台噪音' : p.track.artist,
+    album: p.noise.active ? '' : p.track.album, cover: p.noise.active ? '/covers/local.svg' : cover,
+    duration: p.track.duration, position: p.time, noise: p.noise.active, toggle: p.toggle, previous: p.previous, next: p.next, seek: p.seek });
   const openScope = () => { if (!p.hasTrack) return; setFocus(false); setScopeOpen(true); };
   useEffect(() => { if (pathname !== '/') setScopeOpen(false); }, [pathname]);
   useEffect(() => { if (!p.hasTrack) setScopeOpen(false); }, [p.hasTrack]);
@@ -622,7 +638,7 @@ export default function Index() {
     </aside>
     {sidebarMode === 'hidden' && <button type="button" className="sidebar-restore" title="展开侧栏" aria-label="展开侧栏" onClick={() => setSidebarMode('expanded')}><PanelLeftOpen size={19} /></button>}
     <main className={`workspace min-w-0 ${isSettings ? 'settings-workspace' : ''} ${isArtists || isAlbums ? 'catalog-workspace' : ''} ${isPlaylists || isTags || pathname === '/music' || pathname === '/liked' || pathname === '/recent' ? 'scrolling-workspace' : ''} ${pathname === '/music' || pathname === '/liked' || pathname === '/recent' ? 'library-workspace' : ''}`}>
-      {isSettings ? <PlayerSettings theme={theme} setTheme={setTheme} appearance={appearance} setAppearance={setAppearance} visual={visual} setVisual={setVisual} lyricEffect={lyricEffect} setLyricEffect={setLyricEffect} lyricScroll={lyricScroll} setLyricScroll={setLyricScroll} showTranslation={showTranslation} setShowTranslation={setShowTranslation} sleep={sleep} setSleep={setSleep} effectName={p.effectName} onEditEffects={() => setEffectEditorOpen(true)} equalizer={p.equalizer} setBand={p.setBand} resetEqualizer={p.resetEqualizer} mappings={mappings} setMappings={setMappings} lyricAppearance={lyricAppearance} setLyricAppearance={setLyricAppearance} artistNames={[...new Set(allTracks.map(track => track.artist))]} />
+      {isSettings ? <PlayerSettings theme={theme} setTheme={setTheme} appearance={appearance} setAppearance={setAppearance} visual={visual} setVisual={setVisual} lyricEffect={lyricEffect} setLyricEffect={setLyricEffect} lyricScroll={lyricScroll} setLyricScroll={setLyricScroll} showTranslation={showTranslation} setShowTranslation={setShowTranslation} sleep={sleep} setSleep={setSleep} effectName={p.effectName} onEditEffects={() => setEffectEditorOpen(true)} professionalAudio={p.professionalAudio} setProfessionalAudio={p.setProfessionalAudio} equalizer={p.equalizer} setBand={p.setBand} resetEqualizer={p.resetEqualizer} mappings={mappings} setMappings={setMappings} lyricAppearance={lyricAppearance} setLyricAppearance={setLyricAppearance} artistNames={[...new Set(allTracks.map(track => track.artist))]} />
       : isArtists || isAlbums ? <CatalogView onRefreshInfo={refreshInfo} onSaveLyrics={saveLyrics} kind={isArtists ? 'artists' : 'albums'} artists={catalog.artists} albums={catalog.albums} artist={selectedArtist} album={selectedAlbum} currentId={p.trackId} liked={liked} playlists={displayPlaylists} onPlayTracks={(tracks, startId) => { if (p.playTracks(tracks, startId)) navigate('/'); }} onToggleLike={toggleTrackLike} onViewInfo={setDetailTrack} onAddToPlaylist={addToPlaylist} onArtist={openArtist} onAlbum={openAlbum} />
       : isPlaylists ? <PlaylistView onRefreshInfo={refreshInfo} onSaveLyrics={saveLyrics} playlists={overviewPlaylists} playlist={activePlaylist} displayCover={activePlaylist ? playlistCover(activePlaylist, allTracks) : undefined} tracks={allTracks} currentId={p.trackId} liked={liked} onCreate={() => setCreatePlaylistOpen(true)} onDelete={setDeletePlaylistId} onPlayPlaylist={(tracks, startId) => { if (p.playTracks(tracks, startId)) navigate('/'); }} onToggleLike={toggleTrackLike} onViewInfo={setDetailTrack} onArtist={openArtist} onAlbum={openAlbum} onAddToPlaylist={addToPlaylist} onRemoveFromPlaylist={removeFromPlaylist} onEditPlaylist={edited => setPlaylists(prev => prev.map(item => item.id === edited.id ? edited : item))} />
       : isTags ? <TagsView tracks={allTracks} customTags={customTags} onCreate={createTag} onRename={renameTag} onDelete={deleteTag} onOpen={openTag} />
@@ -677,7 +693,7 @@ export default function Index() {
       </section><QueuePanel player={p} onViewInfo={setDetailTrack} onRefreshInfo={refreshInfo} onSaveLyrics={saveLyrics} onSaveQueue={saveQueueAsPlaylist} onAddTracks={addToQueue} /></div>
       </>}
     </main>
-    <AudioProcessor open={effectEditorOpen} onOpenChange={setEffectEditorOpen} effect={p.effect} setEffect={p.setEffect} customEffects={p.customEffects} onSave={p.saveEffect} onDelete={p.deleteEffect} onPreview={p.setPreviewFilter} filterError={p.filterError} sampleRate={p.analyser?.context.sampleRate ?? 44100} hasTrack={p.hasTrack} trackTitle={p.track.title} playing={p.playing} time={p.time} duration={p.track.duration} onToggle={p.toggle} onSeek={p.seek} />
+    <AudioProcessor professionalAudio={p.professionalAudio} preampDb={p.preampDb} open={effectEditorOpen} onOpenChange={setEffectEditorOpen} effect={p.effect} setEffect={p.setEffect} customEffects={p.customEffects} onSave={p.saveEffect} onDelete={p.deleteEffect} onPreview={p.setPreviewFilter} filterError={p.filterError} sampleRate={p.analyser?.context.sampleRate ?? 44100} hasTrack={p.hasTrack} trackTitle={p.track.title} playing={p.playing} time={p.time} duration={p.track.duration} onToggle={p.toggle} onSeek={p.seek} />
     <Dialog open={createPlaylistOpen} onOpenChange={open => { setCreatePlaylistOpen(open); if (!open) { setPlaylistName(''); setPlaylistQueueSnapshot(null); } }}><DialogContent className={`music-dialog playlist-dialog theme-${theme}`}><DialogTitle>{playlistQueueSnapshot ? '播放队列存为歌单' : '新建歌单'}</DialogTitle><DialogDescription className={playlistQueueSnapshot ? undefined : 'sr-only'}>{playlistQueueSnapshot ? `将 ${playlistQueueSnapshot.ids.length} 首歌曲保存为新歌单。${playlistQueueSnapshot.skipped ? `${playlistQueueSnapshot.skipped} 首临时歌曲不会保存。` : ''}` : '新建歌单'}</DialogDescription><form onSubmit={event => { event.preventDefault(); createPlaylist(); }}><div className="playlist-create-row"><Input autoFocus maxLength={40} placeholder="歌单名称" aria-label="歌单名称" value={playlistName} onChange={event => setPlaylistName(event.target.value)} /><button type="submit" className="playlist-primary" disabled={!playlistName.trim()}>{playlistQueueSnapshot ? '确认保存' : '确认创建'}</button></div></form></DialogContent></Dialog>
     <Dialog open={deletePlaylistId !== null} onOpenChange={open => { if (!open) setDeletePlaylistId(null); }}><DialogContent className="music-dialog playlist-dialog"><DialogTitle>删除歌单？</DialogTitle><DialogDescription>「{playlists.find(item => item.id === deletePlaylistId)?.name}」将从歌单列表移除，歌曲不会从音乐库删除。</DialogDescription><div className="playlist-dialog-actions"><button type="button" onClick={() => setDeletePlaylistId(null)}>取消</button><button type="button" className="playlist-danger" onClick={deletePlaylist}>删除歌单</button></div></DialogContent></Dialog>
     <Dialog open={deleteTrackIds.length > 0} onOpenChange={open => { if (!open) setDeleteTrackIds([]); }}><DialogContent className="music-dialog playlist-dialog"><DialogTitle>从曲库移除{deleteTrackIds.length} 首歌曲？</DialogTitle><DialogDescription>歌曲将从曲库、歌单和播放队列中移除。本地音频文件不会删除。</DialogDescription><div className="playlist-dialog-actions"><button type="button" onClick={() => setDeleteTrackIds([])}>取消</button><button type="button" className="playlist-danger" onClick={() => void deleteTracks()}>移除歌曲</button></div></DialogContent></Dialog>
@@ -687,13 +703,9 @@ export default function Index() {
     <Dialog open={networkOpen} onOpenChange={setNetworkOpen}><DialogContent className="music-dialog folder-dialog"><DialogTitle>打开网络歌曲</DialogTitle><DialogDescription>HTTP 或 HTTPS 音频文件地址</DialogDescription><form className="network-song-form" onSubmit={event => { event.preventDefault(); void openNetworkSong(); }}><Input type="url" autoFocus required value={networkURL} onChange={event => setNetworkURL(event.target.value)} placeholder="https://example.com/music/song.mp3" aria-label="网络歌曲地址" /><div className="folder-dialog-actions"><button type="button" onClick={() => setNetworkOpen(false)}>取消</button><button type="submit" disabled={networkLoading || !networkURL.trim()}>{networkLoading ? '正在打开' : '打开并播放'}</button></div></form></DialogContent></Dialog>
     <footer className={`playback-bar ${p.noise.active ? 'noise-active' : ''} ${workTimer.active ? 'timer-active' : ''}`}>
       <div className="mini-track"><button type="button" className="mini-cover-link" aria-label="前往正在播放" title="前往正在播放" onClick={() => navigate('/')}><img className="mini-cover" src={p.noise.active ? '/covers/local.svg' : cover} alt="" /></button><div><strong>{p.noise.active ? p.noise.name : p.track.title}</strong><small>{p.noise.active ? p.noise.status === 'paused' ? '后台噪音 · 已暂停' : '后台噪音 · 原队列保留' : p.track.artist}</small></div>{!p.noise.active && p.hasTrack && !p.track.source && <IconButton label="喜欢" onClick={toggleLike} active={favorite}><Heart size={17} fill={favorite ? 'currentColor' : 'none'} /></IconButton>}</div>
-      <div className="transport"><div className="transport-buttons"><IconButton label="随机播放" active={p.mode === 'shuffle'} onClick={() => p.setMode(p.mode === 'shuffle' ? 'list' : 'shuffle')}><Shuffle size={17} /></IconButton><IconButton label="上一首" onClick={p.previous}><SkipBack size={20} fill="currentColor" /></IconButton><button className="play-button" disabled={!p.hasTrack && !p.noise.active} aria-label={outputPlaying ? '暂停' : '播放'} onClick={p.toggle}>{outputPlaying ? <Pause size={21} fill="currentColor" /> : <Play size={21} fill="currentColor" />}</button><IconButton label="下一首" onClick={p.next}><SkipForward size={20} fill="currentColor" /></IconButton><IconButton label={({ list: '列表循环', repeat: '单曲循环', shuffle: '列表循环', 'stop-track': '播完单曲停止', 'stop-list': '播完列表停止' })[p.mode]} active={p.mode !== 'list' && p.mode !== 'shuffle'} onClick={() => { const modes = ['list', 'repeat', 'stop-track', 'stop-list'] as const; p.setMode(modes[(modes.indexOf(p.mode as typeof modes[number]) + 1) % modes.length]); }}>{p.mode === 'repeat' ? <Repeat1 size={18} /> : p.mode === 'stop-track' ? <Square size={18} /> : p.mode === 'stop-list' ? <ListEnd size={18} /> : <Repeat size={18} />}</IconButton></div><div className="seek-row"><span>{p.noise.active ? '—' : formatTime(p.time)}</span><input aria-label="播放进度" type="range" min="0" max={Math.max(1, p.track.duration)} step="0.1" value={p.time} disabled={!p.hasTrack || p.noise.active} onChange={e => p.seek(Number(e.target.value))} style={{ '--fill': `${p.time / Math.max(1, p.track.duration) * 100}%` } as React.CSSProperties} /><span>{p.noise.active ? '—' : formatTime(p.track.duration)}</span></div></div>
+      <div className="transport"><div className="transport-buttons"><IconButton label="上一首" onClick={p.previous}><SkipBack size={20} fill="currentColor" /></IconButton><button className="play-button" disabled={!p.hasTrack && !p.noise.active} aria-label={outputPlaying ? '暂停' : '播放'} onClick={p.toggle}>{outputPlaying ? <Pause size={21} fill="currentColor" /> : <Play size={21} fill="currentColor" />}</button><IconButton label="下一首" onClick={p.next}><SkipForward size={20} fill="currentColor" /></IconButton><PlaybackModeControl mode={p.mode} onChange={p.setMode} disabled={p.noise.active} /></div><div className="seek-row"><span>{p.noise.active ? '—' : formatTime(p.time)}</span><input aria-label="播放进度" type="range" min="0" max={Math.max(1, p.track.duration)} step="0.1" value={p.time} disabled={!p.hasTrack || p.noise.active} onChange={e => p.seek(Number(e.target.value))} style={{ '--fill': `${p.time / Math.max(1, p.track.duration) * 100}%` } as React.CSSProperties} /><span>{p.noise.active ? '—' : formatTime(p.track.duration)}</span></div></div>
       <div className="playback-extras">{!p.noise.active && p.track.quality && <span className="quality-badge" title={[p.track.quality.sampleRate && `${(p.track.quality.sampleRate / 1000).toFixed(1)} kHz`, p.track.quality.bitDepth && `${p.track.quality.bitDepth}-bit`, p.track.quality.bitrate && `${Math.round(p.track.quality.bitrate / 1000)} kbps`, p.track.quality.codec].filter(Boolean).join(' · ')}>{p.track.quality.lossless ? p.track.quality.sampleRate && p.track.quality.sampleRate >= 88200 ? 'Hi-Res' : '无损' : p.track.quality.bitrate ? `${Math.round(p.track.quality.bitrate / 1000)} kbps` : '音频'}</span>}
-        {runtime.mode === 'desktop' && <MiniModeButton label="迷你模式" disabled={mini.busy} onClick={() => {
-          setFocus(false); setScopeOpen(false); setQueueOpen(false); setDetailTrack(null); setEffectEditorOpen(false);
-          setToolboxOpen(false); setCreatePlaylistOpen(false); setDeletePlaylistId(null); setDeleteTrackIds([]); setPendingPaths([]); setNetworkOpen(false);
-          void mini.change(true);
-        }}><PictureInPicture2 size={19} /></MiniModeButton>}
+        {runtime.mode === 'desktop' && <MiniModeButton label="迷你模式" disabled={mini.busy} onClick={() => window.dispatchEvent(new Event('lunanahida:enter-mini-mode'))}><PictureInPicture2 size={19} /></MiniModeButton>}
         {p.noise.active && <IconButton label="停止噪音" className="noise-stop-trigger" onClick={p.noise.stop}><Square size={17} /></IconButton>}
         <IconButton label="音频工具箱" className="toolbox-trigger" active={toolboxOpen} onClick={() => { setToolboxAddToLibrary(false); setToolboxQueueOnConvert(false); setToolboxAutoClose(false); setToolboxLaunchRequest(previous => ({ tool: null, revision: previous.revision + 1 })); setToolboxOpen(true); }}><Wrench size={19} /></IconButton>
         <TimerShortcut timer={workTimer} onOpen={() => { setToolboxAutoClose(false); setToolboxLaunchRequest(previous => ({ tool: 'timer', revision: previous.revision + 1 })); setToolboxOpen(true); }} />

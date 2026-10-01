@@ -4,7 +4,7 @@ import { createMiniModeController, miniWindowSize, miniWindowStorageKey } from '
 
 function windowFixture({ maximised = false, fullscreen = false } = {}) {
   const normal = { width: 1180, height: 740, x: 140, y: 90, resizable: true };
-  const state = { ...normal, maximised, fullscreen, frameless: false, minWidth: 900, minHeight: 600, pinned: false };
+  const state = { ...normal, maximised, fullscreen, frameless: true, minWidth: 900, minHeight: 600, pinned: false };
   const calls = [];
   let failure;
   const native = Object.fromEntries(Object.entries({
@@ -49,7 +49,7 @@ for (const mode of [{}, { maximised: true }, { fullscreen: true }]) {
       await native.SetAlwaysOnTop(true);
       await controller.exit();
       for (const [key, value] of Object.entries(normal)) assert.equal(state[key], value);
-      assert.equal(state.frameless, false);
+      assert.equal(state.frameless, true);
       assert.equal(state.pinned, false);
       assert.equal(state.minWidth, 900);
       assert.equal(state.minHeight, 600);
@@ -59,12 +59,12 @@ for (const mode of [{}, { maximised: true }, { fullscreen: true }]) {
   });
 }
 
-test('failed entry restores decorations and constraints, allowing another attempt', async () => {
+test('failed entry preserves the frameless window and restores constraints, allowing another attempt', async () => {
   const fixture = windowFixture({ maximised: true });
   const controller = createMiniModeController(fixture.native);
   fixture.fail('SetSize');
   await assert.rejects(controller.enter(), /window unavailable/);
-  assert.equal(fixture.state.frameless, false);
+  assert.equal(fixture.state.frameless, true);
   assert.equal(fixture.state.minWidth, 900);
   assert.equal(fixture.state.maximised, true);
   await controller.enter();
@@ -80,7 +80,7 @@ test('failed exit keeps the saved full window for retry', async () => {
   await assert.rejects(controller.exit(), /window unavailable/);
   await controller.exit();
   assert.equal(fixture.state.width, fixture.normal.width);
-  assert.equal(fixture.state.frameless, false);
+  assert.equal(fixture.state.frameless, true);
 });
 
 function preferenceFixture(saved = null) {

@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import { RuntimeProvider } from '@/hooks/use-runtime';
+import DesktopWindowBar from '@/components/DesktopWindowBar';
 
 const queryClient = new QueryClient();
 
@@ -14,6 +15,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
+      <DesktopWindowBar />
       <BrowserRouter>
         <RuntimeProvider>
         <Routes>

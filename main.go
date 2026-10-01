@@ -25,6 +25,9 @@ var frontend embed.FS
 //go:embed build/appicon.png
 var appIcon []byte
 
+// Keep playback scheduling active while the window is hidden in the tray.
+var desktopBrowserArgs = []string{"--disable-background-timer-throttling", "--disable-renderer-backgrounding", "--disable-backgrounding-occluded-windows"}
+
 func main() {
 	dataRoot, browserPath, err := desktopPaths()
 	dataRoot, rootErr := backend.ResolveDataRoot(dataRoot)
@@ -83,8 +86,9 @@ func main() {
 		Icon:     appIcon,
 		Services: []application.Service{application.NewService(notifier)},
 		Windows: application.WindowsOptions{
-			WebviewUserDataPath: filepath.Join(store.Root, "cache", "webview"),
-			WebviewBrowserPath:  browserPath,
+			AdditionalBrowserArgs: desktopBrowserArgs,
+			WebviewUserDataPath:   filepath.Join(store.Root, "cache", "webview"),
+			WebviewBrowserPath:    browserPath,
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(frontend),
@@ -129,7 +133,9 @@ func main() {
 	window := app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Name: "main", Title: "LunaNahida", Width: 1280, Height: 800,
 		MinWidth: 900, MinHeight: 600, EnableFileDrop: true, URL: "/",
+		Frameless: true,
 	})
+	configureTray(app, window, api)
 	window.OnWindowEvent(events.Common.WindowFilesDropped, func(event *application.WindowEvent) {
 		app.Event.Emit("lunanahida:files-dropped", event.Context().DroppedFiles())
 		time.AfterFunc(100*time.Millisecond, window.Focus)

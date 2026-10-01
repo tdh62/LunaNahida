@@ -29,6 +29,7 @@ type API struct {
 	Music                      *Music
 	AuthorizeTimerNotification func() (bool, error)
 	SendTimerNotification      func(int64) error
+	SettingsChanged            func(Settings)
 }
 
 func NewAPI(store *Store, dialogs Dialogs) *API {
@@ -236,6 +237,9 @@ func (a *API) Handler() http.Handler {
 		if err := a.Store.SaveSettings(settings); err != nil {
 			fail(w, 400, err)
 			return
+		}
+		if a.SettingsChanged != nil {
+			a.SettingsChanged(settings)
 		}
 		respond(w, 200, settings)
 	})

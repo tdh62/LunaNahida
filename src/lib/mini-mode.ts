@@ -26,7 +26,7 @@ export function createMiniModeController(native: WindowAPI, options: MiniModeOpt
   };
   const restore = async (saved: WindowSnapshot) => {
     await native.SetAlwaysOnTop(false);
-    await native.SetFrameless(false);
+    await native.SetFrameless(true);
     await native.SetResizable(saved.resizable);
     await native.SetMinSize(900, 600);
     await native.SetSize(saved.width, saved.height);

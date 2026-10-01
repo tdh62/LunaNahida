@@ -58,6 +58,7 @@ type Playlist struct {
 }
 
 type Settings struct {
+	TrayEnabled             bool            `json:"trayEnabled"`
 	DropAction              string          `json:"dropAction"`
 	NetworkCacheCount       int             `json:"networkCacheCount"`
 	ScanOnStart             bool            `json:"scanOnStart"`
@@ -79,6 +80,7 @@ type Settings struct {
 	Mode                    string          `json:"mode"`
 	Effect                  string          `json:"effect"`
 	Equalizer               []float64       `json:"equalizer"`
+	ProfessionalAudio       bool            `json:"professionalAudio"`
 	CustomEffects           []SavedEffect   `json:"customEffects"`
 }
 
@@ -89,11 +91,25 @@ type SavedEffect struct {
 }
 
 type CustomFilter struct {
+	FrequencyMode  string          `json:"frequencyMode,omitempty"`
 	FIRSize        int             `json:"firSize"`
 	FrequencyBands []FrequencyBand `json:"frequencyBands"`
 	Time           string          `json:"time"`
 	DurationMs     int             `json:"durationMs"`
 	Delays         []FilterDelay   `json:"delays"`
+	GainCurve      []GainSegment   `json:"gainCurve,omitempty"`
+	GainMin        *float64        `json:"gainMin,omitempty"`
+	GainMax        *float64        `json:"gainMax,omitempty"`
+}
+
+type GainPoint struct {
+	Hz    float64  `json:"hz"`
+	DB    float64  `json:"db"`
+	Slope *float64 `json:"slope,omitempty"`
+}
+
+type GainSegment struct {
+	Points []GainPoint `json:"points"`
 }
 
 type FrequencyBand struct {
@@ -109,6 +125,36 @@ type FilterDelay struct {
 }
 
 func validCustomFilter(filter CustomFilter) bool {
+	if filter.FrequencyMode != "" && filter.FrequencyMode != "formula" && filter.FrequencyMode != "curve" {
+		return false
+	}
+	if filter.GainMin != nil && (math.IsNaN(*filter.GainMin) || math.IsInf(*filter.GainMin, 0) || *filter.GainMin < -60 || *filter.GainMin >= 0) || filter.GainMax != nil && (math.IsNaN(*filter.GainMax) || math.IsInf(*filter.GainMax, 0) || *filter.GainMax > 60 || *filter.GainMax <= 0) {
+		return false
+	}
+	if len(filter.GainCurve) > 128 {
+		return false
+	}
+	curveEnd, pointCount := 0.0, 0
+	for _, segment := range filter.GainCurve {
+		if len(segment.Points) < 2 || segment.Points[0].Hz < curveEnd {
+			return false
+		}
+		previousHz := 0.0
+		for _, point := range segment.Points {
+			if point.Slope != nil && (math.IsNaN(*point.Slope) || math.IsInf(*point.Slope, 0) || math.Abs(*point.Slope) > 1e6) {
+				return false
+			}
+			if math.IsNaN(point.Hz) || math.IsInf(point.Hz, 0) || point.Hz <= previousHz || point.Hz < 1 || point.Hz > 192000 || math.IsNaN(point.DB) || math.IsInf(point.DB, 0) || math.Abs(point.DB) > 60 {
+				return false
+			}
+			previousHz = point.Hz
+		}
+		curveEnd = previousHz
+		pointCount += len(segment.Points)
+	}
+	if pointCount > 16384 {
+		return false
+	}
 	if filter.FIRSize != 2048 && filter.FIRSize != 4096 && filter.FIRSize != 8192 && filter.FIRSize != 16384 {
 		return false
 	}

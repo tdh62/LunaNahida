@@ -1,16 +1,23 @@
+import { curveFrequency, validGainSegments, type GainSegment } from './gain-curve.ts';
+
+export const professionalGainLimit = 60;
 export type CustomFilter = {
+  frequencyMode?: 'formula' | 'curve';
   firSize: 2048 | 4096 | 8192 | 16384;
   frequencyBands: FrequencyBand[];
   time: string;
   durationMs: number;
   delays: { ms: number; gain: number }[];
+  gainCurve?: GainSegment[];
+  gainMin?: number;
+  gainMax?: number;
 };
 export type FrequencyBand = { expression: string; startHz: number; endHz: number | null; transitionHz: number };
 export type SavedEffect = { id: string; name: string; filter: CustomFilter };
 export type FrequencyResponse = { sampleRate: number; values: Float32Array };
 
 const fullBand = (expression: string): FrequencyBand => ({ expression, startHz: 0, endHz: null, transitionHz: 80 });
-export const defaultCustomFilter: CustomFilter = { firSize: 8192, frequencyBands: [fullBand('0')], time: '0', durationMs: 400, delays: [] };
+export const defaultCustomFilter: CustomFilter = { frequencyMode: 'formula', firSize: 8192, frequencyBands: [fullBand('0')], time: '0', durationMs: 400, delays: [] };
 export const effectNames = ['原声', '低音增强', '空间回响', '温暖 Lo-fi'] as const;
 
 export const effectDefinitions: Record<string, CustomFilter> = {
@@ -29,6 +36,14 @@ export function responseAt(response: FrequencyResponse, hz: number) {
   const position = Math.max(0, Math.min(response.values.length - 1, hz * (response.values.length - 1) * 2 / response.sampleRate));
   const left = Math.floor(position), right = Math.min(response.values.length - 1, left + 1);
   return response.values[left] + (response.values[right] - response.values[left]) * (position - left);
+}
+
+export function frequencyResponseBounds(response: FrequencyResponse | null) {
+  let minimum = -48, maximum = 24;
+  for (const value of response?.values ?? []) {
+    if (Number.isFinite(value)) { minimum = Math.min(minimum, value); maximum = Math.max(maximum, value); }
+  }
+  return { minimum: Math.floor(minimum / 12) * 12, maximum: Math.ceil(maximum / 12) * 12 };
 }
 
 type Expression = (value: number) => number;
@@ -114,7 +129,13 @@ export function compileExpression(source: string, variable: 'f' | 't'): Expressi
   return result;
 }
 
-export function validateFilter(filter: CustomFilter, sampleRate: number) {
+export function validateFilter(filter: CustomFilter, sampleRate: number, gainLimit = 24) {
+  const mode = filter.frequencyMode ?? 'formula';
+  if (!['formula', 'curve'].includes(mode)) throw new Error('频率增益模式无效');
+  if (!Number.isFinite(gainLimit) || gainLimit < 24 || gainLimit > professionalGainLimit) throw new Error('增益限制无效');
+  if (!validGainSegments(filter.gainCurve ?? [], mode === 'curve' ? gainLimit : professionalGainLimit)) throw new Error(`绘制曲线无效，增益须在 ±${gainLimit} dB 内`);
+  if ((filter.gainMin !== undefined && (!Number.isFinite(filter.gainMin) || filter.gainMin < -professionalGainLimit || filter.gainMin >= 0)) ||
+    (filter.gainMax !== undefined && (!Number.isFinite(filter.gainMax) || filter.gainMax > professionalGainLimit || filter.gainMax <= 0))) throw new Error('绘图增益范围无效');
   if (![2048, 4096, 8192, 16384].includes(filter.firSize)) throw new Error('FIR 点数无效');
   if (!Array.isArray(filter.frequencyBands) || filter.frequencyBands.length < 1 || filter.frequencyBands.length > 8) throw new Error('频率函数须为 1–8 条');
   const nyquist = sampleRate / 2;
@@ -124,10 +145,10 @@ export function validateFilter(filter: CustomFilter, sampleRate: number) {
       !Number.isFinite(band.transitionHz) || band.transitionHz < 0 || band.transitionHz > 10000) {
       throw new Error(`第 ${index + 1} 条频率函数的范围无效`);
     }
-    return { ...band, evaluate: compileExpression(band.expression, 'f') };
+    return { ...band, evaluate: mode === 'formula' ? compileExpression(band.expression, 'f') : () => 0 };
   });
   const smoothstep = (value: number) => { const x = Math.max(0, Math.min(1, value)); return x * x * (3 - 2 * x); };
-  const frequency = (hz: number) => {
+  const baseFrequency = (hz: number) => {
     let total = 0;
     for (const band of bands) {
       const end = Math.min(band.endHz ?? nyquist, nyquist);
@@ -138,11 +159,12 @@ export function validateFilter(filter: CustomFilter, sampleRate: number) {
       const weight = low * high;
       if (!weight) continue;
       const gain = band.evaluate(hz);
-      if (!Number.isFinite(gain) || Math.abs(gain) > 24) throw new Error(`${Math.round(hz)} Hz 处的单条增益须在 ±24 dB 内`);
+      if (!Number.isFinite(gain) || Math.abs(gain) > gainLimit) throw new Error(`${Math.round(hz)} Hz 处的单条增益须在 ±${gainLimit} dB 内`);
       total += weight * gain;
     }
     return total;
   };
+  const frequency = mode === 'curve' ? curveFrequency(filter.gainCurve ?? [], () => 0) : baseFrequency;
   const time = compileExpression(filter.time, 't');
   if (!Number.isFinite(filter.durationMs) || filter.durationMs < 50 || filter.durationMs > 1000) throw new Error('时间响应长度须在 50–1000 ms 之间');
   if ((filter.delays?.length ?? 0) > 8) throw new Error('最多支持 8 个延迟点');
@@ -156,7 +178,7 @@ export function validateFilter(filter: CustomFilter, sampleRate: number) {
   for (let i = 0; i <= filter.firSize / 2; i++) {
     const f = i * sampleRate / filter.firSize;
     const gain = frequency(f);
-    if (!Number.isFinite(gain) || Math.abs(gain) > 24) throw new Error(`${Math.round(f)} Hz 处的合成增益须在 ±24 dB 内`);
+    if (!Number.isFinite(gain) || Math.abs(gain) > gainLimit) throw new Error(`${Math.round(f)} Hz 处的合成增益须在 ±${gainLimit} dB 内`);
     if (gain !== 0) neutralFrequency = false;
   }
   for (let i = 0; i <= 128; i++) {
@@ -164,7 +186,7 @@ export function validateFilter(filter: CustomFilter, sampleRate: number) {
     const response = time(t);
     if (!Number.isFinite(response) || Math.abs(response) > 20) throw new Error(`${Math.round(t * 1000)} ms 处的响应过大`);
   }
-  return { frequency, time, neutralFrequency };
+  return { frequency, baseFrequency, time, neutralFrequency };
 }
 
 function inverseFFT(real: Float64Array, imaginary: Float64Array, normalize = true) {
@@ -199,17 +221,18 @@ export function calculateFIRResponse(frequency: AudioBuffer): FrequencyResponse 
   const values = new Float32Array(size / 2 + 1);
   for (let i = 0; i < values.length; i++) {
     const power = real[i] ** 2 + imaginary[i] ** 2;
-    values[i] = Math.max(-48, Math.min(24, 10 * Math.log10(Math.max(1e-12, power))));
+    values[i] = Math.max(-120, Math.min(professionalGainLimit, 10 * Math.log10(Math.max(1e-12, power))));
   }
   return { sampleRate: frequency.sampleRate, values };
 }
 
-export function makeFrequencyImpulse(context: AudioContext, expression: Expression, size = 8192) {
+export function makeFrequencyImpulse(context: AudioContext, expression: Expression, size = 8192, gainLimit = 24) {
+  if (!Number.isFinite(gainLimit) || gainLimit < 24 || gainLimit > professionalGainLimit) throw new Error('增益限制无效');
   const half = size / 2;
   const real = new Float64Array(size), imaginary = new Float64Array(size);
   for (let i = 0; i <= half; i++) {
     const gain = expression(i * context.sampleRate / size);
-    if (!Number.isFinite(gain) || Math.abs(gain) > 24) throw new Error('频率函数产生了超出 ±24 dB 的值');
+    if (!Number.isFinite(gain) || Math.abs(gain) > gainLimit) throw new Error(`频率函数产生了超出 ±${gainLimit} dB 的值`);
     real[i] = real[size - i] = 10 ** (gain / 20);
   }
   inverseFFT(real, imaginary);

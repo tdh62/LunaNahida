@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
 import { Minimize2 } from 'lucide-react';
 import type { ScopeSettings } from '@/lib/backend';
 import { detectSampleRate } from '@/lib/audio-sample-rate';
-import { responseAt, type FrequencyResponse } from '@/lib/audio-filter';
+import { frequencyResponseBounds, responseAt, type FrequencyResponse } from '@/lib/audio-filter';
 import { defaultScopeNotePreferences, getScopeNotes, layoutScopeNoteLabels, noteAt, readScopeNotePreferences, scopeNoteStorageKey } from '@/lib/scope-notes';
 
 type Props = {
@@ -27,6 +27,7 @@ function formatHz(value: number) {
 }
 
 export default function ExpandedScope({ analyser, response, active, trackId, title, artist, sampleRate, browserFile = false, settings, onSettingsChange, onClose }: Props) {
+  const gainBounds = useMemo(() => frequencyResponseBounds(response), [response]);
   const canvas = useRef<HTMLCanvasElement>(null);
   const redraw = useRef<() => void>(() => {});
   const pointer = useRef<number | null>(null);
@@ -132,11 +133,11 @@ export default function ExpandedScope({ analyser, response, active, trackId, tit
           context.fillStyle = '#eab17c';
           context.textAlign = 'left';
           context.setLineDash([3, 5]);
-          const zeroY = plotTop + plotHeight / 3;
+          const zeroY = plotTop + gainBounds.maximum / (gainBounds.maximum - gainBounds.minimum) * plotHeight;
           context.beginPath(); context.moveTo(PAD.left, zeroY); context.lineTo(right, zeroY); context.stroke();
           context.setLineDash([]);
-          for (const gain of [24, 0, -24, -48]) {
-            const y = plotTop + (24 - gain) / 72 * plotHeight;
+          for (const gain of [gainBounds.maximum, 0, -24, gainBounds.minimum]) {
+            const y = plotTop + (gainBounds.maximum - gain) / (gainBounds.maximum - gainBounds.minimum) * plotHeight;
             context.fillText(`${gain > 0 ? '+' : ''}${gain}`, right + 5, y);
           }
           context.restore();
@@ -185,7 +186,7 @@ export default function ExpandedScope({ analyser, response, active, trackId, tit
           for (let px = 0; px <= Math.ceil(plotWidth); px++) {
             const hz = minHz * (maxHz / minHz) ** (px / plotWidth);
             const gain = responseAt(response, hz);
-            const y = plotTop + (24 - Math.max(-48, Math.min(24, gain))) / 72 * plotHeight;
+            const y = plotTop + (gainBounds.maximum - gain) / (gainBounds.maximum - gainBounds.minimum) * plotHeight;
             if (px === 0) context.moveTo(PAD.left, y); else context.lineTo(PAD.left + px, y);
           }
           context.stroke();

@@ -6,15 +6,40 @@ import type { Track } from '@/lib/music';
 import { toast } from 'sonner';
 import { playbackCoordinator, type PlaybackOwner } from '@/lib/playback-coordinator';
 import { useNoiseGenerator } from '@/hooks/use-noise-generator';
-import { calculateFIRResponse, effectDefinitions, makeFrequencyImpulse, makeTimeImpulse, selectedEffect, validateFilter, type CustomFilter, type FrequencyResponse, type SavedEffect } from '@/lib/audio-filter';
+import { calculateFIRResponse, effectDefinitions, makeFrequencyImpulse, makeTimeImpulse, professionalGainLimit, selectedEffect, validateFilter, type CustomFilter, type FrequencyResponse, type SavedEffect } from '@/lib/audio-filter';
 
 const frequencies = [60, 230, 910, 3600, 12000];
 const emptyBands = [0, 0, 0, 0, 0];
 const emptyTrack: Track = { id: -1, title: '暂无歌曲', english: '', artist: '打开歌曲或文件夹', album: '本地音乐', duration: 0, cover: '/covers/local.svg', genre: '', year: '', color: '#8daab0', source: '' };
-type FilterLane = { node: ConvolverNode | null; gain: GainNode };
-type Graph = { context: AudioContext; bands: BiquadFilterNode[]; frequencyInput: GainNode; timeInput: GainNode; analyser: AnalyserNode; scopeAnalyser: AnalyserNode; frequencyLane: FilterLane; timeLane: FilterLane };
+type FilterLane = { node: ConvolverNode | null; gain: GainNode; signature?: string };
+type Graph = { context: AudioContext; headroom: GainNode; bands: BiquadFilterNode[]; response: FrequencyResponse | null; timeLoad: number; frequencyInput: GainNode; timeInput: GainNode; analyser: AnalyserNode; scopeAnalyser: AnalyserNode; frequencyLane: FilterLane; timeLane: FilterLane };
+
+function reserveHeadroom(g: Graph, equalizer: number[], releaseDelay = .12) {
+  const count = g.response?.values.length ?? 4097;
+  const frequencies = Float32Array.from({ length: count }, (_, i) => i * g.context.sampleRate / (2 * (count - 1)));
+  const response = new Float32Array(count).fill(1), magnitude = new Float32Array(count), phase = new Float32Array(count);
+  g.bands.forEach((band, index) => {
+    const measuring = g.context.createBiquadFilter();
+    measuring.type = band.type; measuring.frequency.value = band.frequency.value; measuring.Q.value = band.Q.value;
+    measuring.gain.value = equalizer[index] ?? 0;
+    measuring.getFrequencyResponse(frequencies, magnitude, phase);
+    measuring.disconnect();
+    for (let i = 0; i < count; i++) response[i] *= magnitude[i];
+  });
+  let peak = 1;
+  for (let i = 0; i < count; i++) peak = Math.max(peak, response[i] * 10 ** ((g.response?.values[i] ?? 0) / 20) * g.timeLoad);
+  const preamp = peak > 1.001 ? 10 ** (-1 / 20) / peak : 1;
+  g.headroom.gain.cancelScheduledValues(g.context.currentTime);
+  g.headroom.gain.setValueAtTime(Math.min(g.headroom.gain.value, preamp), g.context.currentTime);
+  g.headroom.gain.setTargetAtTime(preamp, g.context.currentTime + releaseDelay, .04);
+  return 20 * Math.log10(preamp);
+}
 
 export function usePlayer() {
+  const [professionalAudio, setProfessionalAudio] = useState(false);
+  const [preampDb, setPreampDb] = useState(0);
+  const filterReadyAt = useRef(0);
+  const [filterRevision, setFilterRevision] = useState(0);
   const runtime = useRuntime();
   const browserTracks = useRef(new BrowserTrackPool());
   const mounted = useRef(true);
@@ -51,7 +76,8 @@ export function usePlayer() {
     updateQueue(next);
   };
   const updateTrack = (track: Track) => updateQueue(queueRef.current.map(item => item.id === track.id ? track : item));
-  const hydrate = (items: Track[], ids: number[], history: number[], settings: { volume: number; mode: typeof mode; effect: string; equalizer: number[]; customEffects?: SavedEffect[] }) => {
+  const hydrate = (items: Track[], ids: number[], history: number[], settings: { volume: number; mode: typeof mode; effect: string; equalizer: number[]; customEffects?: SavedEffect[]; professionalAudio?: boolean }) => {
+    setProfessionalAudio(settings.professionalAudio ?? false);
     catalogRef.current = items;
     updateQueue(ids.map(id => items.find(item => item.id === id)).filter((item): item is Track => Boolean(item)));
     const saved = (settings.customEffects ?? []).filter(item => Array.isArray(item.filter?.frequencyBands) && item.filter.frequencyBands.length > 0);
@@ -138,11 +164,15 @@ export function usePlayer() {
         gain.connect(output);
         return { node, gain };
       };
-      source.connect(bands[0]); bands[bands.length - 1].connect(frequencyInput);
+      const headroom = context.createGain();
+      const protection = context.createDynamicsCompressor();
+      protection.threshold.value = -1; protection.knee.value = 0; protection.ratio.value = 20;
+      protection.attack.value = .003; protection.release.value = .08;
+      source.connect(headroom); headroom.connect(bands[0]); bands[bands.length - 1].connect(frequencyInput);
       const frequencyLane = makeLane(frequencyInput, timeInput, null);
       const timeLane = makeLane(timeInput, analyser, null);
-      analyser.connect(context.destination); analyser.connect(scopeAnalyser);
-      graph.current = { context, bands, frequencyInput, timeInput, analyser, scopeAnalyser, frequencyLane, timeLane };
+      analyser.connect(protection); protection.connect(context.destination); analyser.connect(scopeAnalyser);
+      graph.current = { context, headroom, bands, response: null, timeLoad: 1, frequencyInput, timeInput, analyser, scopeAnalyser, frequencyLane, timeLane };
       setAnalyser(analyser); setScopeAnalyser(scopeAnalyser);
     }
     void graph.current?.context.resume();
@@ -166,35 +196,57 @@ export function usePlayer() {
   useEffect(() => {
     const g = graph.current;
     if (!g) return;
+    const remaining = filterReadyAt.current - performance.now();
+    if (remaining > 0) {
+      const timer = window.setTimeout(() => setFilterRevision(value => value + 1), remaining + 1);
+      return () => window.clearTimeout(timer);
+    }
     try {
       const definition = previewFilter ?? selectedEffect(effect, customEffects).filter;
-      const signature = `${previewFilter ? 'preview' : effect}:${JSON.stringify(definition)}`;
+      const { gainMin, gainMax, ...audioDefinition } = definition;
+      const signature = `${professionalAudio}:${previewFilter ? 'preview' : effect}:${JSON.stringify(audioDefinition)}`;
       if (appliedFilter.current === signature) return;
-      const { frequency, time, neutralFrequency } = validateFilter(definition, g.context.sampleRate);
-      const frequencyBuffer = neutralFrequency ? null : makeFrequencyImpulse(g.context, frequency, definition.firSize);
+      const { frequency, time, neutralFrequency } = validateFilter(definition, g.context.sampleRate, professionalGainLimit);
+      const effectiveFrequency = (hz: number) => Math.max(professionalAudio ? -professionalGainLimit : -24, Math.min(professionalAudio ? professionalGainLimit : 24, frequency(hz)));
+      const frequencyBuffer = neutralFrequency ? null : makeFrequencyImpulse(g.context, effectiveFrequency, definition.firSize, professionalGainLimit);
       const timeBuffer = makeTimeImpulse(g.context, time, definition.durationMs, definition.delays);
       const neutralTime = timeBuffer.getChannelData(0).every((tap, index) => index === 0 || tap === 0);
+      const absoluteSum = (buffer: AudioBuffer | null) => buffer ? buffer.getChannelData(0).reduce((sum, tap) => sum + Math.abs(tap), 0) : 1;
+      g.timeLoad = absoluteSum(neutralTime ? null : timeBuffer);
+      g.response = frequencyBuffer ? calculateFIRResponse(frequencyBuffer) : null;
+      const warmup = frequencyBuffer ? definition.firSize / (2 * g.context.sampleRate) + .02 : 0;
+      setPreampDb(reserveHeadroom(g, equalizer, warmup + .12));
       const replace = (kind: 'frequencyLane' | 'timeLane', input: AudioNode, output: AudioNode, buffer: AudioBuffer | null) => {
         const previous = g[kind];
+        const laneSignature = kind === 'timeLane' ? JSON.stringify([definition.time, definition.durationMs, definition.delays]) : signature;
+        if (previous.signature === laneSignature) return;
+        const start = g.context.currentTime + (kind === 'frequencyLane' ? warmup : 0);
         const node = buffer ? g.context.createConvolver() : null, gain = g.context.createGain();
         if (node && buffer) { node.normalize = false; node.buffer = buffer; }
         gain.gain.setValueAtTime(0, g.context.currentTime);
+        gain.gain.setValueAtTime(0, start);
         if (node) { input.connect(node); node.connect(gain); } else input.connect(gain);
         gain.connect(output);
-        gain.gain.linearRampToValueAtTime(1, g.context.currentTime + .06);
-        previous.gain.gain.setValueAtTime(previous.gain.gain.value, g.context.currentTime);
-        previous.gain.gain.linearRampToValueAtTime(0, g.context.currentTime + .06);
-        g[kind] = { node, gain };
-        window.setTimeout(() => { input.disconnect(previous.node ?? previous.gain); previous.node?.disconnect(); previous.gain.disconnect(); }, 100);
+        gain.gain.linearRampToValueAtTime(1, start + .06);
+        previous.gain.gain.cancelScheduledValues(g.context.currentTime);
+        previous.gain.gain.setValueAtTime(previous.gain.gain.value, start);
+        previous.gain.gain.linearRampToValueAtTime(0, start + .06);
+        g[kind] = { node, gain, signature: laneSignature };
+        window.setTimeout(() => { input.disconnect(previous.node ?? previous.gain); previous.node?.disconnect(); previous.gain.disconnect(); }, (start - g.context.currentTime + .1) * 1000);
       };
       replace('frequencyLane', g.frequencyInput, g.timeInput, frequencyBuffer);
       replace('timeLane', g.timeInput, g.analyser, neutralTime ? null : timeBuffer);
-      setFrequencyResponse(frequencyBuffer ? calculateFIRResponse(frequencyBuffer) : { sampleRate: g.context.sampleRate, values: new Float32Array(definition.firSize / 2 + 1) });
+      setFrequencyResponse(g.response ?? { sampleRate: g.context.sampleRate, values: new Float32Array(definition.firSize / 2 + 1) });
       appliedFilter.current = signature;
+      filterReadyAt.current = performance.now() + (warmup + .1) * 1000;
       setFilterError(null);
     } catch (error) { setFilterError(error instanceof Error ? error.message : '滤波器无法应用'); }
-  }, [effect, customEffects, previewFilter, playing]);
-  useEffect(() => { graph.current?.bands.forEach((band, index) => { band.gain.setTargetAtTime(equalizer[index], graph.current!.context.currentTime, .04); }); }, [equalizer]);
+  }, [effect, customEffects, previewFilter, playing, professionalAudio, filterRevision]);
+  useEffect(() => {
+    const g = graph.current; if (!g) return;
+    setPreampDb(reserveHeadroom(g, equalizer, Math.max(.12, (filterReadyAt.current - performance.now()) / 1000 + .04)));
+    g.bands.forEach((band, index) => band.gain.setTargetAtTime(equalizer[index], g.context.currentTime, .04));
+  }, [equalizer, playing]);
 
   const claimMusic = () => {
     noise.stop();
@@ -250,5 +302,5 @@ export function usePlayer() {
     addTracks(result.tracks);
     return result;
   };
-  return { track: track ?? emptyTrack, hasTrack: Boolean(track), trackId, queue, recent, playing, time, volume, setVolume, mode, setMode, effect, effectName: selectedEffect(effect, customEffects).name, setEffect, setPreviewFilter, customEffects, saveEffect, deleteEffect, filterError, frequencyResponse, equalizer, setBand, resetEqualizer, analyser, scopeAnalyser, select, playTracks, next, previous, toggle, seek, clearQueue, removeTracks, move, addTracks, addFiles, markLyricsSaved, setCatalog, updateTrack, hydrate, noise };
+  return { professionalAudio, setProfessionalAudio, preampDb, track: track ?? emptyTrack, hasTrack: Boolean(track), trackId, queue, recent, playing, time, volume, setVolume, mode, setMode, effect, effectName: selectedEffect(effect, customEffects).name, setEffect, setPreviewFilter, customEffects, saveEffect, deleteEffect, filterError, frequencyResponse, equalizer, setBand, resetEqualizer, analyser, scopeAnalyser, select, playTracks, next, previous, toggle, seek, clearQueue, removeTracks, move, addTracks, addFiles, markLyricsSaved, setCatalog, updateTrack, hydrate, noise };
 }

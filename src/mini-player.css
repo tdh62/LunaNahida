@@ -11,14 +11,15 @@ html.desktop-mini-mode, html.desktop-mini-mode body, html.desktop-mini-mode #roo
 .mini-mode-button:disabled { opacity: .35; cursor: default; }
 .mini-mode-button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .mini-close:hover { color: #fff; background: #b93e4b; }
-.mini-now-playing { grid-column: 2; grid-row: 2; display: flex; flex-direction: column; justify-content: center; min-width: 0; overflow: hidden; user-select: none; }
+.mini-now-playing { grid-column: 2; grid-row: 2; display: flex; flex-direction: column; justify-content: flex-start; min-width: 0; overflow: hidden; user-select: none; }
 .mini-now-playing strong, .mini-now-playing small { display: block; max-width: 100%; overflow: hidden; white-space: nowrap; }
 .mini-now-playing strong { width: 100%; font-size: 16px; font-weight: 500; line-height: 22px; }
-.mini-title-row { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.mini-title-row { position: relative; display: flex; align-items: center; min-width: 0; min-height: 22px; padding-right: 32px; }
+.mini-title-row > .mini-mode-button { position: absolute; top: 0; right: 0; height: 22px; }
 .mini-title-row > strong { flex: 1; min-width: 0; }
 .mini-title > span { display: inline-block; width: max-content; }
 .mini-title.is-scrolling > span { animation: mini-title-scroll var(--title-duration) linear infinite alternate; }
-.mini-now-playing small { margin-top: 4px; color: var(--muted); font-size: 12px; line-height: 16px; text-overflow: ellipsis; }
+.mini-now-playing small { margin-top: 2px; color: var(--muted); font-size: 12px; line-height: 16px; text-overflow: ellipsis; }
 @keyframes mini-title-scroll { 0%, 15% { transform: translateX(0); } 85%, 100% { transform: translateX(var(--title-travel)); } }
 @media (prefers-reduced-motion: reduce) { .mini-title.is-scrolling > span { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; animation: none; transform: none; } }
 .mini-progress, .mini-controls, .mini-transport, .mini-volume { display: flex; align-items: center; }

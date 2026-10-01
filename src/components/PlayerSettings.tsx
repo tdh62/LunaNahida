@@ -39,6 +39,8 @@ type SettingsProps = {
   setSleep: (value: number) => void;
   effectName: string;
   onEditEffects: () => void;
+  professionalAudio: boolean;
+  setProfessionalAudio: (value: boolean) => void;
   equalizer: number[];
   setBand: (index: number, value: number) => void;
   resetEqualizer: () => void;
@@ -49,7 +51,7 @@ type SettingsProps = {
   artistNames: string[];
 };
 
-export default function PlayerSettings({ theme, setTheme, appearance, setAppearance, visual, setVisual, lyricEffect, setLyricEffect, lyricScroll, setLyricScroll, showTranslation, setShowTranslation, sleep, setSleep, effectName, onEditEffects, equalizer, setBand, resetEqualizer, mappings, setMappings, lyricAppearance, setLyricAppearance, artistNames }: SettingsProps) {
+export default function PlayerSettings({ theme, setTheme, appearance, setAppearance, visual, setVisual, lyricEffect, setLyricEffect, lyricScroll, setLyricScroll, showTranslation, setShowTranslation, sleep, setSleep, effectName, onEditEffects, professionalAudio, setProfessionalAudio, equalizer, setBand, resetEqualizer, mappings, setMappings, lyricAppearance, setLyricAppearance, artistNames }: SettingsProps) {
   const runtime = useRuntime();
   const { hash } = useLocation();
   const pageRef = useRef<HTMLDivElement>(null);
@@ -189,6 +191,9 @@ export default function PlayerSettings({ theme, setTheme, appearance, setAppeara
   };
   return <div ref={pageRef} className="settings-page">
     <header className="settings-heading"><h1>设置</h1>{!runtime.backend && <span className="runtime-mode">仅本次有效</span>}</header>
+    {runtime.mode === 'desktop' && <section className="settings-group"><div className="settings-group-title"><Headphones size={19} /><div><h2>桌面窗口</h2></div></div><fieldset disabled={!library}>
+      <div className="settings-row"><div><strong>最小化到系统托盘</strong></div><button type="button" role="switch" aria-checked={library?.settings.trayEnabled ?? false} aria-label="最小化到系统托盘" className={`settings-switch ${library?.settings.trayEnabled ? 'on' : ''}`} onClick={() => saveLibrarySettings({ trayEnabled: !library?.settings.trayEnabled })}><span /></button></div>
+    </fieldset></section>}
     <section className="settings-group"><div className="settings-group-title"><ListMusic size={19} /><div><h2>左侧菜单</h2></div></div><fieldset disabled={!library}>
       <div className="settings-row"><div><strong>显示本地音乐入口</strong></div><button type="button" role="switch" aria-checked={!library?.settings.hideLocalMusicActions} aria-label="显示本地音乐入口" className={`settings-switch ${!library?.settings.hideLocalMusicActions ? 'on' : ''}`} onClick={() => saveLibrarySettings({ hideLocalMusicActions: !library?.settings.hideLocalMusicActions })}><span /></button></div>
       <div className="settings-row"><div><strong>显示网络音乐入口</strong></div><button type="button" role="switch" aria-checked={!library?.settings.hideNetworkMusicActions} aria-label="显示网络音乐入口" className={`settings-switch ${!library?.settings.hideNetworkMusicActions ? 'on' : ''}`} onClick={() => saveLibrarySettings({ hideNetworkMusicActions: !library?.settings.hideNetworkMusicActions })}><span /></button></div>
@@ -241,6 +246,7 @@ export default function PlayerSettings({ theme, setTheme, appearance, setAppeara
       <div className="lyric-setting-control"><label htmlFor="lyric-spacing">行间距 <strong>{lyricAppearance.spacing}px</strong></label><input id="lyric-spacing" type="range" min="0" max="24" value={lyricAppearance.spacing} onChange={event => setLyricAppearance({ ...lyricAppearance, spacing: Number(event.target.value) })} /></div>
     </section>
     <section className="settings-group"><div className="settings-group-title"><SlidersHorizontal size={19} /><div><h2>声音</h2></div></div>
+      <div className="settings-row"><div><strong>专业调音模式</strong><small>允许自定义音效使用 −60 至 +60 dB；关闭后播放限制在 ±24 dB，保留原曲线。</small></div><button type="button" role="switch" aria-label="专业调音模式" aria-checked={professionalAudio} className={`settings-switch ${professionalAudio ? 'on' : ''}`} onClick={() => setProfessionalAudio(!professionalAudio)}><span /></button></div>
       <div className="settings-row"><div><strong>音效</strong><small>{effectName}</small></div><button type="button" className="playlist-primary" onClick={onEditEffects}><SlidersHorizontal size={15} />编辑音效</button></div>
       <div className="settings-eq"><div className="settings-eq-heading"><span><Waves size={16} /> 五段均衡器</span><button onClick={resetEqualizer}>重置</button></div><div className="settings-eq-grid">{eqNames.map((name, i) => <label key={name}><span>{name}</span><input type="range" min="-12" max="12" value={equalizer[i]} onChange={e => setBand(i, Number(e.target.value))} aria-label={`${name}频段`} /><small>{equalizer[i] > 0 ? '+' : ''}{equalizer[i]} dB</small></label>)}</div></div>
     </section>
