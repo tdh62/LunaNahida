@@ -13,6 +13,8 @@ html.mode-light body { background: #f6f9f7; color: #25343a; }
 .mode-light .playlists-heading h1, .mode-light .playlist-hero h1,
 .mode-light .playlist-card, .mode-light .catalog-card,
 .mode-light .artist-description-heading h2, .mode-light .artist-description-section h2,
+.mode-light .album-info, .mode-light .album-info-facts dd, .mode-light .album-info h3,
+.mode-light .album-info-track-name strong,
 .mode-light .quick-queue-panel h2 { color: var(--light-text); }
 .mode-light .nav-label, .mode-light .nav-item small, .mode-light .collection small,
 .mode-light .profile small, .mode-light .local-badge, .mode-light .player-heading p,
@@ -44,6 +46,9 @@ html.mode-light body { background: #f6f9f7; color: #25343a; }
 .mode-light .playlist-empty, .mode-light .catalog-tabs button,
 .mode-light .artist-description, .mode-light .artist-description-status,
 .mode-light .artist-description-brief, .mode-light .artist-description-section p,
+.mode-light .album-info-facts dt, .mode-light .album-info-description p,
+.mode-light .album-info-track-number, .mode-light .album-info-track-name small,
+.mode-light .album-info-track-time, .mode-light .tags-heading p,
 .mode-light .queue-empty, .mode-light .queue-actions button,
 .mode-light .queue-density, .mode-light .settings-eq-grid label,
 .mode-light .settings-row small, .mode-light .lyric-setting-control label {
@@ -72,6 +77,7 @@ html.mode-light body { background: #f6f9f7; color: #25343a; }
 .mode-light .queue-tabs, .mode-light .queue-track, .mode-light .queue-note,
 .mode-light .inline-details dl > div, .mode-light .settings-row,
 .mode-light .settings-eq, .mode-light .lyric-setting-control,
+.mode-light .album-info-facts > div, .mode-light .album-info-tracks li,
 .mode-light .library-table-head { border-color: var(--line); }
 .mode-light .track-tags span, .mode-light .quality-badge { border-color: var(--line); color: var(--light-muted); }
 .mode-light .lyric-line.current > span, .mode-light .queue-tabs > button.active,
@@ -95,9 +101,11 @@ html.mode-light body { background: #f6f9f7; color: #25343a; }
 .mode-light .settings-options button { color: var(--light-muted); }
 .mode-light .settings-options button:hover { color: var(--light-text); }
 .mode-light .settings-options button.active, .mode-light .play-button,
+.mode-light .tags-create button,
 .mode-light .playlist-primary, .mode-light .sleep-settings-form button,
 .mode-light .folder-dialog-actions button:last-child { color: #fff; }
-.mode-light .settings-switch { background: #b2c2b9; }
+.mode-light .settings-switch { background: #82918a; }
+.mode-light .settings-switch.on { background: var(--accent); }
 .mode-light .settings-switch.on span { background: #fff; }
 .mode-light .settings-eq-grid label, .mode-light .lyric-setting-control label,
 .mode-light .artist-mapping-form label, .mode-light .settings-scan-backup, .mode-light .playlist-field,

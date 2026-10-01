@@ -44,6 +44,7 @@
 .settings-switch.on { background: var(--accent); }
 .settings-switch span { display: block; width: 17px; height: 17px; border-radius: 50%; background: #fff; transition: transform .2s; }
 .settings-switch.on span { transform: translateX(16px); background: #19191b; }
+.settings-switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .settings-eq { padding-top: 17px; border-top: 1px solid #28292b; }
 .settings-eq-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; font-size: 12px; }
 .settings-eq-heading span { display: flex; align-items: center; gap: 8px; }
