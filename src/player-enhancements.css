@@ -65,3 +65,10 @@ body { overflow-y: hidden; }
   .immersive-extra { grid-column: 2; }
   .eq-popover { width: 270px; }
 }
+.lyric-calibration-trigger { position: absolute; left: 0; top: 0; z-index: 2; padding: 4px 7px; border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-secondary); background: var(--panel-background); font-size: 10px; }
+.lyric-calibration-panel { background: var(--panel-background); color: var(--text-primary); border-color: var(--border-color); width: min(340px, calc(100vw - 24px)); font-size: 12px; }
+.lyric-calibration-panel p { margin: 8px 0; color: var(--text-secondary); }
+.lyric-calibration-panel label { display: grid; gap: 6px; }
+.lyric-calibration-panel input { padding: 7px; background: var(--field-background); color: inherit; border: 1px solid var(--border-color); border-radius: 4px; }
+.lyric-calibration-panel > div { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.lyric-calibration-panel button { padding: 6px 8px; border: 1px solid var(--border-color); border-radius: 4px; color: var(--action-color); }

@@ -1,5 +1,6 @@
 import { type CSSProperties, type DragEvent, type PointerEvent, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router';
+import LyricCalibration from '@/components/LyricCalibration';
 import PlayerSettings from '@/components/PlayerSettings';
 import ExpandedScope from '@/components/ExpandedScope';
 import AudioProcessor from '@/components/AudioProcessor';
@@ -358,13 +359,21 @@ export default function Index() {
     });
   };
   const enrichment = useMusicEnrichment(p.track, p.playing);
-  const timedLines = enrichment.lines;
+  const lyricOffset = p.track.lyricOffsetMs ?? 0;
+  const calibrateLyrics = async (offset: number) => {
+    const updated = {...p.track, lyricOffsetMs: offset};
+    try {
+      if (runtime.backend && updated.id > 0 && !updated.temporary) await backend.lyricOffset(updated.id, offset);
+      p.updateTrack(updated); setLibraryTracks(items => items.map(item => item.id === updated.id ? {...item, lyricOffsetMs: offset} : item));
+    } catch (error) { toast.error(error instanceof Error ? error.message : '歌词校准保存失败'); }
+  };
+  const timedLines = enrichment.lines.map(line => ({...line, time: line.time + lyricOffset / 1000}));
   const lines = timedLines.map(line => line.text);
   const translations = timedLines.map(line => line.translation ?? '');
   const wordLines = lines.map(() => [] as { text: string; start: number; end: number }[]);
   const hasLyrics = lines.length > 0;
   const lineLength = hasLyrics ? p.track.duration / (lines.length + 1) || 1 : 1;
-  const activeLine = hasLyrics ? timedLines.every(line => line.time === 0) ? 0 : Math.max(0, timedLines.reduce((index, line, i) => p.time >= line.time ? i : index, 0)) : 0;
+  const activeLine = hasLyrics ? enrichment.lines.every(line => line.time === 0) ? 0 : Math.max(0, timedLines.reduce((index, line, i) => p.time >= line.time ? i : index, 0)) : 0;
   const activeWord = hasLyrics && wordLines[activeLine]?.length ? wordLines[activeLine].findIndex((word, i) => p.time >= word.start && (p.time < word.end || i === wordLines[activeLine].length - 1)) : -1;
   const cover = enrichment.cover;
   useSystemMedia({ desktop: runtime.mode === 'desktop', available: p.hasTrack || p.noise.active, playing: outputPlaying,
@@ -648,7 +657,7 @@ export default function Index() {
       <div className="main-columns"><section className="listening-stage">
         {p.hasTrack ? scopeOpen ? <ExpandedScope browserFile={isBrowserTrack(p.track)} key={p.trackId} analyser={p.scopeAnalyser} response={p.frequencyResponse} active={p.playing} trackId={p.trackId} title={p.track.title} artist={p.track.artist} sampleRate={p.track.quality?.sampleRate} settings={scopeSettings} onSettingsChange={setScopeSettings} onClose={() => setScopeOpen(false)} /> : <div className={`listening-content ${!hasLyrics ? 'without-lyrics' : ''}`}><div className="album-column"><div className={`album-art ${visual === '唱片' ? 'vinyl' : ''}`}><img src={cover} alt={`${p.track.album}专辑封面`} /></div><div className="album-title flex items-center justify-between"><h2>{p.track.title}</h2>{!p.track.temporary && <IconButton label={favorite ? '取消喜欢' : '喜欢这首歌'} active={favorite} onClick={toggleLike}><Heart size={21} fill={favorite ? 'currentColor' : 'none'} /></IconButton>}</div><p className="artist-name"><button type="button" className="track-meta-link" disabled={!runtime.backend} onClick={() => openArtist(p.track.artist)}>{p.track.artist}</button><span> · </span><button type="button" className="track-meta-link" disabled={!runtime.backend} onClick={() => openAlbum(p.track)}>{p.track.album}</button></p><div className="track-tags">{trackTags(p.track).map(name => <button type="button" key={name} onClick={() => openTag(name)}>{name}</button>)}<TrackTagEditor key={p.track.id} track={p.track} theme={theme} customTags={customTags} onToggle={(id, name, add) => setTrackTag([id], name, add)} onCreate={createTrackTag} /></div><div className={`visualizer ${p.playing ? 'animated' : ''} ${visual === '呼吸' ? 'breathing' : ''}`} role="button" tabIndex={0} title="双击展开示波视图" aria-label="展开示波视图" onDoubleClick={openScope} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openScope(); } }}>{visual === '频谱' ? <Spectrum analyser={p.analyser} response={p.frequencyResponse} active={p.playing} /> : Array.from({ length: 48 }, (_, i) => <i key={i} style={{ height: `${8 + Math.sin(i * .65) ** 2 * 23 + Math.sin(i * .2) ** 2 * 13}px`, animationDelay: `${i * -.13}s`, animationDuration: `${.65 + i % 5 * .2}s` }} />)}</div></div>
           {hasLyrics && (
-            <div className={`lyrics-column lyric-${lyricEffect} ${lyricScroll === '即时' ? 'lyric-scroll-instant' : ''} ${browsingLyrics ? 'is-browsing' : ''}`}><IconButton className="lyrics-immersive-toggle" label="展开歌词" onClick={() => setFocus(true)}><Maximize2 size={16} /></IconButton>
+            <div className={`lyrics-column lyric-${lyricEffect} ${lyricScroll === '即时' ? 'lyric-scroll-instant' : ''} ${browsingLyrics ? 'is-browsing' : ''}`}><LyricCalibration key={p.track.id} offset={lyricOffset} persistent={runtime.backend && p.track.id > 0 && !p.track.temporary} onChange={calibrateLyrics} /><IconButton className="lyrics-immersive-toggle" label="展开歌词" onClick={() => setFocus(true)}><Maximize2 size={16} /></IconButton>
               <div
                 ref={lyricsWindow}
                 className="lyrics-window"
@@ -672,7 +681,7 @@ export default function Index() {
                       key={`${p.trackId}-${i}`}
                       className={`lyric-line ${i === activeLine ? 'current' : ''} ${Math.abs(i - activeLine) > 2 ? 'distant' : ''}`}
                       onClick={() => {
-                        p.seek(p.track.source ? timedLines[i].time : i * lineLength);
+                        p.seek(Math.max(0, p.track.source ? timedLines[i].time : i * lineLength));
                         setBrowsingLyrics(false);
                         if (followTimer.current) clearTimeout(followTimer.current);
                       }}

@@ -61,6 +61,7 @@ async function request<T>(path: string, method = 'GET', body?: unknown): Promise
 }
 
 export const backend = {
+  lyricOffset: (id: number, offsetMs: number) => request<{ok: boolean}>(`/api/tracks/${id}/lyric-offset`, 'PUT', {offsetMs}),
   savePlayback: (value: PlaybackState) => request<{ ok: boolean }>('/api/playback', 'PUT', value),
   timerReminders: () => request<TimerReminders>('/api/timer/reminders'),
   saveTimerReminders: (value: TimerReminders) => request<TimerReminders>('/api/timer/reminders', 'PUT', value),

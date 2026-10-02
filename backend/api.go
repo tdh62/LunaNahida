@@ -71,6 +71,7 @@ func (a *API) Handler() http.Handler {
 		})
 	})
 	newOrganizer(a.Store).register(mux)
+	a.registerLyricOffset(mux)
 	a.registerPlayback(mux)
 	a.registerWorkTimer(mux)
 	a.registerTimerReminders(mux)
