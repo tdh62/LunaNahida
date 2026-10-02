@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Pause, Play, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { compileExpression, defaultCustomFilter, effectNames, professionalGainLimit, selectedEffect, validateFilter, type CustomFilter, type SavedEffect } from '@/lib/audio-filter';
 import GainCurveEditor from './GainCurveEditor';
@@ -169,7 +170,7 @@ export default function AudioProcessor({ professionalAudio, preampDb, open, onOp
     } catch (cause) { setError(cause instanceof Error ? cause.message : '表达式无效'); }
   };
   const preview = (() => { try { validateFilter(draft, sampleRate, professionalGainLimit); return draft; } catch { return selected.filter; } })();
-  return <Dialog modal={false} open={open} onOpenChange={close}><DialogContent className={`music-dialog processor-dialog ${expanded ? "processor-expanded" : ""}`} showOverlay={false} onInteractOutside={event => event.preventDefault()}><DialogTitle>音效处理器</DialogTitle><DialogDescription className="sr-only">音效处理器</DialogDescription><div className="processor-audition"><button type="button" className="processor-audition-toggle" disabled={!hasTrack} onClick={onToggle} aria-label={playing ? '暂停试听' : '播放试听'} title={playing ? '暂停试听' : '播放试听'}>{playing ? <Pause size={17} fill="currentColor" /> : <Play size={17} fill="currentColor" />}</button><span className="processor-audition-title">{hasTrack ? trackTitle : '暂无歌曲'}</span><span className="processor-audition-time">{formatTime(time)}</span><input type="range" aria-label="试听进度" min="0" max={Math.max(1, duration)} step="0.1" value={Math.min(time, Math.max(1, duration))} disabled={!hasTrack} onChange={event => onSeek(Number(event.target.value))} /><span className="processor-audition-time">{formatTime(duration)}</span></div><div className="processor-layout">
+  return <Dialog modal={false} open={open} onOpenChange={close}><DialogContent className={`music-dialog processor-dialog ${expanded ? "processor-expanded" : ""}`} showOverlay={false} showClose={false} onInteractOutside={event => event.preventDefault()}><DialogTitle>音效处理器</DialogTitle><DialogDescription className="sr-only">音效处理器</DialogDescription><div className="processor-audition"><button type="button" className="processor-audition-toggle" disabled={!hasTrack} onClick={onToggle} aria-label={playing ? '暂停试听' : '播放试听'} title={playing ? '暂停试听' : '播放试听'}>{playing ? <Pause size={17} fill="currentColor" /> : <Play size={17} fill="currentColor" />}</button><span className="processor-audition-title">{hasTrack ? trackTitle : '暂无歌曲'}</span><span className="processor-audition-time">{formatTime(time)}</span><input type="range" aria-label="试听进度" min="0" max={Math.max(1, duration)} step="0.1" value={Math.min(time, Math.max(1, duration))} disabled={!hasTrack} onChange={event => onSeek(Number(event.target.value))} /><span className="processor-audition-time">{formatTime(duration)}</span></div><div className="processor-body"><div className="processor-layout">
     <aside className="processor-list"><div className="processor-list-heading"><strong>内置音效</strong><button type="button" disabled={customEffects.length >= 40} onClick={() => create()}><Plus size={14} />新建</button></div>{effectNames.map(item => <button type="button" key={item} className={`processor-list-item ${effect === item ? 'active' : ''}`} onClick={() => chooseEffect(item)}>{item}{effect === item && <Check size={14} />}</button>)}<strong className="processor-list-label">我的音效</strong>{customEffects.length ? customEffects.map(item => <div className="processor-saved-item" key={item.id}><button type="button" className={`processor-list-item ${effect === item.id ? 'active' : ''}`} onClick={() => chooseEffect(item.id)}>{item.name}{effect === item.id && <Check size={14} />}</button><button type="button" title={`删除 ${item.name}`} aria-label={`删除 ${item.name}`} onClick={() => setConfirmDeleteId(item.id)}><Trash2 size={14} /></button></div>) : <small>暂无自定义音效</small>}</aside>
     <div className="audio-processor"><div className="processor-heading"><strong>{editingId ? '编辑音效' : '新建音效'}</strong><button type="button" disabled={customEffects.length >= 40} onClick={() => create(selected.filter, `${selected.name} 副本`)}>复制当前音效</button></div>
     <label className="processor-name">名称<input value={name} maxLength={60} onChange={event => setName(event.target.value)} placeholder="音效名称" /></label>
@@ -184,7 +185,28 @@ export default function AudioProcessor({ professionalAudio, preampDb, open, onOp
       <label className="processor-duration">响应长度 <span>{draft.durationMs} ms</span><input type="range" min="50" max="1000" step="10" value={draft.durationMs} onChange={event => updateDraft({ ...draft, durationMs: Number(event.target.value) })} /></label>
       <div className="processor-delays"><div><strong>延迟点</strong><button type="button" disabled={(draft.delays?.length ?? 0) >= 8} onClick={() => updateDraft({ ...draft, delays: [...(draft.delays ?? []), { ms: Math.min(190, draft.durationMs), gain: 0.3 }] })}><Plus size={14} />添加</button></div>{(draft.delays ?? []).map((delay, index) => <div className="processor-delay" key={index}><label>时间 <input type="number" min="1" max={draft.durationMs} value={delay.ms} onChange={event => updateDraft({ ...draft, delays: draft.delays.map((item, i) => i === index ? { ...item, ms: Number(event.target.value) } : item) })} /> ms</label><label>增益 <input type="number" min="-1" max="1" step="0.05" value={delay.gain} onChange={event => updateDraft({ ...draft, delays: draft.delays.map((item, i) => i === index ? { ...item, gain: Number(event.target.value) } : item) })} /></label><button type="button" aria-label={`删除第 ${index + 1} 个延迟点`} title="删除延迟点" onClick={() => updateDraft({ ...draft, delays: draft.delays.filter((_, i) => i !== index) })}><Trash2 size={15} /></button></div>)}</div>
       </div></details>
-    {(error || filterError) && <p className="processor-error" role="alert">{error || filterError}</p>}
-    <div className="processor-actions"><button type="button" onClick={save}><Check size={15} />保存并启用</button><button type="button" onClick={() => { updateDraft(copyFilter(selected.filter)); setError(null); }} title="重置编辑内容"><RotateCcw size={15} />重置</button></div>
-    </div></div>{confirmDeleteId && <div className="processor-confirm" role="alertdialog" aria-label="确认删除音效"><div className="processor-confirm-panel"><span>删除「{customEffects.find(item => item.id === confirmDeleteId)?.name}」？</span><button type="button" onClick={() => setConfirmDeleteId(null)}>取消</button><button type="button" onClick={() => { onDelete(confirmDeleteId); setConfirmDeleteId(null); }}>删除</button></div></div>}{confirmDiscard && <div className="processor-confirm" role="alertdialog" aria-label="放弃未保存的音效修改"><div className="processor-confirm-panel"><span>音效尚未保存，放弃修改？</span><button type="button" onClick={() => setConfirmDiscard(false)}>继续编辑</button><button type="button" onClick={() => { onPreview(null); setConfirmDiscard(false); onOpenChange(false); }}>放弃修改</button></div></div>}</DialogContent></Dialog>;
+    </div></div></div>
+    <footer className="processor-footer">
+      {(error || filterError) && <p className="processor-error" role="alert">{error || filterError}</p>}
+      <div className="processor-actions">
+        <button type="button" onClick={() => { updateDraft(copyFilter(selected.filter)); setError(null); }} title="重置编辑内容"><RotateCcw size={15} />重置</button>
+        <button type="button" onClick={() => close(false)}>关闭</button>
+        <button type="button" className="processor-save" onClick={save}><Check size={15} />保存并启用</button>
+      </div>
+    </footer>
+    <AlertDialog.Root open={confirmDiscard || Boolean(confirmDeleteId)} onOpenChange={next => { if (!next) { setConfirmDiscard(false); setConfirmDeleteId(null); } }}>
+      <AlertDialog.Portal>
+        <AlertDialog.Overlay className="processor-confirm" />
+        <AlertDialog.Content className="processor-confirm-panel music-dialog">
+          <AlertDialog.Title className="sr-only">{confirmDiscard ? '放弃未保存的音效修改' : '确认删除音效'}</AlertDialog.Title>
+          <AlertDialog.Description>{confirmDiscard ? '音效尚未保存，放弃修改？' : `删除「${customEffects.find(item => item.id === confirmDeleteId)?.name}」？`}</AlertDialog.Description>
+          <AlertDialog.Cancel>{confirmDiscard ? '继续编辑' : '取消'}</AlertDialog.Cancel>
+          <AlertDialog.Action onClick={() => {
+            if (confirmDiscard) { onPreview(null); onOpenChange(false); }
+            else if (confirmDeleteId) onDelete(confirmDeleteId);
+          }}>{confirmDiscard ? '放弃修改' : '删除'}</AlertDialog.Action>
+        </AlertDialog.Content>
+      </AlertDialog.Portal>
+    </AlertDialog.Root>
+    </DialogContent></Dialog>;
 }
