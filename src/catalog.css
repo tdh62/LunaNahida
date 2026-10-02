@@ -62,9 +62,8 @@
 .catalog-related h2, .catalog-songs h2 { margin: 0 0 16px; font-size: 17px; font-weight: 600; }
 .catalog-related .catalog-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 150px)); }
 .catalog-songs .library-view { min-height: 0; padding: 0; }
-.catalog-songs .library-heading { display: flex; margin-bottom: 14px; }
-.catalog-songs .library-heading > div:first-child, .catalog-songs .library-filters > :not(.locate-current-track) { display: none; }
-.catalog-songs .library-filters { justify-content: flex-end; }
+.catalog-songs .library-heading { display: flex; margin-bottom: 10px; }
+.catalog-songs .library-heading-title { display: none; }
 .track-meta-link { padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .library-track-name .track-meta-link { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary); }
 .library-album .track-meta-link { overflow: hidden; max-width: 100%; text-overflow: ellipsis; white-space: nowrap; }

@@ -1,4 +1,4 @@
-import { Heart, Info, ListMusic, Play, RefreshCw, Save, Search, Shuffle, Plus, Trash2, Tag } from 'lucide-react';
+import { ArrowDown, ArrowDownUp, ArrowUp, Heart, Info, ListMusic, Play, RefreshCw, Save, Search, Shuffle, Plus, Trash2, Tag, SlidersHorizontal, X } from 'lucide-react';
 import { useMemo, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import LocateCurrentTrackButton from '@/components/LocateCurrentTrackButton';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger, ContextMenuTrigger } from '@/components/ui/context-menu';
@@ -6,6 +6,9 @@ import { formatTime, trackTags, type Track } from '@/lib/music';
 import { type Playlist } from '@/lib/playlists';
 import { writeTrackDrag } from '@/lib/track-drag';
 import { getVirtualTrackLocation, getVirtualTrackRange, locateCurrentTrack } from '@/lib/track-location';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import TrackFilterControls from './TrackFilterControls';
+import { queryTracks, type TrackConditions, type TrackSort } from '@/lib/track-query';
 
 type LibraryViewProps = {
   title: string;
@@ -32,17 +35,16 @@ type LibraryViewProps = {
   onSetTrackTag?: (ids: number[], name: string, add: boolean) => void;
 };
 
-import TrackFilterControls from './TrackFilterControls';
-import { queryTracks, type TrackConditions, type TrackSort } from '@/lib/track-query';
-
 const VIRTUAL_THRESHOLD = 200;
 const OVERSCAN = 8;
+const sortOptions = [['original','原有顺序'],['title','歌曲名称'],['artist','歌手'],['album','专辑'],['duration','时长'],['year','年份'],['added','加入时间']] as const;
 
 export default function LibraryView({ title, tracks, currentId, liked, onPlay, onPlayMany, onShufflePlay, onToggleLike, onViewInfo, onRefreshInfo, onSaveLyrics, onArtist, onAlbum, playlists, onAddToPlaylist, onRemoveFromPlaylist, onDeleteTracks, customTags, allTagNames, selectedTag = '', onTagFilter, onSetTrackTag }: LibraryViewProps) {
   const [search, setSearch] = useState('');
   const [conditions, setConditions] = useState<TrackConditions>({});
   const [sort, setSort] = useState<TrackSort>('original');
   const [descending, setDescending] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewport, setViewport] = useState(() => ({ height: window.innerHeight, rowHeight: window.matchMedia('(max-width: 760px)').matches ? 66 : 72 }));
@@ -60,6 +62,8 @@ export default function LibraryView({ title, tracks, currentId, liked, onPlay, o
   const end = virtualized ? range.end : filtered.length;
   const renderedTracks = filtered.slice(start, end);
   const currentIndex = filtered.findIndex(track => track.id === currentId);
+  const filterCount = Object.entries(conditions).filter(([key, value]) => key !== 'tagMode' && key !== 'keyword' && (typeof value === 'number' || (Array.isArray(value) ? value.some(tag => tag.trim()) : typeof value === 'string' && value.trim() !== '' && value !== 'all'))).length + (selectedTag ? 1 : 0);
+  const canPlay = filtered.some(track => track.available !== false && track.playbackStatus !== 'unplayable');
 
   const onLocate = () => {
     const list = rowsRef.current;
@@ -147,11 +151,22 @@ export default function LibraryView({ title, tracks, currentId, liked, onPlay, o
 
   return <section className="library-view">
     <div className="library-heading">
-      <div><span className="eyebrow"><span /> MUSIC LIBRARY</span><h1>{title}</h1><p>{filtered.length} 首歌曲{selected.length > 0 && ` · 已选 ${selected.length} 首`}</p></div>
-      <div className="library-filters"><LocateCurrentTrackButton available={currentIndex >= 0} onLocate={onLocate} />{onShufflePlay && <button type="button" className="library-shuffle-play" disabled={!filtered.some(track => track.available !== false && track.playbackStatus !== 'unplayable')} onClick={() => onShufflePlay(filtered)}><Shuffle size={16} />随机播放</button>}{onDeleteTracks && selected.length > 0 && <button type="button" className="library-delete-selection" disabled={!selectedDeletable} title={selectedDeletable ? '从曲库移除所选歌曲' : '文件夹或监听路径下的歌曲不支持单独删除'} onClick={() => onDeleteTracks(selected)}><Trash2 size={16} />移除所选 ({selected.length})</button>}{allTagNames && <label className="library-tag-filter"><Tag size={16} /><select aria-label="按标签筛选" value={selectedTag} onChange={event => { onTagFilter?.(event.target.value); setSelectedIds([]); setScrollTop(0); if (rowsRef.current) rowsRef.current.scrollTop = 0; }}><option value="">全部标签</option>{allTagNames.map(name => <option key={name} value={name}>{name}</option>)}</select></label>}<div className="library-search"><Search size={17} /><input aria-label="搜索歌曲、歌手、专辑或标签" placeholder="搜索歌曲、歌手、专辑或标签" value={search} onChange={event => { setSearch(event.target.value); setSelectedIds([]); anchor.current = null; setScrollTop(0); if (rowsRef.current) rowsRef.current.scrollTop = 0; }} /></div></div>
+      <div className="library-heading-title"><h1>{title}</h1><p>{filtered.length} 首歌曲{selected.length > 0 && ` · 已选 ${selected.length}`}</p></div>
+      <div className="library-actions">
+        <button type="button" className="library-tool-button library-play-results" aria-label="播放筛选结果" title="播放筛选结果" onClick={() => onPlayMany(filtered)} disabled={!canPlay}><Play size={16} /><span>播放</span></button>
+        {onShufflePlay && <button type="button" className="library-tool-button" aria-label="随机播放" title="随机播放" disabled={!canPlay} onClick={() => onShufflePlay(filtered)}><Shuffle size={16} /><span>随机播放</span></button>}
+        <LocateCurrentTrackButton available={currentIndex >= 0} onLocate={onLocate} />
+        {onDeleteTracks && selected.length > 0 && <button type="button" className="library-tool-button" aria-label={`移除所选 (${selected.length})`} disabled={!selectedDeletable} title={selectedDeletable ? `移除所选 (${selected.length})` : '文件夹或监听路径下的歌曲不支持单独删除'} onClick={() => onDeleteTracks(selected)}><Trash2 size={16} /><span>移除所选 ({selected.length})</span></button>}
+      </div>
     </div>
-    <div className="library-query-bar"><label>排序<select aria-label="歌曲排序" value={sort} onChange={event => setSort(event.target.value as TrackSort)}>{[['original','原有顺序'],['title','歌曲名称'],['artist','歌手'],['album','专辑'],['duration','时长'],['year','年份'],['added','加入时间']].map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></label><button type="button" disabled={sort === 'original'} aria-pressed={descending} onClick={() => setDescending(!descending)}>{descending ? '降序' : '升序'}</button><button type="button" onClick={() => onPlayMany(filtered)} disabled={!filtered.some(track => track.available !== false && track.playbackStatus !== 'unplayable')}>播放筛选结果</button></div>
-    <details className="library-combined-filters"><summary>组合筛选</summary><TrackFilterControls value={conditions} onChange={setConditions} /><button type="button" onClick={() => {setConditions({}); setSearch(''); onTagFilter?.('');}}>清除筛选</button></details>
+    <div className="library-toolbar">
+      <div className="library-search"><Search size={17} /><input aria-label="搜索歌曲、歌手、专辑或标签" placeholder="搜索歌曲、歌手、专辑或标签" value={search} onChange={event => { setSearch(event.target.value); setSelectedIds([]); anchor.current = null; setScrollTop(0); if (rowsRef.current) rowsRef.current.scrollTop = 0; }} />{search && <button type="button" aria-label="清除搜索" onClick={() => { setSearch(''); setSelectedIds([]); anchor.current = null; if (rowsRef.current) rowsRef.current.scrollTop = 0; setScrollTop(0); }}><X size={14} /></button>}</div>
+      <div className="library-refine-controls">
+        <label className="library-sort-control"><ArrowDownUp size={16} /><select aria-label="歌曲排序" value={sort} onChange={event => setSort(event.target.value as TrackSort)}>{sortOptions.map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+        <button type="button" className="library-tool-button" disabled={sort === 'original'} aria-pressed={descending} onClick={() => setDescending(!descending)}>{descending ? <ArrowDown size={15} /> : <ArrowUp size={15} />}<span>{descending ? '降序' : '升序'}</span></button>
+        <Popover open={filtersOpen} onOpenChange={setFiltersOpen}><PopoverTrigger asChild><button type="button" className={`library-tool-button ${filterCount ? 'is-active' : ''}`} aria-label="组合筛选" title="组合筛选"><SlidersHorizontal size={16} /><span>筛选</span>{filterCount > 0 && <b>{filterCount}</b>}</button></PopoverTrigger><PopoverContent align="end" collisionPadding={{top:40,bottom:rowHeight === 66 ? 136 : 104,left:12,right:12}} className="library-filter-popover" aria-label="组合筛选"><header><strong>组合筛选</strong><span>{filtered.length} 首</span><button type="button" aria-label="关闭筛选" onClick={() => setFiltersOpen(false)}><X size={16} /></button></header><div className="library-filter-body">{allTagNames && <label className="library-quick-tag">标签<select aria-label="按标签筛选" value={selectedTag} onChange={event => { onTagFilter?.(event.target.value); setSelectedIds([]); anchor.current = null; setScrollTop(0); if (rowsRef.current) rowsRef.current.scrollTop = 0; }}><option value="">全部标签</option>{allTagNames.map(name => <option key={name} value={name}>{name}</option>)}</select></label>}<TrackFilterControls value={conditions} onChange={setConditions} /></div><footer><button type="button" disabled={!filterCount} onClick={() => {setConditions({}); onTagFilter?.('');}}>清除筛选</button><button type="button" onClick={() => setFiltersOpen(false)}>完成</button></footer></PopoverContent></Popover>
+      </div>
+    </div>
     <div className="library-table-head"><span>歌曲</span><span>专辑</span><span>时长</span><span /></div>
     <div ref={rowsRef} onScroll={onRowsScroll} className={`library-rows ${virtualized ? 'is-virtualized' : ''}`} role="listbox" aria-label={`${title}歌曲列表`} aria-multiselectable="true">
       {virtualized && <div aria-hidden="true" style={{ height: range.topHeight }} />}
@@ -183,7 +198,7 @@ export default function LibraryView({ title, tracks, currentId, liked, onPlay, o
         </ContextMenuContent></ContextMenu>;
       })}
       {virtualized && <div aria-hidden="true" style={{ height: range.bottomHeight }} />}
-      {!filtered.length && <div className="library-empty"><ListMusic size={28} /><p>{search || selectedTag ? '没有找到匹配的曲目' : title === '我喜欢的' ? '还没有喜欢的歌曲' : title === '最近播放' ? '还没有播放记录' : '还没有歌曲'}</p></div>}
+      {!filtered.length && <div className="library-empty"><ListMusic size={28} /><p>{search || filterCount ? '没有找到匹配的曲目' : title === '我喜欢的' ? '还没有喜欢的歌曲' : title === '最近播放' ? '还没有播放记录' : '还没有歌曲'}</p></div>}
     </div>
   </section>;
 }
