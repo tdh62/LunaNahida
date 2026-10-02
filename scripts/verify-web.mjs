@@ -6,6 +6,7 @@ import { pathToFileURL } from 'node:url';
 import { emptyLibrary } from '../src/lib/runtime.ts';
 import { defaultWorkTimer } from '../src/lib/work-timer.ts';
 import { defaultTimerReminders } from '../src/lib/timer-reminders.ts';
+import verifyTextSize from './verify-text-size.mjs';
 
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : 'playwright');
 const root = resolve('dist');
@@ -41,7 +42,7 @@ function wav() {
 const audio = wav();
 const file = { name: 'browser-sample.wav', mimeType: 'audio/wav', buffer: audio };
 
-async function setup({ backend = false, desktop = false, lateDesktop = false, fontFamilies = [], nativeFonts = desktop, trackTitle = 'Native Song', tracks = [], queue = [], dictionary = 'available', viewport = { width: 1280, height: 800 } } = {}) {
+async function setup({ backend = false, desktop = false, lateDesktop = false, fontFamilies = [], textSize = 100, nativeFonts = desktop, trackTitle = 'Native Song', tracks = [], queue = [], dictionary = 'available', viewport = { width: 1280, height: 800 } } = {}) {
   const page = await browser.newPage({ viewport });
   const errors = [];
   const requests = [];
@@ -50,6 +51,7 @@ async function setup({ backend = false, desktop = false, lateDesktop = false, fo
   state.tracks = tracks;
   state.queue = queue;
   state.settings.uiFontFamilies = fontFamilies;
+  state.settings.uiTextSize = textSize;
   const nativeWindow = { width: viewport.width, height: viewport.height, x: 100, y: 80, frameless: true, resizable: true, pinned: false, calls: [] };
   state.settings.dropAction = 'watch';
   let disconnected = false;
@@ -136,6 +138,7 @@ async function setup({ backend = false, desktop = false, lateDesktop = false, fo
 
 try {
   browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}) });
+  await verifyTextSize(setup, output);
   const web = await setup();
   const { page, requests } = web;
   assert.equal(await page.getByRole('button', { name: '迷你模式', exact: true }).count(), 0);

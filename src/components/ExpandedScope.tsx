@@ -95,10 +95,11 @@ export default function ExpandedScope({ analyser, response, active, trackId, tit
       const plotWidth = Math.max(1, width - PAD.left - PAD.right);
       const plotHeight = Math.max(1, height - plotTop - PAD.bottom);
       const right = PAD.left + plotWidth, bottom = plotTop + plotHeight;
-      const color = getComputedStyle(element).color;
-      const muted = getComputedStyle(element).getPropertyValue('--scope-muted').trim() || '#95999e';
+      const style = getComputedStyle(element);
+      const color = style.color;
+      const muted = style.getPropertyValue('--scope-muted').trim() || '#95999e';
       context.clearRect(0, 0, width, height);
-      context.font = '11px "DM Mono", monospace';
+      context.font = `${11 * (Number(style.getPropertyValue('--ui-text-scale')) || 1)}px "DM Mono", monospace`;
       context.textBaseline = 'middle';
 
       if (analyser && active) {

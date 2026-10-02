@@ -21,7 +21,7 @@ export function emptyLibrary(): LibraryState {
     tracks: [], tags: [], playlists: [], liked: [], recent: [], queue: [], folders: [], networkSources: [],
     settings: {
       dropAction: 'temporary', networkCacheCount: 0, scanOnStart: false, scanIntervalMinutes: 0,
-      autoConvert: false, backupOriginal: true, theme: 'forest', themeColor: '#2b7651', appearance: 'light', visual: '频谱',
+      autoConvert: false, backupOriginal: true, theme: 'forest', themeColor: '#2b7651', appearance: 'light', uiTextSize: 100, visual: '频谱',
       scope: { mode: 'spectrum', fftSize: 8192, minFrequency: 20, maxFrequency: 20000, smoothing: .72 },
       lyricEffect: '流动', lyricScroll: '平滑', showTranslation: true,
       lyricAppearance: { font: 'default', size: 16, lineHeight: 57, spacing: 0 }, artistMappings: [],

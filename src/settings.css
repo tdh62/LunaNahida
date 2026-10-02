@@ -83,6 +83,8 @@ body[data-ui-fonts] :is(select, textarea) { font-family: inherit; }
 .settings-options button:hover { color: #fff; }
 .settings-options button.active { background: var(--accent); color: #18191b; font-weight: 600; }
 .appearance-options { width: fit-content; }
+.text-size-setting { margin-top: 18px; }
+.text-size-setting select { min-width: 130px; }
 .appearance-options button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-width: 92px; }
 .settings-switch { width: 39px; height: 23px; flex: none; padding: 3px; border: 0; border-radius: 20px; background: #45464a; transition: background .2s; }
 .settings-switch.on { background: var(--accent); }

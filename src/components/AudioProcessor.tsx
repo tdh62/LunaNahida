@@ -44,8 +44,9 @@ function TimeChart({ filter }: { filter: CustomFilter }) {
       const w = rect.width, h = rect.height, left = 22, right = w - 8, baseline = h - 18;
       ctx.clearRect(0, 0, w, h);
       ctx.strokeStyle = '#555e5d'; ctx.beginPath(); ctx.moveTo(left, baseline); ctx.lineTo(right, baseline); ctx.stroke();
-      ctx.fillStyle = '#a9b0ad'; ctx.font = '10px sans-serif';
-      ctx.fillText('0', left, h - 4); ctx.fillText(`${filter.durationMs} ms`, right - 42, h - 4);
+      ctx.fillStyle = '#a9b0ad'; ctx.font = `${10 * (Number(getComputedStyle(element).getPropertyValue('--ui-text-scale')) || 1)}px sans-serif`;
+      const durationLabel = `${filter.durationMs} ms`;
+      ctx.fillText('0', left, h - 4); ctx.fillText(durationLabel, right - ctx.measureText(durationLabel).width, h - 4);
       let time: (value: number) => number;
       try { time = compileExpression(filter.time, 't'); } catch { return; }
       ctx.strokeStyle = '#90baca'; ctx.lineWidth = 1.5; ctx.beginPath();

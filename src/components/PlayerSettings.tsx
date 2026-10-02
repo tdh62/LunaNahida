@@ -10,6 +10,7 @@ import { useRuntime } from '@/hooks/use-runtime';
 import AutomaticBackupSettings from './AutomaticBackupSettings';
 import SettingsNavigation from './SettingsNavigation';
 import SystemFontSettings from './SystemFontSettings';
+import { uiTextSizes, defaultUITextSize } from '@/lib/ui-text-scale';
 import type { SettingsCategory } from '@/lib/settings-categories';
 
 export const themes = [
@@ -36,6 +37,8 @@ type SettingsProps = {
   setAppearance: (value: 'dark' | 'light') => void;
   fontFamilies: string[];
   setFontFamilies: (families: string[]) => void;
+  textSize: number;
+  setTextSize: (size: number) => void;
   visual: string;
   setVisual: (value: string) => void;
   lyricEffect: string;
@@ -60,7 +63,7 @@ type SettingsProps = {
   artistNames: string[];
 };
 
-export default function PlayerSettings({ theme, setTheme, themeColor, setThemeColor, appearance, setAppearance, fontFamilies, setFontFamilies, visual, setVisual, lyricEffect, setLyricEffect, lyricScroll, setLyricScroll, showTranslation, setShowTranslation, sleep, setSleep, effectName, onEditEffects, professionalAudio, setProfessionalAudio, equalizer, setBand, resetEqualizer, mappings, setMappings, lyricAppearance, setLyricAppearance, artistNames }: SettingsProps) {
+export default function PlayerSettings({ theme, setTheme, themeColor, setThemeColor, appearance, setAppearance, fontFamilies, setFontFamilies, textSize, setTextSize, visual, setVisual, lyricEffect, setLyricEffect, lyricScroll, setLyricScroll, showTranslation, setShowTranslation, sleep, setSleep, effectName, onEditEffects, professionalAudio, setProfessionalAudio, equalizer, setBand, resetEqualizer, mappings, setMappings, lyricAppearance, setLyricAppearance, artistNames }: SettingsProps) {
   const runtime = useRuntime();
   const { hash } = useLocation();
   const pageRef = useRef<HTMLDivElement>(null);
@@ -240,6 +243,7 @@ export default function PlayerSettings({ theme, setTheme, themeColor, setThemeCo
     </fieldset></section>
     <section className="settings-group" data-settings-category="appearance" hidden={category !== 'appearance'}><div className="settings-group-title"><Sun size={19} /><div><h2>外观</h2></div></div>
       <div className="settings-options appearance-options" role="group" aria-label="外观模式">{([{ id: 'dark', label: '深色', icon: Moon }, { id: 'light', label: '浅色', icon: Sun }] as const).map(option => <button key={option.id} type="button" aria-pressed={appearance === option.id} className={appearance === option.id ? 'active' : ''} onClick={() => setAppearance(option.id)}><option.icon size={15} />{option.label}</button>)}</div>
+      <div className="settings-row text-size-setting"><div><label htmlFor="ui-text-size"><strong>文字大小</strong></label></div><select id="ui-text-size" className="lyric-font-select" value={textSize} onChange={event => setTextSize(Number(event.target.value))}>{uiTextSizes.map(size => <option key={size} value={size}>{size}%{size === defaultUITextSize ? '（默认）' : ''}</option>)}</select></div>
     </section>
     <section className="settings-group" data-settings-category="appearance" hidden={category !== 'appearance'}><div className="settings-group-title"><Palette size={19} /><div><h2>界面主题</h2></div></div>
       <div className="settings-themes">{themes.map(t => <button type="button" key={t.id} aria-pressed={theme === t.id} onClick={() => setTheme(t.id)} className={`settings-theme ${theme === t.id ? 'selected' : ''}`}><span className={`settings-theme-preview preview-${t.id}`} style={t.id === 'custom' ? { background: themeColor, color: '#fff' } : undefined}><t.icon size={24} /></span><span className="settings-theme-label"><strong><t.icon size={15} /> {t.name}</strong></span><span className="settings-theme-check">{theme === t.id && <Check size={15} />}</span></button>)}</div>

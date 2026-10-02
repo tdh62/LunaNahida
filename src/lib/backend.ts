@@ -31,6 +31,7 @@ export type StoredSettings = {
   themeColor: string;
   appearance: 'dark' | 'light';
   uiFontFamilies?: string[];
+  uiTextSize?: number;
   visual: string;
   scope: ScopeSettings;
   lyricEffect: string;

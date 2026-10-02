@@ -77,6 +77,7 @@ type Settings struct {
 	ThemeColor              string          `json:"themeColor"`
 	Appearance              string          `json:"appearance"`
 	UIFontFamilies          []string        `json:"uiFontFamilies"`
+	UITextSize              int             `json:"uiTextSize"`
 	Visual                  string          `json:"visual"`
 	Scope                   ScopeSettings   `json:"scope"`
 	LyricEffect             string          `json:"lyricEffect"`
@@ -194,7 +195,7 @@ type ScopeSettings struct {
 }
 
 func DefaultSettings() Settings {
-	return Settings{ResumePlayback: true, DropAction: "ask", NetworkCacheCount: 10, ScanOnStart: true, BackupOriginal: true, Theme: "forest", ThemeColor: "#2b7651", Appearance: "light", Visual: "频谱", Scope: ScopeSettings{Mode: "spectrum", FFTSize: 8192, MinFrequency: 20, MaxFrequency: 20000, Smoothing: 0.72}, LyricEffect: "流动", LyricScroll: "平滑", ShowTranslation: true, LyricAppearance: json.RawMessage(`{"font":"default","size":16,"lineHeight":57,"spacing":0}`), ArtistMappings: json.RawMessage(`[]`), Volume: 65, Mode: "list", Effect: "原声", Equalizer: []float64{0, 0, 0, 0, 0}, CustomEffects: []SavedEffect{}}
+	return Settings{ResumePlayback: true, DropAction: "ask", NetworkCacheCount: 10, ScanOnStart: true, BackupOriginal: true, Theme: "forest", ThemeColor: "#2b7651", Appearance: "light", UITextSize: 100, Visual: "频谱", Scope: ScopeSettings{Mode: "spectrum", FFTSize: 8192, MinFrequency: 20, MaxFrequency: 20000, Smoothing: 0.72}, LyricEffect: "流动", LyricScroll: "平滑", ShowTranslation: true, LyricAppearance: json.RawMessage(`{"font":"default","size":16,"lineHeight":57,"spacing":0}`), ArtistMappings: json.RawMessage(`[]`), Volume: 65, Mode: "list", Effect: "原声", Equalizer: []float64{0, 0, 0, 0, 0}, CustomEffects: []SavedEffect{}}
 }
 
 type State struct {
@@ -522,6 +523,10 @@ func validThemeColor(value string) bool {
 	return err == nil
 }
 
+func validUITextSize(value int) bool {
+	return value == 90 || value == 100 || value == 110 || value == 120 || value == 125
+}
+
 func (s *Store) Settings() (Settings, error) {
 	value := DefaultSettings()
 	var raw string
@@ -537,6 +542,9 @@ func (s *Store) Settings() (Settings, error) {
 	}
 	if !validThemeColor(value.ThemeColor) {
 		value.ThemeColor = DefaultSettings().ThemeColor
+	}
+	if !validUITextSize(value.UITextSize) {
+		value.UITextSize = 100
 	}
 	if value.Scope.Mode != "spectrum" && value.Scope.Mode != "waveform" {
 		value.Scope.Mode = "spectrum"
@@ -572,6 +580,13 @@ func (s *Store) SaveSettings(value Settings) error {
 	}
 	if !validThemeColor(value.ThemeColor) {
 		return errors.New("invalid theme color")
+	}
+	// Older clients omit this field; retain the user's existing size in that case.
+	if value.UITextSize == 0 {
+		value.UITextSize = previous.UITextSize
+	}
+	if !validUITextSize(value.UITextSize) {
+		return errors.New("invalid UI text size")
 	}
 	if len(value.UIFontFamilies) > 8 {
 		return errors.New("too many font families")

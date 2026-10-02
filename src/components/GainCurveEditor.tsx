@@ -51,7 +51,8 @@ export default function GainCurveEditor({ filter, sampleRate, professionalAudio,
       const left = 45, right = rect.width - 14, top = 14, bottom = rect.height - 26;
       const x = (hz: number) => left + Math.log(hz / 20) / Math.log(maximumHz / 20) * (right - left);
       const y = (db: number) => bottom - (db - minimum) / (maximum - minimum) * (bottom - top);
-      ctx.font = '10px sans-serif'; ctx.fillStyle = getComputedStyle(element).color;
+      const style = getComputedStyle(element);
+      ctx.font = `${10 * (Number(style.getPropertyValue('--ui-text-scale')) || 1)}px sans-serif`; ctx.fillStyle = style.color;
       ctx.strokeStyle = 'rgba(130,150,140,.22)'; ctx.lineWidth = 1;
       for (const db of [minimum, minimum / 2, 0, maximum / 2, maximum]) {
         ctx.beginPath(); ctx.moveTo(left, y(db)); ctx.lineTo(right, y(db)); ctx.stroke();
