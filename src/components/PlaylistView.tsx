@@ -3,9 +3,12 @@ import { useRef, useState, type DragEvent } from 'react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import { useRuntime } from '@/hooks/use-runtime';
+import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
+import { validateTrackConditions } from '@/lib/track-query';
+import PlaylistRuleEditor from './PlaylistRuleEditor';
 import LibraryView from '@/components/LibraryView';
 import { type Track } from '@/lib/music';
-import { type Playlist } from '@/lib/playlists';
+import { type Playlist, type PlaylistRules } from '@/lib/playlists';
 import { backend } from '@/lib/backend';
 import { hasTrackDrag, readTrackDrag } from '@/lib/track-drag';
 
@@ -39,13 +42,14 @@ export default function PlaylistView({ playlists, playlist, displayCover, tracks
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [rules, setRules] = useState<PlaylistRules | null>(null);
   const [coverMode, setCoverMode] = useState<CoverMode>('upload');
   const [uploadedCover, setUploadedCover] = useState('');
   const [dropOverId, setDropOverId] = useState<string | null>(null);
   const playlistTracks = playlist?.trackIds.map(id => tracks.find(track => track.id === id)).filter((track): track is Track => Boolean(track)) ?? [];
   const firstTrackCover = playlistTracks[0]?.cover ?? '';
   const onDragOverPlaylist = (event: DragEvent, id: string) => {
-    if (!hasTrackDrag(event.dataTransfer)) return;
+    if (!hasTrackDrag(event.dataTransfer) || playlists.find(item=>item.id===id)?.rules) return;
     event.preventDefault(); event.stopPropagation(); event.dataTransfer.dropEffect = 'copy';
     setDropOverId(id);
   };
@@ -59,6 +63,7 @@ export default function PlaylistView({ playlists, playlist, displayCover, tracks
     if (!playlist) return;
     setName(playlist.name);
     setDescription(playlist.description);
+    setRules(playlist.rules ?? null);
     setUploadedCover(playlist.cover.startsWith('/api/media/cover/') ? playlist.cover : '');
     setCoverMode(playlist.coverMode);
     setEditing(true);
@@ -79,8 +84,9 @@ export default function PlaylistView({ playlists, playlist, displayCover, tracks
   const savePlaylist = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!playlist || !name.trim()) return;
+    try { if(rules) validateTrackConditions(rules.conditions); } catch(error) {toast.error(error instanceof Error ? error.message : '歌单条件无效');return;}
     if (coverMode === 'upload' && !uploadedCover) { toast.error('请先选择本地图片'); return; }
-    onEditPlaylist({ ...playlist, name: name.trim(), description: description.trim(), coverMode, cover: coverMode === 'upload' ? uploadedCover : '' });
+    onEditPlaylist({ ...playlist, rules: rules ?? undefined, name: name.trim(), description: description.trim(), coverMode, cover: coverMode === 'upload' ? uploadedCover : '' });
     setEditing(false);
     toast.success('歌单信息已更新');
   };
@@ -91,7 +97,7 @@ export default function PlaylistView({ playlists, playlist, displayCover, tracks
       const playableTracks = item.trackIds.map(id => tracks.find(track => track.id === id)).filter((track): track is Track => Boolean(track));
       return <div className={`playlist-card ${dropOverId === item.id ? 'track-drop-target' : ''}`} key={item.id} onDragOver={event => onDragOverPlaylist(event, item.id)} onDragLeave={event => { if (event.target === event.currentTarget) setDropOverId(null); }} onDrop={event => onDropPlaylist(event, item.id)}>
         <button type="button" className="playlist-cover" aria-label={`播放歌单 ${item.name}`} title={playableTracks.length ? `播放 ${item.name}` : '歌单为空'} disabled={!playableTracks.some(track => track.available !== false)} onClick={() => onPlayPlaylist(playableTracks)}><img src={item.cover} alt="" onError={event => { if (!event.currentTarget.src.endsWith('/covers/local.svg')) event.currentTarget.src = '/covers/local.svg'; }} /><span><Play size={23} fill="currentColor" /></span></button>
-        <button type="button" className="playlist-card-info" onClick={() => navigate(`/playlists/${item.id}`)}><strong>{item.name}</strong><small>{item.trackIds.length} 首歌曲</small><p>{item.description}</p></button>
+        <button type="button" className="playlist-card-info" onClick={() => navigate(`/playlists/${item.id}`)}><strong>{item.name}</strong><small>{item.rules ? '条件歌单 · ' : ''}{item.trackIds.length} 首歌曲</small><p>{item.description}</p></button>
       </div>;
     })}</div>
     {!playlists.length && <div className="playlist-empty"><ListMusic size={30} /><p>还没有歌单</p><button type="button" onClick={onCreate}>创建第一个歌单</button></div>}
@@ -101,8 +107,11 @@ export default function PlaylistView({ playlists, playlist, displayCover, tracks
   return <section className="playlist-detail">
     <button type="button" className="playlist-back" onClick={() => navigate('/playlists')}><ArrowLeft size={16} /> 返回歌单</button>
     <header className={`playlist-hero ${dropOverId === playlist.id ? 'track-drop-target' : ''}`} onDragOver={event => onDragOverPlaylist(event, playlist.id)} onDragLeave={event => { if (event.target === event.currentTarget) setDropOverId(null); }} onDrop={event => onDropPlaylist(event, playlist.id)}><button type="button" className="playlist-hero-cover" aria-label={`播放歌单 ${playlist.name}`} disabled={!playlistTracks.some(track => track.available !== false)} onClick={() => onPlayPlaylist(playlistTracks)}><img src={displayCover} alt="" onError={event => { if (!event.currentTarget.src.endsWith('/covers/local.svg')) event.currentTarget.src = '/covers/local.svg'; }} /><span><Play size={25} fill="currentColor" /></span></button><div><span className="eyebrow"><span /> PLAYLIST</span><h1>{playlist.name}</h1><p>{playlist.description}</p><small>{playlistTracks.length} 首歌曲</small><div className="playlist-hero-actions"><button type="button" className="playlist-primary" disabled={!playlistTracks.some(track => track.available !== false)} onClick={() => onPlayPlaylist(playlistTracks)}><Play size={16} fill="currentColor" /> 播放</button><button type="button" className="playlist-edit" title="编辑歌单" aria-label="编辑歌单" onClick={openEditor}><ImagePlus size={17} /></button><button type="button" className="playlist-delete" title="删除歌单" aria-label={`删除歌单 ${playlist.name}`} onClick={() => onDelete(playlist.id)}><Trash2 size={17} /></button></div></div></header>
-    {playlistTracks.length === 0 ? <div className="playlist-empty"><ListMusic size={30} /><p>这个歌单还没有歌曲</p><button type="button" onClick={() => navigate('/music')}>前往音乐库添加歌曲</button></div> : <LibraryView key={playlist.id} title="歌曲列表" tracks={playlistTracks} currentId={currentId} liked={liked} onPlay={id => onPlayPlaylist(playlistTracks, id)} onPlayMany={onPlayPlaylist} onToggleLike={onToggleLike} onViewInfo={onViewInfo} onRefreshInfo={onRefreshInfo} onSaveLyrics={onSaveLyrics} onArtist={onArtist} onAlbum={onAlbum} playlists={playlists} onAddToPlaylist={onAddToPlaylist} onRemoveFromPlaylist={ids => onRemoveFromPlaylist(playlist.id, ids)} />}
-    {editing && <div className="playlist-editor-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setEditing(false); }}><section className="playlist-editor" role="dialog" aria-modal="true" aria-labelledby="playlist-editor-title"><header><div><span className="eyebrow"><span /> PLAYLIST SETTINGS</span><h2 id="playlist-editor-title">编辑歌单</h2></div><button type="button" aria-label="关闭编辑" onClick={() => setEditing(false)}>×</button></header><form onSubmit={savePlaylist}>
+    {playlist.rules && <div className="condition-playlist-note"><strong>条件歌单 · 自动更新</strong><p>歌曲满足条件时自动收录，不满足时自动移出。当前匹配 {playlistTracks.length} 首。</p><button type="button" onClick={openEditor}>编辑收录条件</button></div>}
+    {playlistTracks.length === 0 ? <div className="playlist-empty"><ListMusic size={30} /><p>这个歌单还没有歌曲</p><button type="button" onClick={() => navigate('/music')}>前往音乐库添加歌曲</button></div> : <LibraryView key={playlist.id} title="歌曲列表" tracks={playlistTracks} currentId={currentId} liked={liked} onPlay={id => onPlayPlaylist(playlistTracks, id)} onPlayMany={onPlayPlaylist} onToggleLike={onToggleLike} onViewInfo={onViewInfo} onRefreshInfo={onRefreshInfo} onSaveLyrics={onSaveLyrics} onArtist={onArtist} onAlbum={onAlbum} playlists={playlists} onAddToPlaylist={onAddToPlaylist} onRemoveFromPlaylist={playlist.rules ? undefined : ids => onRemoveFromPlaylist(playlist.id, ids)} />}
+    <Dialog open={editing} onOpenChange={setEditing}><DialogContent aria-describedby={undefined} className="music-dialog playlist-editor" showClose={false}><header><div><span className="eyebrow"><span /> PLAYLIST SETTINGS</span><DialogTitle>编辑歌单</DialogTitle></div><button type="button" aria-label="关闭编辑" onClick={() => setEditing(false)}>×</button></header><form onSubmit={savePlaylist}>
+      <label className="playlist-field">歌单类型<select aria-label="歌单类型" value={rules ? 'conditions' : 'manual'} onChange={event => setRules(event.target.value === 'conditions' ? {conditions:{},sort:'title',descending:false} : null)}><option value="manual">普通歌单</option><option value="conditions">条件歌单（自动收录）</option></select></label>
+      {rules && <PlaylistRuleEditor value={rules} onChange={setRules} tracks={tracks} liked={liked} />}
       <label className="playlist-field">歌单名称<input required maxLength={40} value={name} onChange={event => setName(event.target.value)} placeholder="歌单名称" /></label>
       <label className="playlist-field">简介<textarea maxLength={120} rows={3} value={description} onChange={event => setDescription(event.target.value)} placeholder="写一句关于这个歌单的话" /></label>
       <fieldset className="cover-picker"><legend>封面图片</legend><div className="cover-mode-tabs">{([['upload', '本地图片', Upload], ['first-track', '首曲专辑图', Disc3]] as const).map(([mode, label, Icon]) => <button type="button" key={mode} className={coverMode === mode ? 'active' : ''} onClick={() => { if (mode === 'upload') selectCover(); else setCoverMode(mode); }}><Icon size={14} /><span>{label}</span></button>)}</div>
@@ -110,6 +119,6 @@ export default function PlaylistView({ playlists, playlist, displayCover, tracks
       {coverMode === 'first-track' && <p className="cover-hint">{firstTrackCover ? `使用《${playlistTracks[0].title}》的专辑封面` : '歌单为空，请先添加歌曲'}</p>}
       <div className="cover-preview"><span>封面预览</span><img src={coverPreview || '/covers/local.svg'} alt="封面预览" onError={event => { if (event.currentTarget.src.endsWith('/covers/local.svg')) return; event.currentTarget.src = '/covers/local.svg'; if (coverMode === 'upload') { setUploadedCover(''); toast.error('封面文件无法读取，请重新选择本地图片'); } }} /></div>
       </fieldset><footer><button type="button" className="editor-cancel" onClick={() => setEditing(false)}>取消</button><button type="submit" className="playlist-primary">保存修改</button></footer>
-    </form></section></div>}
+    </form></DialogContent></Dialog>
   </section>;
 }

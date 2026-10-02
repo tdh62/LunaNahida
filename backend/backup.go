@@ -355,6 +355,7 @@ func (s *Store) mergeBackupDatabase(path string) (BackupImportResult, error) {
 		{`INSERT OR IGNORE INTO track_custom_tags(track_id,name) SELECT dest.id,tags.name FROM imported.track_custom_tags ct JOIN imported.tracks src ON src.id=ct.track_id JOIN tracks dest ON dest.path=src.path JOIN custom_tags tags ON tags.name=ct.name`, nil},
 		{`CREATE TEMP TABLE backup_new_playlists AS SELECT id FROM imported.playlists WHERE id NOT IN (SELECT id FROM playlists)`, nil},
 		{`INSERT INTO playlists(id,name,description,cover,cover_mode) SELECT id,name,description,cover,cover_mode FROM imported.playlists WHERE id IN (SELECT id FROM backup_new_playlists)`, &result.Playlists},
+		{`INSERT OR IGNORE INTO playlist_rules(playlist_id,rules) SELECT pr.playlist_id,pr.rules FROM imported.playlist_rules pr JOIN backup_new_playlists bp ON bp.id=pr.playlist_id`, nil},
 		{`INSERT OR IGNORE INTO playlist_tracks(playlist_id,track_id,position) SELECT pt.playlist_id,dest.id,pt.position FROM imported.playlist_tracks pt JOIN backup_new_playlists bp ON bp.id=pt.playlist_id JOIN imported.tracks src ON src.id=pt.track_id JOIN tracks dest ON dest.path=src.path`, nil},
 		{`INSERT OR IGNORE INTO track_lyric_offsets(track_id,offset_ms) SELECT dest.id,lo.offset_ms FROM imported.track_lyric_offsets lo JOIN imported.tracks src ON src.id=lo.track_id JOIN tracks dest ON dest.path=src.path`, nil},
 		{`INSERT OR IGNORE INTO liked(track_id) SELECT dest.id FROM imported.liked il JOIN imported.tracks src ON src.id=il.track_id JOIN tracks dest ON dest.path=src.path`, nil},

@@ -12,12 +12,14 @@ import { scrollToCurrentLyric } from '@/lib/lyric-scroll';
 import LibraryView from '@/components/LibraryView';
 import TagsView from '@/components/TagsView';
 import TrackTagEditor from '@/components/TrackTagEditor';
+import PlaylistRuleEditor from '@/components/PlaylistRuleEditor';
+import { queryTracks, validateTrackConditions } from '@/lib/track-query';
 import PlaylistView from '@/components/PlaylistView';
 import CatalogView from '@/components/CatalogView';
 import TrackDetails from '@/components/TrackDetails';
 import { useMusicEnrichment, refreshMusicInfo } from '@/hooks/use-music-enrichment';
 import { artistKey, buildCatalog, normalizeName, type ArtistMapping } from '@/lib/catalog';
-import { playlistCover, type Playlist } from '@/lib/playlists';
+import { playlistCover, type PlaylistRules, type Playlist } from '@/lib/playlists';
 import { backend, defaultScopeSettings, type ScopeSettings, type StoredSettings } from '@/lib/backend';
 import { effectNames, frequencyResponseBounds, responseAt, type FrequencyResponse } from '@/lib/audio-filter';
 import { useRuntime } from '@/hooks/use-runtime';
@@ -136,6 +138,7 @@ export default function Index() {
   const [ready, setReady] = useState(false);
   const [createPlaylistOpen, setCreatePlaylistOpen] = useState(false);
   const [playlistName, setPlaylistName] = useState('');
+  const [playlistRules, setPlaylistRules] = useState<PlaylistRules | null>(null);
   const [playlistQueueSnapshot, setPlaylistQueueSnapshot] = useState<{ ids: number[]; skipped: number } | null>(null);
   const [deletePlaylistId, setDeletePlaylistId] = useState<string | null>(null);
   const [deleteTrackIds, setDeleteTrackIds] = useState<number[]>([]);
@@ -538,8 +541,11 @@ export default function Index() {
       return false;
     }
   };
-  const displayPlaylists = useMemo(() => playlists.map(item => ({ ...item, cover: playlistCover(item, allTracks) })), [playlists, allTracks]);
-  const activePlaylist = playlists.find(item => item.id === playlistId);
+  const displayPlaylists = useMemo(() => playlists.map(item => {
+    const resolved = item.rules ? {...item, trackIds: queryTracks(allTracks,item.rules.conditions,liked,item.rules.sort,item.rules.descending).map(track=>track.id)} : item;
+    return {...resolved,cover:playlistCover(resolved,allTracks)};
+  }), [playlists, allTracks, liked]);
+  const activePlaylist = displayPlaylists.find(item => item.id === playlistId);
   const recentPlaylists = [...recentPlaylistIds.map(id => displayPlaylists.find(item => item.id === id)).filter((item): item is Playlist => Boolean(item)), ...displayPlaylists.filter(item => !recentPlaylistIds.includes(item.id))];
   const sidebarPlaylists = recentPlaylists.slice(0, trackDragging ? recentPlaylists.length : playlistNavExpanded ? 10 : 2);
   const overviewPlaylists = [...displayPlaylists].sort((a, b) => a.id === (playlistId ?? recentPlaylistIds[0]) ? -1 : b.id === (playlistId ?? recentPlaylistIds[0]) ? 1 : 0);
@@ -550,9 +556,10 @@ export default function Index() {
   const createPlaylist = () => {
     const name = playlistName.trim();
     if (!name) return;
+    try { if(playlistRules) validateTrackConditions(playlistRules.conditions); } catch(error) {toast.error(error instanceof Error ? error.message : '歌单条件无效'); return;}
     const id = crypto.randomUUID();
-    setPlaylists(prev => [...prev, { id, name, description: '我的歌单', trackIds: playlistQueueSnapshot?.ids ?? [], cover: '', coverMode: 'first-track' }]);
-    setPlaylistName(''); setPlaylistQueueSnapshot(null); setCreatePlaylistOpen(false);
+    setPlaylists(prev => [...prev, { id, name, description: playlistRules ? '按条件自动收录' : '我的歌单', rules: playlistRules ?? undefined, trackIds: playlistQueueSnapshot?.ids ?? [], cover: '', coverMode: 'first-track' }]);
+    setPlaylistName(''); setPlaylistRules(null); setPlaylistQueueSnapshot(null); setCreatePlaylistOpen(false);
     navigate(`/playlists/${id}`);
     toast.success(playlistQueueSnapshot ? '播放队列已保存为歌单' : '歌单已创建');
   };
@@ -566,6 +573,7 @@ export default function Index() {
   const addToPlaylist = (id: string, ids: number[]) => {
     const playlist = playlists.find(item => item.id === id);
     if (!playlist) return;
+    if (playlist.rules) { toast.info('条件歌单自动收录歌曲，请编辑条件'); return; }
     const additions = [...new Set(ids)].filter(trackId => libraryTracks.some(track => track.id === trackId) && !playlist.trackIds.includes(trackId));
     if (!additions.length) { toast.info(ids.some(trackId => libraryTracks.some(track => track.id === trackId)) ? '歌曲已在歌单中' : '临时歌曲不能添加到歌单'); return; }
     setPlaylists(prev => prev.map(item => item.id === id ? { ...item, trackIds: [...item.trackIds, ...additions] } : item));
@@ -612,6 +620,7 @@ export default function Index() {
     addToQueue(readTrackDrag(event.dataTransfer));
   };
   const removeFromPlaylist = (id: string, ids: number[]) => {
+    if (playlists.find(item=>item.id===id)?.rules) {toast.info('请修改歌单条件以调整收录歌曲');return;}
     setPlaylists(prev => prev.map(item => item.id === id ? { ...item, trackIds: item.trackIds.filter(trackId => !ids.includes(trackId)) } : item));
     toast.success('已从歌单移除');
   };
@@ -705,7 +714,7 @@ export default function Index() {
       </>}
     </main>
     <AudioProcessor professionalAudio={p.professionalAudio} preampDb={p.preampDb} open={effectEditorOpen} onOpenChange={setEffectEditorOpen} effect={p.effect} setEffect={p.setEffect} customEffects={p.customEffects} onSave={p.saveEffect} onDelete={p.deleteEffect} onPreview={p.setPreviewFilter} filterError={p.filterError} sampleRate={p.analyser?.context.sampleRate ?? 44100} hasTrack={p.hasTrack} trackTitle={p.track.title} playing={p.playing} time={p.time} duration={p.track.duration} onToggle={p.toggle} onSeek={p.seek} />
-    <Dialog open={createPlaylistOpen} onOpenChange={open => { setCreatePlaylistOpen(open); if (!open) { setPlaylistName(''); setPlaylistQueueSnapshot(null); } }}><DialogContent className={`music-dialog playlist-dialog theme-${theme}`}><DialogTitle>{playlistQueueSnapshot ? '播放队列存为歌单' : '新建歌单'}</DialogTitle><DialogDescription className={playlistQueueSnapshot ? undefined : 'sr-only'}>{playlistQueueSnapshot ? `将 ${playlistQueueSnapshot.ids.length} 首歌曲保存为新歌单。${playlistQueueSnapshot.skipped ? `${playlistQueueSnapshot.skipped} 首临时歌曲不会保存。` : ''}` : '新建歌单'}</DialogDescription><form onSubmit={event => { event.preventDefault(); createPlaylist(); }}><div className="playlist-create-row"><Input autoFocus maxLength={40} placeholder="歌单名称" aria-label="歌单名称" value={playlistName} onChange={event => setPlaylistName(event.target.value)} /><button type="submit" className="playlist-primary" disabled={!playlistName.trim()}>{playlistQueueSnapshot ? '确认保存' : '确认创建'}</button></div></form></DialogContent></Dialog>
+    <Dialog open={createPlaylistOpen} onOpenChange={open => { setCreatePlaylistOpen(open); if (!open) { setPlaylistName(''); setPlaylistRules(null); setPlaylistQueueSnapshot(null); } }}><DialogContent className={`music-dialog playlist-dialog theme-${theme}`}><DialogTitle>{playlistQueueSnapshot ? '播放队列存为歌单' : '新建歌单'}</DialogTitle><DialogDescription className={playlistQueueSnapshot ? undefined : 'sr-only'}>{playlistQueueSnapshot ? `将 ${playlistQueueSnapshot.ids.length} 首歌曲保存为新歌单。${playlistQueueSnapshot.skipped ? `${playlistQueueSnapshot.skipped} 首临时歌曲不会保存。` : ''}` : '新建歌单'}</DialogDescription><form onSubmit={event => { event.preventDefault(); createPlaylist(); }}>{!playlistQueueSnapshot && <label className="playlist-field">歌单类型<select aria-label="歌单类型" value={playlistRules ? 'conditions' : 'manual'} onChange={event => setPlaylistRules(event.target.value === 'conditions' ? {conditions:{},sort:'title',descending:false} : null)}><option value="manual">普通歌单</option><option value="conditions">条件歌单（自动收录）</option></select></label>}{playlistRules && <PlaylistRuleEditor value={playlistRules} onChange={setPlaylistRules} tracks={allTracks} liked={liked} />}<div className="playlist-create-row"><Input autoFocus maxLength={40} placeholder="歌单名称" aria-label="歌单名称" value={playlistName} onChange={event => setPlaylistName(event.target.value)} /><button type="submit" className="playlist-primary" disabled={!playlistName.trim()}>{playlistQueueSnapshot ? '确认保存' : '确认创建'}</button></div></form></DialogContent></Dialog>
     <Dialog open={deletePlaylistId !== null} onOpenChange={open => { if (!open) setDeletePlaylistId(null); }}><DialogContent className="music-dialog playlist-dialog"><DialogTitle>删除歌单？</DialogTitle><DialogDescription>「{playlists.find(item => item.id === deletePlaylistId)?.name}」将从歌单列表移除，歌曲不会从音乐库删除。</DialogDescription><div className="playlist-dialog-actions"><button type="button" onClick={() => setDeletePlaylistId(null)}>取消</button><button type="button" className="playlist-danger" onClick={deletePlaylist}>删除歌单</button></div></DialogContent></Dialog>
     <Dialog open={deleteTrackIds.length > 0} onOpenChange={open => { if (!open) setDeleteTrackIds([]); }}><DialogContent className="music-dialog playlist-dialog"><DialogTitle>从曲库移除{deleteTrackIds.length} 首歌曲？</DialogTitle><DialogDescription>歌曲将从曲库、歌单和播放队列中移除。本地音频文件不会删除。</DialogDescription><div className="playlist-dialog-actions"><button type="button" onClick={() => setDeleteTrackIds([])}>取消</button><button type="button" className="playlist-danger" onClick={() => void deleteTracks()}>移除歌曲</button></div></DialogContent></Dialog>
     {dropActive && <div className="file-drop-overlay"><Plus size={32} /><strong>{runtime.mode !== 'desktop' ? '仅本次播放' : toolboxOpen ? '添加文件或文件夹' : pathname === '/' ? '加入音乐库和播放队列' : '加入音乐库'}</strong></div>}

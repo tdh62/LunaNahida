@@ -51,12 +51,13 @@ type Track struct {
 }
 
 type Playlist struct {
-	ID          string  `json:"id"`
-	Name        string  `json:"name"`
-	Description string  `json:"description"`
-	Cover       string  `json:"cover"`
-	CoverMode   string  `json:"coverMode"`
-	TrackIDs    []int64 `json:"trackIds"`
+	Rules       *PlaylistRules `json:"rules,omitempty"`
+	ID          string         `json:"id"`
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	Cover       string         `json:"cover"`
+	CoverMode   string         `json:"coverMode"`
+	TrackIDs    []int64        `json:"trackIds"`
 }
 
 type Settings struct {
@@ -505,7 +506,7 @@ func (s *Store) migrate() error {
 			return err
 		}
 	}
-	_, err = s.DB.Exec(`CREATE TABLE IF NOT EXISTS track_lyric_offsets(track_id INTEGER PRIMARY KEY REFERENCES tracks(id) ON DELETE CASCADE,offset_ms INTEGER NOT NULL DEFAULT 0); CREATE TABLE IF NOT EXISTS backup_events(id INTEGER PRIMARY KEY AUTOINCREMENT,time INTEGER NOT NULL,action TEXT NOT NULL,name TEXT NOT NULL,status TEXT NOT NULL,detail TEXT NOT NULL)`)
+	_, err = s.DB.Exec(`CREATE TABLE IF NOT EXISTS track_lyric_offsets(track_id INTEGER PRIMARY KEY REFERENCES tracks(id) ON DELETE CASCADE,offset_ms INTEGER NOT NULL DEFAULT 0); CREATE TABLE IF NOT EXISTS backup_events(id INTEGER PRIMARY KEY AUTOINCREMENT,time INTEGER NOT NULL,action TEXT NOT NULL,name TEXT NOT NULL,status TEXT NOT NULL,detail TEXT NOT NULL); CREATE TABLE IF NOT EXISTS playlist_rules(playlist_id TEXT PRIMARY KEY REFERENCES playlists(id) ON DELETE CASCADE,rules TEXT NOT NULL)`)
 	return err
 }
 
@@ -663,15 +664,22 @@ func (s *Store) State() (State, error) {
 	if err = s.loadCustomTags(&state); err != nil {
 		return state, err
 	}
-	rows, err = s.DB.Query(`SELECT id,name,description,cover,cover_mode FROM playlists ORDER BY rowid`)
+	rows, err = s.DB.Query(`SELECT id,name,description,cover,cover_mode,(SELECT rules FROM playlist_rules WHERE playlist_id=playlists.id) FROM playlists ORDER BY rowid`)
 	if err != nil {
 		return state, err
 	}
 	for rows.Next() {
 		var p Playlist
-		if err = rows.Scan(&p.ID, &p.Name, &p.Description, &p.Cover, &p.CoverMode); err != nil {
+		var rules sql.NullString
+		if err = rows.Scan(&p.ID, &p.Name, &p.Description, &p.Cover, &p.CoverMode, &rules); err != nil {
 			rows.Close()
 			return state, err
+		}
+		if rules.Valid {
+			if err = json.Unmarshal([]byte(rules.String), &p.Rules); err != nil {
+				rows.Close()
+				return state, err
+			}
 		}
 		p.TrackIDs = []int64{}
 		state.Playlists = append(state.Playlists, p)
@@ -740,6 +748,7 @@ func (s *Store) State() (State, error) {
 			}
 		}
 	}
+	applyConditionPlaylists(&state)
 	return state, err
 }
 
@@ -805,6 +814,19 @@ func (s *Store) SavePlaylists(playlists []Playlist) error {
 		}
 		if _, err = tx.Exec(`INSERT INTO playlists(id,name,description,cover,cover_mode) VALUES(?,?,?,?,?)`, p.ID, p.Name, p.Description, p.Cover, p.CoverMode); err != nil {
 			return err
+		}
+		if p.Rules != nil {
+			if err = validatePlaylistRules(p.Rules); err != nil {
+				return err
+			}
+			raw, encodeErr := json.Marshal(p.Rules)
+			if encodeErr != nil {
+				return encodeErr
+			}
+			if _, err = tx.Exec(`INSERT INTO playlist_rules(playlist_id,rules) VALUES(?,?)`, p.ID, string(raw)); err != nil {
+				return err
+			}
+			continue
 		}
 		for pos, id := range p.TrackIDs {
 			if id <= 0 {
