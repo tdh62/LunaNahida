@@ -30,7 +30,7 @@
 .scope-filter-key { flex: none; color: #eab17c; }
 .scope-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 20px; min-width: 0; }
 .scope-controls label { display: flex; align-items: center; gap: 7px; color: #a8aaad; font-size: 11px; white-space: nowrap; }
-.scope-controls select { height: 29px; min-width: 90px; padding: 0 7px; border: 1px solid #3c3f43; border-radius: 4px; outline: none; background: #242629; color: #e4e5e2; font-size: 11px; }
+.scope-controls select { height: 29px; min-width: 90px; padding: 0 7px; border: 1px solid #3c3f43; border-radius: 4px; outline: none; background: #242629; color: var(--text-primary); font-size: 11px; }
 .scope-controls select:focus-visible, .scope-controls input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .scope-controls output { min-width: 32px; color: var(--accent); font: 10px 'DM Mono', monospace; }
 .scope-controls input { width: 100px; accent-color: var(--accent); }
@@ -38,7 +38,7 @@
 .scope-range-presets { display: flex; gap: 3px; }
 .scope-range-presets button { height: 28px; padding: 0 7px; border: 1px solid var(--line); border-radius: 4px; background: transparent; color: #aeb2b1; font-size: 10px; }
 .scope-range-presets button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
-.scope-controls .scope-range input { width: 74px; height: 28px; padding: 0 4px; border: 1px solid var(--line); border-radius: 4px; background: #242629; color: #e4e5e2; font-size: 11px; }
+.scope-controls .scope-range input { width: 74px; height: 28px; padding: 0 4px; border: 1px solid var(--line); border-radius: 4px; background: #242629; color: var(--text-primary); font-size: 11px; }
 .mode-light .scope-controls .scope-range input { background: #eef0ef; color: #282d30; }
 .visualizer[role="button"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .mode-light .expanded-scope { --scope-muted: #60656a; }

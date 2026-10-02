@@ -1,0 +1,31 @@
+:root {
+  --text-primary: #efeeea;
+  --text-secondary: #b3bbb5;
+  --panel-background: #202123;
+  --field-background: #292e2b;
+  --border-color: #484f4b;
+  --action-color: #a5b5ff;
+  --danger-color: #efaba1;
+}
+html:has(.theme-anime) { --action-color: #e4a9da; }
+html:has(.theme-forest) { --action-color: #a5cdb0; }
+html.mode-light {
+  --text-primary: #25343a;
+  --text-secondary: #52675b;
+  --panel-background: #fff;
+  --field-background: #edf3f0;
+  --border-color: #c7d4cc;
+  --action-color: #435db8;
+  --danger-color: #a83c30;
+}
+html.mode-light:has(.theme-anime) { --action-color: #a63d8b; }
+html.mode-light:has(.theme-forest) { --action-color: #2b7651; }
+.dialog-frame { max-height: calc(100dvh - 32px); overflow-y: auto; overscroll-behavior: contain; }
+.dialog-frame.music-dialog { background: var(--panel-background) !important; color: var(--text-primary) !important; border-color: var(--border-color) !important; }
+.dialog-frame > h2 { padding-right: 24px; }
+.dialog-frame:not(.processor-dialog) > h2 { position: sticky; top: 0; z-index: 2; background: var(--panel-background); grid-column: 1; grid-row: 1; }
+.dialog-frame:not(.processor-dialog) > .dialog-dismiss { position: sticky; top: 0; right: auto; justify-self: end; align-self: start; grid-column: 1; grid-row: 1; z-index: 3; }
+.dialog-frame :is(.toolbox-actions, .track-details-actions, .editor-actions, .folder-dialog-actions, .dialog-actions) { position: sticky; bottom: 0; z-index: 2; background: var(--panel-background); padding: 12px 0 0; border-top: 1px solid var(--border-color); }
+.dialog-frame :is(input:not([type=range]):not([type=checkbox]), select, textarea) { background: var(--field-background); color: var(--text-primary); border-color: var(--border-color); }
+.dialog-frame button:focus-visible { outline: 2px solid var(--action-color); outline-offset: 2px; }
+.dialog-frame .processor-error { color: var(--danger-color); }

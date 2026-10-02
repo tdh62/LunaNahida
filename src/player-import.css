@@ -1,4 +1,4 @@
-.folder-dialog-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; padding: 6px 11px; border: 1px solid #42454a; border-radius: 6px; background: #242628; color: #eee; font-size: 11px; }
+.folder-dialog-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; padding: 6px 11px; border: 1px solid #42454a; border-radius: 6px; background: #242628; color: var(--text-primary); font-size: 11px; }
 .folder-dialog-actions button:hover { border-color: var(--accent); color: var(--accent); }
 .listening-empty { min-height: 330px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 14px; }
 .listening-empty img { width: 112px; height: 112px; border-radius: 8px; opacity: .8; }
@@ -64,7 +64,7 @@
 .queue-panel { display: flex; flex-direction: column; min-height: 0; }
 .queue-panel.track-drop-target { outline: 1px dashed var(--accent); outline-offset: -3px; background: var(--tint); }
 .queue-description > div { display: flex; align-items: center; justify-content: space-between; }
-.queue-density { display: grid; place-items: center; width: 28px; height: 28px; border: 0; border-radius: 4px; background: transparent; color: #aaa9ad; }
+.queue-density { display: grid; place-items: center; width: 28px; height: 28px; border: 0; border-radius: 4px; background: transparent; color: var(--text-secondary); }
 .queue-density:hover, .queue-density:focus-visible { background: var(--tint); color: var(--accent); }
 .queue-list { flex: 1; min-height: 0; max-height: none; }
 .queue-sortable { cursor: grab; }

@@ -3,7 +3,7 @@
 .desktop-window-actions { --wails-draggable: no-drag; display: flex; height: 100%; margin-right: 8px; pointer-events: auto; }
 .desktop-window-actions button { --wails-draggable: no-drag; display: grid; place-items: center; width: 40px; height: 28px; padding: 0; border: 0; border-radius: 0; background: transparent; color: inherit; }
 .desktop-window-actions button > svg { pointer-events: none; }
-.desktop-window-actions button:hover { background: #ffffff12; color: #efefeb; }
+.desktop-window-actions button:hover { background: #ffffff12; color: var(--text-primary); }
 .desktop-window-actions button:focus-visible { outline: 2px solid #a5b5ff; outline-offset: -3px; }
 .desktop-window-actions .desktop-window-close:hover { background: #c42b3b; color: #fff; }
 html.mode-light .desktop-window-bar { color: #586968; }

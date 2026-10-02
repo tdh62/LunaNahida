@@ -29,7 +29,7 @@
 .track-tags > button:hover { border-color: var(--accent); color: var(--accent); }
 .track-tags > .track-tag-add { width: 24px; height: 24px; display: grid; place-items: center; flex: none; padding: 0; border-style: dashed; }
 .track-tags > .track-tag-add:disabled { opacity: .45; cursor: not-allowed; }
-html .track-tag-popover { --accent: #a5b5ff; --tint: rgba(156,174,255,.12); --surface: #202123; --line: #393a3d; --muted: #a1a1a4; z-index: 80; width: min(280px, calc(100vw - 24px)); padding: 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: #efefeb; box-shadow: 0 12px 30px #0005; }
+html .track-tag-popover { --accent: #a5b5ff; --tint: rgba(156,174,255,.12); --surface: #202123; --line: #393a3d; --muted: #a1a1a4; z-index: 80; width: min(280px, calc(100vw - 24px)); padding: 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text-primary); box-shadow: 0 12px 30px #0005; }
 .track-tag-popover.theme-forest { --accent: #a5cdb0; --tint: rgba(165,205,176,.13); }
 .track-tag-popover.theme-anime { --accent: #e4a9da; --tint: rgba(228,169,218,.13); }
 html.mode-light .track-tag-popover { --accent: #435db8; --tint: rgba(67,93,184,.1); --surface: #fff; --line: #d8e1dc; --muted: #5f706f; color: #25343a; }

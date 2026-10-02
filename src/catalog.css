@@ -2,23 +2,23 @@
 .catalog-page { min-height: calc(100vh - 160px); padding: 36px clamp(16px, 4vw, 56px) 60px; }
 .catalog-heading { margin-bottom: 28px; }
 .catalog-heading h1, .catalog-hero h1 { margin: 10px 0 7px; font-size: 29px; font-weight: 600; overflow-wrap: anywhere; }
-.catalog-heading p, .catalog-hero p { color: #aaa9ad; font-size: 12px; line-height: 1.7; }
+.catalog-heading p, .catalog-hero p { color: var(--text-secondary); font-size: 12px; line-height: 1.7; }
 .catalog-toolbar { display: flex; align-items: center; gap: 10px; margin: 0 0 24px; }
-.catalog-search { display: flex; align-items: center; gap: 9px; width: min(100%, 360px); min-height: 40px; padding: 0 12px; border: 1px solid #3e4144; border-radius: 7px; background: #202224; color: #aaa9ad; }
+.catalog-search { display: flex; align-items: center; gap: 9px; width: min(100%, 360px); min-height: 40px; padding: 0 12px; border: 1px solid #3e4144; border-radius: 7px; background: #202224; color: var(--text-secondary); }
 .catalog-search:focus-within { border-color: var(--accent); }
 .catalog-search input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: #f1f0ed; font: inherit; font-size: 12px; }
 .catalog-search input::placeholder { color: #99999e; }
-.catalog-sort { display: flex; align-items: center; gap: 7px; min-height: 40px; padding: 0 10px; border: 1px solid #3e4144; border-radius: 7px; background: #202224; color: #aaa9ad; font-size: 11px; }
+.catalog-sort { display: flex; align-items: center; gap: 7px; min-height: 40px; padding: 0 10px; border: 1px solid #3e4144; border-radius: 7px; background: #202224; color: var(--text-secondary); font-size: 11px; }
 .catalog-sort select { max-width: 128px; border: 0; outline: 0; background: transparent; color: #f1f0ed; font: inherit; cursor: pointer; }
 .catalog-sort option { background: #202224; color: #f1f0ed; }
 .catalog-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 24px 18px; }
-.catalog-card { min-width: 0; padding: 0; border: 0; background: transparent; color: #eee; text-align: left; }
+.catalog-card { min-width: 0; padding: 0; border: 0; background: transparent; color: var(--text-primary); text-align: left; }
 .catalog-cover { position: relative; display: block; width: 100%; aspect-ratio: 1; overflow: hidden; border-radius: 7px; background: #27292d; }
 .catalog-cover > img { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform .2s; }
 .catalog-card:hover .catalog-cover > img { transform: scale(1.025); }
 .catalog-cover-badge { position: absolute; right: 8px; bottom: 8px; display: block !important; margin: 0 !important; padding: 4px 7px; border: 1px solid rgba(255,255,255,.17); border-radius: 5px; background: rgba(18,20,22,.86); color: #fff !important; font-size: 10px !important; line-height: 1.2; white-space: nowrap; backdrop-filter: blur(5px); }
 .catalog-card strong { display: block; margin-top: 10px; overflow-wrap: anywhere; font-size: 14px; font-weight: 600; }
-.catalog-card small { display: flex; align-items: center; gap: 5px; margin-top: 5px; color: #aaa9ad; font-size: 11px; overflow-wrap: anywhere; }
+.catalog-card small { display: flex; align-items: center; gap: 5px; margin-top: 5px; color: var(--text-secondary); font-size: 11px; overflow-wrap: anywhere; }
 .catalog-hero { display: flex; align-items: center; gap: 28px; margin: 22px 0 36px; }
 .catalog-hero > img { width: clamp(120px, 19vw, 210px); aspect-ratio: 1; flex: none; border-radius: 7px; object-fit: cover; }
 .catalog-hero > div { min-width: 0; }
@@ -30,22 +30,22 @@
 .artist-description-refresh { display: inline-flex; align-items: center; gap: 7px; min-height: 32px; padding: 0 10px; border: 1px solid #414448; border-radius: 6px; background: #202224; color: #e3e3e5; font-size: 12px; }
 .artist-description-refresh:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
 .artist-description-refresh:disabled { cursor: wait; opacity: .65; }
-.artist-description-status { color: #aaa9ad; font-size: 12px; }
+.artist-description-status { color: var(--text-secondary); font-size: 12px; }
 .album-info { max-width: 920px; color: #d0d0d2; }
 .album-info-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 28px; margin: 0 0 28px; }
 .album-info-facts > div { display: flex; gap: 16px; min-width: 0; padding: 11px 0; border-bottom: 1px solid #383a3c; font-size: 13px; }
-.album-info-facts dt { flex: 0 0 64px; color: #aaa9ad; }
+.album-info-facts dt { flex: 0 0 64px; color: var(--text-secondary); }
 .album-info-facts dd { min-width: 0; margin: 0; color: #f1f0ed; overflow-wrap: anywhere; }
 .album-info h3 { margin: 0 0 14px; color: #f1f0ed; font-size: 15px; font-weight: 600; }
 .album-info-description { margin-bottom: 32px; }
 .album-info-description p { margin: 0; color: #c4c4c7; font-size: 13px; line-height: 1.9; white-space: pre-line; overflow-wrap: anywhere; }
 .album-info-tracks ol { margin: 0; padding: 0; list-style: none; }
 .album-info-tracks li { display: flex; align-items: center; gap: 16px; min-height: 54px; padding: 8px 4px; border-bottom: 1px solid #383a3c; }
-.album-info-track-number { flex: 0 0 28px; color: #aaa9ad; font-size: 12px; text-align: center; }
+.album-info-track-number { flex: 0 0 28px; color: var(--text-secondary); font-size: 12px; text-align: center; }
 .album-info-track-name { flex: 1; min-width: 0; }
 .album-info-track-name strong { display: block; color: #f1f0ed; font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
-.album-info-track-name small { display: block; margin-top: 3px; color: #aaa9ad; font-size: 11px; overflow-wrap: anywhere; }
-.album-info-track-time { flex: none; color: #aaa9ad; font-size: 12px; }
+.album-info-track-name small { display: block; margin-top: 3px; color: var(--text-secondary); font-size: 11px; overflow-wrap: anywhere; }
+.album-info-track-time { flex: none; color: var(--text-secondary); font-size: 12px; }
 @media (max-width: 760px) { .album-info-facts { grid-template-columns: 1fr; } }
 .artist-description-brief, .artist-description-section p { margin: 0; color: #c4c4c7; font-size: 13px; line-height: 1.85; white-space: pre-line; overflow-wrap: anywhere; }
 .artist-description-section { margin-top: 20px; }
@@ -54,7 +54,7 @@
 .catalog-text-link:hover, .track-meta-link:hover { text-decoration: underline; }
 .catalog-related { margin-bottom: 34px; }
 .catalog-tabs { display: flex; gap: 4px; width: fit-content; margin: 0 0 22px; padding: 4px; border: 1px solid #383a3c; border-radius: 7px; background: #202123; }
-.catalog-tabs button { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 0 12px; border: 0; border-radius: 5px; background: transparent; color: #aaa9ad; font-size: 12px; }
+.catalog-tabs button { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 0 12px; border: 0; border-radius: 5px; background: transparent; color: var(--text-secondary); font-size: 12px; }
 .catalog-tabs button:hover { color: #f1f0ed; }
 .catalog-tabs button.active { background: var(--tint); color: var(--accent); }
 .catalog-tabs button span { min-width: 20px; padding: 2px 5px; border-radius: 10px; background: #343538; color: #d5d4d5; font-size: 10px; text-align: center; }
@@ -66,6 +66,6 @@
 .catalog-songs .library-heading > div:first-child, .catalog-songs .library-filters > :not(.locate-current-track) { display: none; }
 .catalog-songs .library-filters { justify-content: flex-end; }
 .track-meta-link { padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
-.library-track-name .track-meta-link { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #aaa9ad; }
+.library-track-name .track-meta-link { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary); }
 .library-album .track-meta-link { overflow: hidden; max-width: 100%; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 760px) { .sidebar > nav.space-y-1 { overflow-x: auto; min-width: 0; scrollbar-width: none; } .sidebar > nav.space-y-1 .nav-item { flex: none; } .catalog-workspace { overflow: visible; } .catalog-page { padding: 24px 16px 48px; } .catalog-toolbar { align-items: stretch; flex-direction: column; margin-bottom: 19px; } .catalog-search { width: 100%; } .catalog-sort { align-self: flex-start; } .catalog-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 12px; } .catalog-hero { gap: 16px; } .catalog-hero > img { width: 100px; } .catalog-hero h1 { font-size: 22px; } }

@@ -30,7 +30,7 @@
 .library-heading { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 22px; margin-bottom: 29px; }
 .library-heading h1 { margin: 10px 0 5px; color: #f2f0ec; font-size: 27px; font-weight: 600; }
 .library-heading p { margin: 0; color: #a1a0a3; font-size: 12px; }
-.library-view .library-search { width: min(100%, 300px); min-width: 0; height: 40px; flex: 0 1 300px; margin: 0; border: 1px solid #3e4144; border-radius: 7px; background: #202224; color: #aaa9ad; }
+.library-view .library-search { width: min(100%, 300px); min-width: 0; height: 40px; flex: 0 1 300px; margin: 0; border: 1px solid #3e4144; border-radius: 7px; background: #202224; color: var(--text-secondary); }
 .library-view .library-search:focus-within { border-color: var(--accent); }
 .library-view .library-search input { min-width: 0; font-size: 12px; }
 .library-view .library-search input::placeholder { color: #99999e; }
@@ -41,9 +41,9 @@
 .library-delete-selection { height: 40px; display: inline-flex; align-items: center; gap: 7px; flex: none; padding: 0 11px; border: 1px solid var(--line); border-radius: 6px; background: transparent; color: var(--accent); font-size: 12px; cursor: pointer; }
 .library-delete-selection:hover:not(:disabled) { border-color: var(--accent); background: var(--tint); }
 .library-delete-selection:disabled { color: var(--muted); cursor: not-allowed; opacity: .6; }
-.library-tag-filter { height: 40px; display: flex; align-items: center; gap: 7px; max-width: 190px; padding: 0 9px; border: 1px solid #3e4144; border-radius: 7px; background: #202224; color: #aaa9ad; }
+.library-tag-filter { height: 40px; display: flex; align-items: center; gap: 7px; max-width: 190px; padding: 0 9px; border: 1px solid #3e4144; border-radius: 7px; background: #202224; color: var(--text-secondary); }
 .library-tag-filter select { min-width: 90px; max-width: 150px; border: 0; outline: none; background: transparent; color: inherit; font-size: 12px; }
-.library-tag-filter option { background: #202224; color: #eee; }
+.library-tag-filter option { background: #202224; color: var(--text-primary); }
 .mode-light .library-tag-filter, .mode-light .library-tag-filter option { background: var(--light-panel); border-color: var(--line); color: var(--light-text); }
 .library-table-head, .library-row { display: grid; grid-template-columns: 54px minmax(0, 2fr) minmax(0, 1.3fr) 75px 44px; align-items: center; gap: 12px; }
 .library-table-head { padding: 0 12px 12px; border-bottom: 1px solid #383a3c; color: #98989d; font-size: 11px; }
@@ -63,10 +63,10 @@
 .library-track-name strong, .library-track-name small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .library-track-name strong { color: #efeeeb; font-size: 13px; font-weight: 500; }
 .library-track-name:hover strong, .library-row.is-current .library-track-name strong { color: var(--accent); }
-.library-track-name small, .library-track-name .track-meta-link { display: block; max-width: 100%; overflow: hidden; margin-top: 5px; color: #aaa9ad; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.library-track-name small, .library-track-name .track-meta-link { display: block; max-width: 100%; overflow: hidden; margin-top: 5px; color: var(--text-secondary); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .library-album { overflow: hidden; color: #b4b2b5; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-.library-duration { color: #aaa9ad; font: 11px 'DM Mono', monospace; }
-.library-like { width: 34px; height: 34px; display: grid; place-items: center; border: 0; border-radius: 6px; background: none; color: #aaa9ad; }
+.library-duration { color: var(--text-secondary); font: 11px 'DM Mono', monospace; }
+.library-like { width: 34px; height: 34px; display: grid; place-items: center; border: 0; border-radius: 6px; background: none; color: var(--text-secondary); }
 .library-like:hover, .library-like.is-liked { color: var(--accent); background: var(--tint); }
 .library-empty { min-height: 250px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 10px; color: #b5b3b6; }
 .library-empty svg { color: var(--accent); }

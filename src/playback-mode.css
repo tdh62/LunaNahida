@@ -3,7 +3,7 @@
 .playback-mode-control:hover { background: var(--tint); color: var(--accent); }
 .playback-mode-control:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .playback-mode-control:disabled { opacity: .45; cursor: default; }
-.playback-mode-menu[role="menu"] { z-index: 150; width: 186px; padding: 5px; background: #202123; border-color: #44464a; color: #efefeb; }
+.playback-mode-menu[role="menu"] { z-index: 150; width: 186px; padding: 5px; background: #202123; border-color: #44464a; color: var(--text-primary); }
 .playback-mode-option { height: 37px; gap: 9px; padding-left: 28px; font-size: 12px; cursor: pointer; }
 .playback-mode-option[data-state="checked"] { background: #343e37; color: #c9e8d2; font-weight: 600; }
 .playback-mode-option:focus { background: #383a3e; color: #fff; }

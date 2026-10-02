@@ -14,7 +14,7 @@ html.mode-light .toolbox-dialog.theme-forest { --toolbox-accent: #2b7651; }
 .toolbox-controls, .toolbox-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .toolbox-controls label { display: flex; align-items: center; gap: 7px; font-size: 11px; cursor: pointer; }
 .toolbox-controls input { accent-color: var(--toolbox-accent); }
-.toolbox-controls button, .toolbox-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 31px; padding: 5px 11px; border: 1px solid #45494b; border-radius: 5px; background: #292c2d; color: #eee; font-size: 11px; }
+.toolbox-controls button, .toolbox-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 31px; padding: 5px 11px; border: 1px solid #45494b; border-radius: 5px; background: #292c2d; color: var(--text-primary); font-size: 11px; }
 .toolbox-actions { justify-content: flex-end; }
 .toolbox-actions .toolbox-convert { min-width: 116px; min-height: 38px; border-color: var(--toolbox-accent); background: var(--toolbox-accent); color: var(--toolbox-accent-text); font-size: 12px; font-weight: 600; }
 .toolbox-actions .toolbox-convert:hover:not(:disabled) { filter: brightness(1.08); }
@@ -29,7 +29,7 @@ html.mode-light .toolbox-actions .toolbox-convert:disabled { border-color: #c6d0
 .toolbox-item strong, .toolbox-item small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .toolbox-item strong { font-size: 11px; font-weight: 500; }
 .toolbox-item small { margin-top: 4px; color: #a5a7a9; font-size: 10px; }
-.toolbox-item button { display: grid; place-items: center; flex: none; width: 28px; height: 28px; border: 0; background: none; color: #aaa; }
+.toolbox-item button { display: grid; place-items: center; flex: none; width: 28px; height: 28px; border: 0; background: none; color: var(--text-secondary); }
 .toolbox-item .toolbox-success { flex: none; color: #73c69d; }
 .toolbox-dialog.toolbox-menu-dialog { top: calc((100dvh - 120px) / 2); width: min(520px, calc(100vw - 28px)); max-width: 520px; max-height: calc(100dvh - 160px); overflow-y: auto; }
 .toolbox-app-nav { display: flex; align-items: center; gap: 12px; padding-right: 26px; }
