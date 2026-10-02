@@ -41,12 +41,13 @@ function wav() {
 const audio = wav();
 const file = { name: 'browser-sample.wav', mimeType: 'audio/wav', buffer: audio };
 
-async function setup({ backend = false, desktop = false, lateDesktop = false, trackTitle = 'Native Song', tracks = [], viewport = { width: 1280, height: 800 } } = {}) {
+async function setup({ backend = false, desktop = false, lateDesktop = false, trackTitle = 'Native Song', tracks = [], queue = [], viewport = { width: 1280, height: 800 } } = {}) {
   const page = await browser.newPage({ viewport });
   const errors = [];
   const requests = [];
   const state = emptyLibrary();
   state.tracks = tracks;
+  state.queue = queue;
   const nativeWindow = { width: viewport.width, height: viewport.height, x: 100, y: 80, frameless: true, resizable: true, pinned: false, calls: [] };
   state.settings.dropAction = 'watch';
   let disconnected = false;
@@ -120,7 +121,7 @@ async function setup({ backend = false, desktop = false, lateDesktop = false, tr
   });
   await page.goto(url);
   await page.locator('.music-app').waitFor();
-  return { page, errors, requests, nativeWindow, disconnect: () => { disconnected = true; } };
+  return { page, errors, requests, nativeWindow, state, disconnect: () => { disconnected = true; } };
 }
 
 try {
@@ -284,6 +285,62 @@ try {
   assert.deepEqual(phonetic.errors, []);
   await searchPage.close();
   console.log('PASS phonetic search: pinyin, initials, traditional Chinese, kana/kanji romaji, asynchronous index updates, combined filters, artists and albums');
+
+  const miniDropTrack = (id, title) => ({ id, title, english: '', artist: 'Drop Artist', album: 'Drop Album', duration: 30, cover: '/covers/local.svg', genre: '', year: '', color: '#8daab0', source: `/api/media/audio/${id}`, path: `C:/music/${title}.wav` });
+  const droppedMini = await setup({ backend: true, desktop: true, tracks: [miniDropTrack(1, 'Previous Song')], queue: [1] });
+  const { page: dropPage, state: dropState } = droppedMini;
+  const normalDrop = miniDropTrack(2, 'Dropped Song');
+  const convertedDrop = miniDropTrack(3, 'Converted Song');
+  const nextDrop = miniDropTrack(4, 'Next Drop');
+  const slowDrop = miniDropTrack(5, 'Slow Converted Song');
+  await dropPage.route('**/api/media/audio/*', route => route.fulfill({ contentType: 'audio/wav', body: audio }));
+  await dropPage.route('**/api/conversion/inspect', route => route.fulfill({ json: { paths: route.request().postDataJSON().paths.filter(path => path.endsWith('.qmc0')) } }));
+  await dropPage.route('**/api/import', route => {
+    const {paths, mode, skipConversion} = route.request().postDataJSON();
+    assert.equal(mode, 'library'); assert.equal(skipConversion, true);
+    const imported = [normalDrop, nextDrop].filter(track => paths.includes(track.path));
+    for (const track of imported) if (!dropState.tracks.some(item => item.id === track.id)) dropState.tracks.push(track);
+    return route.fulfill({ json: imported });
+  });
+  await dropPage.route('**/api/conversion', async route => {
+    const {path, addToLibrary} = route.request().postDataJSON();
+    assert.equal(addToLibrary, true);
+    if (path.endsWith('broken.qmc0')) return route.fulfill({ json: { source: path, status: 'failed', error: 'Test decode failure' } });
+    const track = path.endsWith('slow.qmc0') ? slowDrop : convertedDrop;
+    if (track === slowDrop) await new Promise(resolve => setTimeout(resolve, 200));
+    if (!dropState.tracks.some(item => item.id === track.id)) dropState.tracks.push(track);
+    return route.fulfill({ json: { source: path, output: track.path, status: 'converted', track } });
+  });
+  await dropPage.waitForFunction(() => typeof window._wails?.dispatchWailsEvent === 'function');
+  await dropPage.getByRole('button', { name: '迷你模式', exact: true }).click();
+  const dropMini = dropPage.getByRole('region', { name: '迷你播放器' });
+  await dropMini.waitFor();
+  const resizeCalls = droppedMini.nativeWindow.calls.filter(call => call.method === 33).length;
+  const dropIntoMini = paths => dropPage.evaluate(paths => window._wails.dispatchWailsEvent({ name: 'lunanahida:files-dropped', data: paths }), paths);
+  const waitDrop = async (title, ids) => {
+    await dropMini.locator('strong').filter({ hasText: title }).waitFor();
+    await dropMini.getByRole('button', { name: '暂停', exact: true }).waitFor();
+    await dropPage.waitForFunction(expected => {
+      const queue = [...document.querySelectorAll('.queue-sortable .queue-track-label > span')].map(element => element.textContent);
+      return JSON.stringify(queue) === JSON.stringify(expected);
+    }, ids.map(id => [miniDropTrack(1, 'Previous Song'), normalDrop, convertedDrop, nextDrop, slowDrop].find(track => track.id === id).title));
+    assert.deepEqual(dropPage.viewportSize(), { width: 400, height: 168 });
+    assert.equal(droppedMini.nativeWindow.calls.filter(call => call.method === 33).length, resizeCalls);
+    assert.equal(await dropPage.locator('.toolbox-dialog').count(), 0);
+  };
+  await dropIntoMini([normalDrop.path]);
+  await waitDrop(normalDrop.title, [1, 2]);
+  await dropIntoMini(['C:/music/secret.qmc0']);
+  await waitDrop(convertedDrop.title, [1, 2, 3]);
+  await dropIntoMini(['C:/music/broken.qmc0', nextDrop.path]);
+  await waitDrop(nextDrop.title, [1, 2, 3, 4]);
+  await dropIntoMini(['C:/music/slow.qmc0']);
+  await dropIntoMini([normalDrop.path]);
+  await waitDrop(normalDrop.title, [1, 2, 3, 4, 5]);
+  assert.ok(droppedMini.requests.some(request => request.path === '/api/conversion' && JSON.parse(request.body).path.endsWith('broken.qmc0')));
+  assert.deepEqual(droppedMini.errors, []);
+  await dropPage.close();
+  console.log('PASS mini file drops: direct import and conversion, append existing queue, immediate playback, partial failures, consecutive drops and unchanged window size');
 
   const native = await setup({ backend: true, desktop: true, lateDesktop: true });
   assert.equal(await native.page.getByRole('button', { name: '迷你模式', exact: true }).count(), 0);

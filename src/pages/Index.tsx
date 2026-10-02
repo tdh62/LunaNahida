@@ -113,6 +113,9 @@ export default function Index() {
   const runtime = useRuntime();
   const mini = useMiniMode(runtime.mode === 'desktop');
   const p = usePlayer();
+  const miniDropPlayer = useRef(p);
+  miniDropPlayer.current = p;
+  const miniDropWork = useRef<Promise<void>>(Promise.resolve());
   const workTimer = useWorkTimer();
   const outputPlaying = p.playing || p.noise.playing;
   const outputVolume = p.noise.active ? p.noise.volume : p.volume;
@@ -238,6 +241,42 @@ export default function Index() {
       toast.success(`已处理 ${imported.length} 首歌曲`);
     } catch (error) { void reloadLibrary().catch(() => {}); toast.error(error instanceof Error ? error.message : '导入失败'); }
   };
+  const handleMiniDrop = async (paths: string[]) => {
+    paths = [...new Set(paths.filter(Boolean))];
+    if (!paths.length) return;
+    const encrypted = [...new Set((await backend.inspectConversion(paths)).paths)];
+    const encryptedSet = new Set(encrypted);
+    const ordinary = paths.filter(path => !encryptedSet.has(path));
+    const failures: string[] = [];
+    const warnings: string[] = [];
+    let added = 0;
+    let started = false;
+    const enqueue = async (tracks: Track[]) => {
+      if (!tracks.length) return;
+      await reloadLibrary().catch(error => toast.error(error instanceof Error ? error.message : '刷新音乐库失败'));
+      const player = miniDropPlayer.current;
+      player.addTracks(tracks);
+      added += tracks.length;
+      const first = tracks.find(track => track.available !== false && track.playbackStatus !== 'unplayable');
+      if (!started && first) { player.select(first.id); started = true; }
+    };
+    if (ordinary.length) {
+      try { await enqueue(await backend.import(ordinary, 'library', true)); }
+      catch (error) { failures.push(error instanceof Error ? error.message : '导入失败'); }
+    }
+    for (const path of encrypted) {
+      try {
+        const result = await backend.convert(path, true);
+        if (result.status !== 'converted' || !result.track) throw new Error(result.error || '转换后未能加入音乐库');
+        await enqueue([result.track]);
+        if (result.error) warnings.push(result.error);
+      } catch (error) { failures.push(`${path.split(/[\\/]/).pop()}：${error instanceof Error ? error.message : '转换失败'}`); }
+    }
+    if (added) toast.success(`已处理 ${added} 首歌曲`);
+    if (failures.length) toast.error('部分音频处理失败', { description: failures.slice(0, 2).join('；') });
+    else if (!added) toast.info('没有找到可导入的音频文件');
+    if (warnings.length) toast.warning(warnings[0]);
+  };
   const handlePaths = async (paths: string[], dropped = false) => {
     if (!paths.length) return;
     let encrypted: string[] = [];
@@ -311,7 +350,9 @@ export default function Index() {
         Events.On('lunanahida:files-dropped', event => {
           dragDepth.current = 0; setDropActive(false);
           const paths = event.data as string[];
-          if (mini.active) { void mini.change(false).then(restored => { if (restored) void handlePaths(paths, true); }); }
+          if (mini.active) {
+            miniDropWork.current = miniDropWork.current.then(() => handleMiniDrop(paths)).catch(error => { toast.error(error instanceof Error ? error.message : '音频处理失败'); });
+          }
           else if (toolboxOpen) window.dispatchEvent(new CustomEvent('lunanahida-toolbox-drop', { detail: paths }));
           else void handlePaths(paths, true);
         }),
