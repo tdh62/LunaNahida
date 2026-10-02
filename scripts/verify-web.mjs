@@ -41,10 +41,11 @@ function wav() {
 const audio = wav();
 const file = { name: 'browser-sample.wav', mimeType: 'audio/wav', buffer: audio };
 
-async function setup({ backend = false, desktop = false, lateDesktop = false, trackTitle = 'Native Song', tracks = [], queue = [], viewport = { width: 1280, height: 800 } } = {}) {
+async function setup({ backend = false, desktop = false, lateDesktop = false, trackTitle = 'Native Song', tracks = [], queue = [], dictionary = 'available', viewport = { width: 1280, height: 800 } } = {}) {
   const page = await browser.newPage({ viewport });
   const errors = [];
   const requests = [];
+  const dictionaryRequests = [];
   const state = emptyLibrary();
   state.tracks = tracks;
   state.queue = queue;
@@ -53,6 +54,12 @@ async function setup({ backend = false, desktop = false, lateDesktop = false, tr
   let disconnected = false;
   page.on('pageerror', error => errors.push(error.message));
   page.on('request', request => { if (new URL(request.url()).pathname.startsWith('/api/')) requests.push({ path: new URL(request.url()).pathname, method: request.method(), body: request.postData() }); });
+  page.on('request', request => { if (new URL(request.url()).pathname.startsWith('/search-dict/')) dictionaryRequests.push(new URL(request.url()).pathname); });
+  if (dictionary !== 'available') await page.route('**/search-dict/**', async route => {
+    const manifest = new URL(route.request().url()).pathname.endsWith('/manifest.json');
+    if (manifest && dictionary !== 'missing') await route.fulfill({ json: { available: dictionary === 'corrupt' } });
+    else await route.fulfill({ status: 404, body: '' });
+  });
   await page.route('https://fonts.googleapis.com/**', route => route.abort());
   await page.addInitScript(({ desktop, lateDesktop }) => {
     if (desktop && !lateDesktop) window._wails = { environment: { OS: 'windows' }, flags: { enableFileDrop: false } };
@@ -117,11 +124,12 @@ async function setup({ backend = false, desktop = false, lateDesktop = false, tr
       state.tracks = [{ id: 1, title: trackTitle, english: '', artist: '本地文件', album: 'Native Album', duration: 30, cover: '/covers/local.svg', genre: '', year: '', color: '#8daab0', source: '/api/media/audio/1', path: 'C:/music/native.wav' }];
       await route.fulfill({ json: state.tracks });
     } else if (path === '/api/media/audio/1') await route.fulfill({ contentType: 'audio/wav', body: audio });
-    else await route.fulfill({ json: path === '/api/settings' ? JSON.parse(route.request().postData()) : { ok: true } });
+    else if (path === '/api/settings') { state.settings = route.request().postDataJSON(); await route.fulfill({ json: state.settings }); }
+    else await route.fulfill({ json: { ok: true } });
   });
   await page.goto(url);
   await page.locator('.music-app').waitFor();
-  return { page, errors, requests, nativeWindow, state, disconnect: () => { disconnected = true; } };
+  return { page, errors, requests, dictionaryRequests, nativeWindow, state, disconnect: () => { disconnected = true; } };
 }
 
 try {
@@ -285,6 +293,102 @@ try {
   assert.deepEqual(phonetic.errors, []);
   await searchPage.close();
   console.log('PASS phonetic search: pinyin, initials, traditional Chinese, kana/kanji romaji, asynchronous index updates, combined filters, artists and albums');
+
+  for (const dictionary of ['missing', 'incomplete', 'corrupt']) {
+    const optional = await setup({ backend: true, tracks: searchTracks, dictionary });
+    await optional.page.getByRole('button', { name: '我的音乐', exact: true }).click();
+    await optional.page.waitForFunction(() => document.querySelector('.library-row'));
+    const search = optional.page.getByRole('textbox', { name: '搜索歌曲、歌手、专辑或标签', exact: true });
+    await search.fill('hbp');
+    await optional.page.locator('.library-track-name strong').filter({ hasText: '黑白配' }).waitFor();
+    await search.fill('君の名は');
+    await optional.page.locator('.library-track-name strong').filter({ hasText: '前前前世' }).waitFor();
+    await search.fill('kiminonawa');
+    assert.equal(await optional.page.locator('.library-row').count(), 0);
+    await search.fill('ギブス');
+    await optional.page.locator('.library-track-name strong').filter({ hasText: 'ギブス' }).waitFor();
+    assert.deepEqual(optional.errors, []);
+    if (dictionary !== 'corrupt') assert.ok(optional.dictionaryRequests.every(path => path.endsWith('manifest.json')), 'unavailable dictionaries must not start bulk downloads');
+    await optional.page.close();
+  }
+  console.log('PASS optional dictionary: missing, incomplete and corrupt resources disable Japanese readings, literal and pinyin search remain usable');
+
+  const themed = await setup({ backend: true, desktop: true, tracks: searchTracks, queue: [1] });
+  const themePage = themed.page;
+  const backgrounds = [];
+  const surfaceColors = async () => themePage.evaluate(() => {
+    const resolveColor = token => {
+      const probe = document.createElement('span');
+      probe.style.backgroundColor = `var(${token})`;
+      document.body.append(probe);
+      const color = getComputedStyle(probe).backgroundColor;
+      probe.remove(); return color;
+    };
+    const background = selector => getComputedStyle(document.querySelector(selector)).backgroundColor;
+    return { page: background('.music-app'), body: background('body'), sidebar: background('.sidebar'), playback: background('.playback-bar'), expectedPage: resolveColor('--page-background'), expectedPanel: resolveColor('--panel-background'), expectedField: resolveColor('--field-background'), expectedHighlight: resolveColor('--light-highlight') };
+  });
+  const waitForTheme = async () => themePage.waitForFunction(() => {
+    const probe = document.createElement('span'); probe.style.backgroundColor = 'var(--page-background)'; document.body.append(probe);
+    const expected = getComputedStyle(probe).backgroundColor; probe.remove();
+    return getComputedStyle(document.querySelector('.music-app')).backgroundColor === expected;
+  });
+  for (const [id, name] of [['dusk', '山间暮色'], ['anime', '星野放映室'], ['forest', '纳西妲之森'], ['custom', '自定义配色']]) {
+    await themePage.getByRole('link', { name: '播放器设置', exact: true }).click();
+    await themePage.getByRole('tab', { name: '外观', exact: true }).click();
+    await themePage.getByRole('button', { name, exact: true }).click();
+    if (id === 'custom') await themePage.getByLabel('自定义主题基色', { exact: true }).fill('#007aff');
+    await waitForTheme();
+    const colors = await surfaceColors();
+    backgrounds.push(colors.page);
+    assert.equal(colors.page, colors.expectedPage); assert.equal(colors.body, colors.expectedPage); assert.equal(colors.playback, colors.expectedPanel);
+    assert.equal(await themePage.locator('.settings-navigation').evaluate(e => getComputedStyle(e).backgroundColor), colors.expectedPage);
+    await themePage.getByRole('button', { name: '搜索设置', exact: true }).click();
+    assert.equal(await themePage.locator('.settings-search-popover').evaluate(e => getComputedStyle(e).backgroundColor), colors.expectedPanel);
+    await themePage.keyboard.press('Escape');
+    await themePage.getByRole('button', { name: '我的音乐', exact: true }).click();
+    await themePage.locator('.library-row').first().hover();
+    await themePage.waitForFunction(expected => getComputedStyle(document.querySelector('.library-row')).backgroundColor === expected, colors.expectedHighlight);
+    assert.equal(await themePage.locator('.library-row').first().evaluate(e => getComputedStyle(e).backgroundColor), colors.expectedHighlight);
+    await themePage.screenshot({ path: resolve(output, `light-theme-${id}.png`) });
+    await themePage.getByRole('button', { name: '音频工具箱', exact: true }).click();
+    assert.equal(await themePage.locator('.toolbox-dialog').evaluate(e => getComputedStyle(e).backgroundColor), colors.expectedPanel);
+    await themePage.keyboard.press('Escape');
+    await themePage.getByRole('button', { name: '迷你模式', exact: true }).click();
+    await themePage.locator('.desktop-mini-player').waitFor();
+    assert.equal(await themePage.locator('.music-app').evaluate(e => getComputedStyle(e).backgroundColor), colors.expectedPage);
+    await themePage.screenshot({ path: resolve(output, `light-theme-${id}-mini.png`) });
+    await themePage.getByRole('button', { name: '退出迷你模式', exact: true }).click();
+  }
+  assert.equal(new Set(backgrounds).size, 4, 'every theme must change the main background');
+  await themePage.getByRole('link', { name: '播放器设置', exact: true }).click();
+  await themePage.getByRole('tab', { name: '外观', exact: true }).click();
+  for (const color of ['#ffff00', '#ffffff', '#000000', '#ff3366']) {
+    await themePage.getByLabel('自定义主题基色', { exact: true }).fill(color);
+    await waitForTheme();
+    const colors = await surfaceColors();
+    assert.equal(colors.playback, colors.expectedPanel);
+  }
+  await themePage.screenshot({ path: resolve(output, 'custom-theme-picker.png') });
+  const savedCustomTheme = themePage.waitForResponse(response => response.url().endsWith('/api/settings') && response.request().postDataJSON().themeColor === '#ff3366' && response.request().postDataJSON().appearance === 'dark');
+  await themePage.getByRole('button', { name: '深色', exact: true }).click();
+  await waitForTheme();
+  await themePage.waitForFunction(() => document.documentElement.style.colorScheme === 'dark');
+  await themePage.screenshot({ path: resolve(output, 'custom-theme-dark.png') });
+  await themePage.waitForFunction(() => window.innerWidth === 1280);
+  // Wait for the saved settings request, then reload from the simulated persistent backend.
+  await savedCustomTheme;
+  await themePage.reload();
+  await themePage.locator('.music-app.theme-custom.mode-dark').waitFor();
+  await themePage.getByRole('link', { name: '播放器设置', exact: true }).click();
+  await themePage.getByRole('tab', { name: '外观', exact: true }).click();
+  assert.equal(await themePage.getByLabel('自定义主题基色', { exact: true }).inputValue(), '#ff3366');
+  await themePage.getByRole('button', { name: '浅色', exact: true }).click();
+  await themePage.getByRole('button', { name: '山间暮色', exact: true }).click();
+  await waitForTheme();
+  assert.equal(await themePage.evaluate(() => document.documentElement.style.getPropertyValue('--page-background')), '', 'preset themes must clear custom overrides');
+  assert.deepEqual(themed.errors, []);
+  await themePage.close();
+  console.log('PASS theme palettes: all presets and custom colors update main pages, list hover, playback, search popovers, dialogs and mini mode; saved custom colors survive reload');
 
   const miniDropTrack = (id, title) => ({ id, title, english: '', artist: 'Drop Artist', album: 'Drop Album', duration: 30, cover: '/covers/local.svg', genre: '', year: '', color: '#8daab0', source: `/api/media/audio/${id}`, path: `C:/music/${title}.wav` });
   const droppedMini = await setup({ backend: true, desktop: true, tracks: [miniDropTrack(1, 'Previous Song')], queue: [1] });

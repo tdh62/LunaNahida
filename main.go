@@ -6,6 +6,7 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
+	"os"
 	"path/filepath"
 	"runtime/debug"
 	"strconv"
@@ -17,9 +18,12 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/services/notifications"
 	"lunanahida/backend"
 	"lunanahida/internal/logging"
+	"lunanahida/internal/searchdict"
 )
 
-//go:embed all:dist
+// Embed only interface assets, excluding search-dict even after a static Web build.
+//
+//go:embed all:dist/assets all:dist/covers dist/*.*
 var frontend embed.FS
 
 //go:embed build/appicon.png
@@ -77,6 +81,11 @@ func main() {
 		}
 	}()
 	log.Print("desktop application starting")
+	executable, err := os.Executable()
+	if err != nil {
+		log.Fatal(err)
+	}
+	dictionaryHandler := searchdict.Handler(filepath.Dir(executable))
 	var api *backend.API
 	var apiHandler http.Handler
 	notifier := notifications.New()
@@ -94,6 +103,10 @@ func main() {
 			Handler: application.AssetFileServerFS(frontend),
 			Middleware: func(next http.Handler) http.Handler {
 				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if strings.HasPrefix(r.URL.Path, "/search-dict/") {
+						dictionaryHandler.ServeHTTP(w, r)
+						return
+					}
 					if strings.HasPrefix(r.URL.Path, "/api/") {
 						apiHandler.ServeHTTP(w, r)
 						return

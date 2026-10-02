@@ -3,9 +3,16 @@ import type { IpadicFeatures, Tokenizer } from 'kuromoji';
 import { japaneseSearchKeys } from './japanese-search';
 
 let tokenizer: Promise<Tokenizer<IpadicFeatures>>;
-const initialize = () => tokenizer ??= new Promise((resolve, reject) => {
-  kuromoji.builder({ dicPath: `${import.meta.env.BASE_URL}search-dict/` }).build((error, value) => error ? reject(error) : resolve(value));
-});
+const initialize = () => tokenizer ??= (async () => {
+  const path = `${import.meta.env.BASE_URL}search-dict/`;
+  const response = await fetch(`${path}manifest.json`, { cache: 'no-store' });
+  if (!response.ok || !(await response.json()).available) throw new Error('Japanese dictionary unavailable');
+  const value = await new Promise<Tokenizer<IpadicFeatures>>((resolve, reject) => {
+    kuromoji.builder({ dicPath: path }).build((error, value) => error ? reject(error) : resolve(value));
+  });
+  self.postMessage({ ready: true });
+  return value;
+})();
 
 self.onmessage = async (event: MessageEvent<string[]>) => {
   try {

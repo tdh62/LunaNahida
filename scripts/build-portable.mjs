@@ -1,6 +1,7 @@
 import { cpSync, existsSync, mkdirSync, rmSync, statSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
+import { copySearchDictionary } from './search-dictionary.mjs';
 
 if (process.platform !== 'win32' || process.arch !== 'x64') {
   throw new Error('The portable package requires Windows x64.');
@@ -29,4 +30,5 @@ if (build.status !== 0) process.exit(build.status ?? 1);
 
 rmSync(runtime, { recursive: true, force: true });
 cpSync(source, runtime, { recursive: true });
+await copySearchDictionary(output);
 console.log(`Portable package: ${output}`);

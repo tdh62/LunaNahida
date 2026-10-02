@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
-import { addJapaneseSearchKeys, matchesSearch, warmSearchKeys } from '@/lib/phonetic-search';
+import { addJapaneseSearchKeys, matchesSearch, setJapaneseSearchAvailable, warmSearchKeys } from '@/lib/phonetic-search';
 import { trackTags, type Track } from '@/lib/music';
 
 const indexed = new Set<string>();
@@ -12,15 +12,16 @@ const subscribe = (listener: () => void) => { listeners.add(listener); return ()
 const snapshot = () => matcher;
 
 function ensureIndex(texts: readonly string[]) {
-  const pending = [...new Set(texts)].filter(text => /\p{Script=Han}/u.test(text) && !indexed.has(text));
+  const pending = [...new Set(texts)].filter(text => /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u.test(text) && !indexed.has(text));
   if (!pending.length || failed || typeof Worker === 'undefined') return;
   if (!worker) {
     try { worker = new Worker(new URL('../lib/japanese-search.worker.ts', import.meta.url), { type: 'module' }); }
     catch { failed = true; return; }
-    const stop = () => { failed = true; worker?.terminate(); worker = undefined; };
+    const stop = () => { failed = true; setJapaneseSearchAvailable(false); worker?.terminate(); worker = undefined; };
     worker.onerror = stop;
-    worker.onmessage = (event: MessageEvent<{ entries?: [string, string[]][]; failed?: boolean }>) => {
+    worker.onmessage = (event: MessageEvent<{ entries?: [string, string[]][]; failed?: boolean; ready?: boolean }>) => {
       if (event.data.failed) { stop(); return; }
+      if (event.data.ready) setJapaneseSearchAvailable(true);
       for (const [text, keys] of event.data.entries ?? []) addJapaneseSearchKeys(text, keys);
       if (!notification) notification = setTimeout(() => {
         notification = undefined;

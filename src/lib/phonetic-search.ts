@@ -6,6 +6,7 @@ type SearchKeys = { original: string; compact: string; chinese: string[]; japane
 type SearchTerm = { raw: string; compact: string; romaji: string };
 const index = new Map<string, SearchKeys>();
 const queries = new Map<string, SearchTerm[]>();
+let japaneseAvailable = false;
 const han = /\p{Script=Han}/u;
 const kana = /[\u3040-\u30ff]/u;
 const toSimplified = Converter({ from: 'tw', to: 'cn' });
@@ -23,13 +24,19 @@ function keysFor(text: string): SearchKeys {
     }
     keys.chinese = [...new Set(keys.chinese)];
   }
-  if (kana.test(text)) keys.japanese = kanaSearchKeys(text).map(normalizeRomaji);
+  if (japaneseAvailable && kana.test(text)) keys.japanese = kanaSearchKeys(text).map(normalizeRomaji);
   index.set(text, keys);
   return keys;
 }
 
 export function addJapaneseSearchKeys(text: string, readings: string[]) {
+  if (!japaneseAvailable) return;
   keysFor(text).japanese = [...new Set(readings.map(normalizeRomaji))];
+}
+
+export function setJapaneseSearchAvailable(available: boolean) {
+  japaneseAvailable = available;
+  for (const [text, keys] of index) keys.japanese = available && kana.test(text) ? kanaSearchKeys(text).map(normalizeRomaji) : [];
 }
 
 export function warmSearchKeys(texts: Iterable<string>) {

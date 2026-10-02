@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import kuromoji from 'kuromoji';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
-import { addJapaneseSearchKeys, matchesSearch, warmSearchKeys } from './phonetic-search.ts';
+import { addJapaneseSearchKeys, matchesSearch, setJapaneseSearchAvailable, warmSearchKeys } from './phonetic-search.ts';
 import { japaneseSearchKeys } from './japanese-search.ts';
 import { queryTracks } from './track-query.ts';
 
@@ -26,6 +26,7 @@ test('Chinese full pinyin, initials, spacing, mixed scripts and traditional name
 });
 
 test('Japanese kana supports common keyboard spellings, small kana, gemination and long vowels', () => {
+  setJapaneseSearchAvailable(true);
   for (const query of ['shugaasongu', 'shugasongu', 'syuga songu', 'sgsng']) assert.ok(matchesSearch('シュガーソング', query), query);
   for (const query of ['shinjitsu', 'sinzitu']) assert.ok(matchesSearch('しんじつ', query), query);
   assert.ok(matchesSearch('キット', 'kitto'));
@@ -35,6 +36,7 @@ test('Japanese kana supports common keyboard spellings, small kana, gemination a
 });
 
 test('local dictionary supplies kanji readings, particles and initials', async () => {
+  setJapaneseSearchAvailable(true);
   const analyzer = await new Promise((resolve, reject) => kuromoji.builder({ dicPath: join(dirname(createRequire(import.meta.url).resolve('kuromoji/package.json')), 'dict') }).build((error, tokenizer) => error ? reject(error) : resolve(tokenizer)));
   for (const [title, queries] of [
     ['君の名は。', ['kiminonawa', 'kimi no na wa', 'kiminonaha', 'kmnnw']],
@@ -46,6 +48,18 @@ test('local dictionary supplies kanji readings, particles and initials', async (
     for (const query of queries) assert.ok(matchesSearch(title, query), `${title}: ${query}`);
   }
   assert.equal(matchesSearch('君の名は。', 'kiminonawa another'), false);
+});
+
+test('missing dictionary disables Japanese readings and preserves literal and pinyin search', () => {
+  setJapaneseSearchAvailable(false);
+  addJapaneseSearchKeys('君の名は。', ['kiminonawa']);
+  assert.equal(matchesSearch('君の名は。', 'kiminonawa'), false);
+  assert.equal(matchesSearch('シュガーソング', 'shugasongu'), false);
+  assert.ok(matchesSearch('君の名は。', '君の名'));
+  assert.ok(matchesSearch('シュガーソング', 'シュガー'));
+  assert.ok(matchesSearch('黑白配', 'hbp'));
+  setJapaneseSearchAvailable(true);
+  assert.ok(matchesSearch('シュガーソング', 'shugasongu'), 'cached kana keys recover when the dictionary is enabled');
 });
 
 test('phonetic terms still intersect filters and metadata edits use fresh keys', () => {
