@@ -144,7 +144,7 @@ html.mode-light body { background: #f6f9f7; color: #25343a; }
 .mode-light .detail-modal dd { color: var(--light-muted); }
 .mode-light .playlist-editor > header > button:hover,
 .mode-light .quick-queue-panel header button:hover { background: var(--light-soft); color: var(--accent); }
-.mode-light .translation-toggle, .mode-light .lyrics-settings-toggle,
+.mode-light .translation-toggle, .mode-light .lyrics-settings-toggle, .mode-light .lyric-calibration-trigger,
 .mode-light .lyrics-immersive-toggle { background: rgba(255,255,255,.9); border-color: var(--line); color: var(--light-text); }
 .mode-light .queue-context .queue-context-danger { color: #a82f40; }
 .mode-light .playback-extras > .quality-badge { background: #e1f3e9; border-color: #74a98c; color: #276d4d; }
