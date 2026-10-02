@@ -1,9 +1,7 @@
 /* Keep the original neutral light surface for the blue and pink themes. */
-html.mode-light { --background: 160 20% 97%; --foreground: 205 22% 17%; --card: 0 0% 100%; --card-foreground: 205 22% 17%; --popover: 0 0% 100%; --popover-foreground: 205 22% 17%; --secondary: 165 13% 91%; --secondary-foreground: 205 22% 17%; --muted: 165 13% 91%; --muted-foreground: 205 12% 38%; --border: 170 13% 82%; --input: 170 13% 82%; --light-text: #25343a; --light-muted: #586968; --light-panel: #fff; --light-soft: #edf3f0; --line: #d8e1dc; }
-html.mode-light body { background: #f6f9f7; color: #25343a; }
-.music-app.mode-light { --accent: #435db8; --tint: rgba(67,93,184,.1); --background: #f6f9f7; --surface: #fff; --line: #d8e1dc; --muted: #5f706f; --cover-glow: rgba(80,115,181,.08); --light-text: #25343a; --light-muted: #586968; --light-panel: #fff; --light-soft: #edf3f0; --sidebar-background: #eef1f9; --sidebar-highlight: #e3e9f6; color: var(--light-text); }
-.music-app.mode-light.theme-anime { --accent: #a63d8b; --tint: rgba(166,61,139,.1); --cover-glow: rgba(166,61,139,.07); --sidebar-background: #f8f0f5; --sidebar-highlight: #f2e5ef; }
-.music-app.mode-light.theme-forest { --accent: #2b7651; --tint: rgba(43,118,81,.11); --background: #f7faf5; --line: #d8e5d8; --muted: #5e7163; --cover-glow: rgba(119,167,101,.12); --light-text: #26392f; --light-muted: #596f61; --light-soft: #e9f2e7; --sidebar-background: #eef5e9; --sidebar-highlight: #e3ebe6; }
+html.mode-light { --foreground: 205 22% 17%; --card: 0 0% 100%; --card-foreground: 205 22% 17%; --popover: 0 0% 100%; --popover-foreground: 205 22% 17%; --secondary-foreground: 205 22% 17%; --muted-foreground: 205 12% 38%; --line: var(--light-line); }
+html.mode-light body { background: var(--page-background); color: var(--light-text); }
+.music-app.mode-light, .music-app.mode-light:is(.theme-anime, .theme-forest) { --accent: var(--theme-accent); --tint: var(--theme-tint); --background: var(--page-background); --surface: var(--light-panel); --line: var(--light-line); --muted: var(--light-muted); --cover-glow: var(--theme-glow); --sidebar-highlight: var(--light-highlight); color: var(--light-text); }
 .mode-light .sidebar { background: var(--sidebar-background); }
 .mode-light .brand, .mode-light .collection, .mode-light .profile,
 .mode-light .album-title h2, .mode-light .lyric-line.current,
@@ -58,7 +56,7 @@ html.mode-light body { background: #f6f9f7; color: #25343a; }
 .mode-light .sidebar-restore,
 .mode-light .queue-track:hover, .mode-light .library-row:hover,
 .mode-light .library-row.is-current, .mode-light .quick-queue-list .queue-track:hover {
-  background: #e3ebe6; color: var(--light-text);
+  background: var(--light-highlight); color: var(--light-text);
 }
 .mode-light .sidebar .playlist-nav .nav-item, .mode-light .sidebar .import-actions .nav-item {
   background: transparent;
@@ -84,9 +82,9 @@ html.mode-light body { background: #f6f9f7; color: #25343a; }
 .mode-light .settings-eq-grid small { color: var(--accent); }
 .mode-light .lyric-逐字 .lyric-line.current > span { background: linear-gradient(90deg,var(--accent) 0 52%,var(--light-text) 52% 100%); background-clip: text; color: transparent; }
 .mode-light .lyric-word { color: var(--light-text); }
-.mode-light .seek-row > input, .mode-light .playback-extras > input { background: linear-gradient(to right,var(--accent) 0%,var(--accent) var(--fill,50%),#bccac3 var(--fill,50%),#bccac3 100%); }
+.mode-light .seek-row > input, .mode-light .playback-extras > input { background: linear-gradient(to right,var(--accent) 0%,var(--accent) var(--fill,50%),var(--light-track) var(--fill,50%),var(--light-track) 100%); }
 .mode-light .seek-row > input::-webkit-slider-thumb, .mode-light .playback-extras > input::-webkit-slider-thumb { background: var(--accent); }
-.mode-light .playback-bar { background: #fff; border-color: var(--line); color: var(--light-text); }
+.mode-light .playback-bar { background: var(--light-panel); border-color: var(--line); color: var(--light-text); }
 .mode-light .player-popover, .mode-light .quick-queue-panel,
 .mode-light .settings-theme, .mode-light .settings-options,
 .mode-light .lyric-font-select, .mode-light .artist-mapping-item,
@@ -104,7 +102,7 @@ html.mode-light body { background: #f6f9f7; color: #25343a; }
 .mode-light .tags-create button,
 .mode-light .playlist-primary, .mode-light .sleep-settings-form button,
 .mode-light .folder-dialog-actions button:last-child { color: #fff; }
-.mode-light .settings-switch { background: #82918a; }
+.mode-light .settings-switch { background: var(--light-muted); }
 .mode-light .settings-switch.on { background: var(--accent); }
 .mode-light .settings-switch.on span { background: #fff; }
 .mode-light .settings-eq-grid label, .mode-light .lyric-setting-control label,
@@ -133,7 +131,7 @@ html.mode-light body { background: #f6f9f7; color: #25343a; }
 .mode-light .folder-dialog-actions button:last-child { background: var(--accent); border-color: var(--accent); }
 .mode-light .playlist-dialog input, .mode-light .playlist-field input,
 .mode-light .playlist-field textarea, .mode-light .sleep-quick-popover form input,
-.mode-light .sleep-settings-form input { background: #fff; border-color: var(--line); color: var(--light-text); }
+.mode-light .sleep-settings-form input { background: var(--light-panel); border-color: var(--line); color: var(--light-text); }
 .mode-light .playlist-editor > header, .mode-light .playlist-editor form > footer,
 .mode-light .quick-queue-panel > header, .mode-light .quick-queue-list .queue-track,
 .mode-light .music-dialog .demo-note { border-color: var(--line); }
@@ -145,24 +143,28 @@ html.mode-light body { background: #f6f9f7; color: #25343a; }
 .mode-light .playlist-editor > header > button:hover,
 .mode-light .quick-queue-panel header button:hover { background: var(--light-soft); color: var(--accent); }
 .mode-light .translation-toggle, .mode-light .lyrics-settings-toggle, .mode-light .lyric-calibration-trigger,
-.mode-light .lyrics-immersive-toggle { background: rgba(255,255,255,.9); border-color: var(--line); color: var(--light-text); }
+.mode-light .lyrics-immersive-toggle { background: var(--light-panel); border-color: var(--line); color: var(--light-text); }
 .mode-light .queue-context .queue-context-danger { color: #a82f40; }
 .mode-light .playback-extras > .quality-badge { background: #e1f3e9; border-color: #74a98c; color: #276d4d; }
-.mode-light .file-drop-overlay { background: rgba(246,249,247,.96); }
+.mode-light .file-drop-overlay { background: color-mix(in srgb, var(--page-background) 96%, transparent); color: var(--light-text); }
 .mode-light .artist-mapping-form p { color: #ac3041; }
 /* Dialogs and popovers are portalled outside the player, so they use the html class. */
-html.mode-light .music-dialog { background: #fff !important; border-color: #d8e1dc !important; color: #25343a !important; }
-html.mode-light .music-dialog h2, html.mode-light .music-dialog [role=heading] { color: #25343a; }
-html.mode-light .music-dialog > p[data-description], html.mode-light .music-dialog > button:last-of-type { color: #586968; }
-html.mode-light .music-dialog input { background: #fff; border-color: #d8e1dc; color: #25343a; }
-html.mode-light .music-dialog .demo-note { color: #586968; border-color: #d8e1dc; }
-html.mode-light .folder-dialog-actions button:last-child { border-color: #435db8; background: #435db8; color: #fff; }
-html.mode-light:has(.music-app.theme-forest) .folder-dialog-actions button:last-child { border-color: #2b7651; background: #2b7651; }
-html.mode-light .player-popover, html.mode-light .sleep-quick-popover, html.mode-light .queue-context { background: #fff; border-color: #d8e1dc; color: #25343a; }
+html.mode-light .music-dialog { background: var(--light-panel) !important; border-color: var(--line) !important; color: var(--light-text) !important; }
+html.mode-light .music-dialog h2, html.mode-light .music-dialog [role=heading] { color: var(--light-text); }
+html.mode-light .music-dialog > p[data-description], html.mode-light .music-dialog > button:last-of-type { color: var(--light-muted); }
+html.mode-light .music-dialog input { background: var(--light-panel); border-color: var(--line); color: var(--light-text); }
+html.mode-light .music-dialog .demo-note { color: var(--light-muted); border-color: var(--line); }
+html.mode-light .folder-dialog-actions button:last-child { border-color: var(--action-color); background: var(--action-color); color: #fff; }
+html.mode-light .player-popover, html.mode-light .sleep-quick-popover, html.mode-light .queue-context { background: var(--light-panel); border-color: var(--line); color: var(--light-text); }
 html.mode-light .player-popover .popover-item, html.mode-light .player-popover .option-chip,
-html.mode-light .player-popover .eq-sliders label, html.mode-light .player-popover .eq-sliders small { color: #586968; border-color: #d8e1dc; }
-html.mode-light .sleep-quick-popover p, html.mode-light .sleep-quick-popover form label { color: #586968; }
-html.mode-light .sleep-quick-popover button { background: #edf3f0; border-color: #d8e1dc; color: #25343a; }
-html.mode-light .sleep-quick-popover input { background: #fff; border-color: #d8e1dc; color: #25343a; }
-html.mode-light .queue-context [role=menuitem]:focus { background: #edf3f0; color: #25343a; }
+html.mode-light .player-popover .eq-sliders label, html.mode-light .player-popover .eq-sliders small { color: var(--light-muted); border-color: var(--line); }
+html.mode-light .sleep-quick-popover p, html.mode-light .sleep-quick-popover form label { color: var(--light-muted); }
+html.mode-light .sleep-quick-popover button { background: var(--light-soft); border-color: var(--line); color: var(--light-text); }
+html.mode-light .sleep-quick-popover input { background: var(--light-panel); border-color: var(--line); color: var(--light-text); }
+html.mode-light .queue-context [role=menuitem]:focus { background: var(--light-soft); color: var(--light-text); }
 html.mode-light .queue-context .queue-context-danger { color: #a82f40; }
+.mode-light .immersive-overlay { background: var(--page-background); }
+.mode-light .immersive-shade { background: color-mix(in srgb, var(--page-background) 90%, transparent); }
+.mode-light .immersive-lyrics h1, .mode-light .immersive-lyrics p.current :is(.spoken, .speaking) { color: var(--text-primary); }
+.mode-light .immersive-lyrics p, .mode-light .immersive-meta small, .mode-light .immersive-transport label { color: var(--text-secondary); }
+.mode-light .immersive-overlay > header, .mode-light .immersive-controls { border-color: var(--border-color); }

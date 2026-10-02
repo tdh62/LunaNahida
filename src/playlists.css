@@ -67,6 +67,7 @@
 html.mode-light .playlist-dialog { --accent: #435db8; }
 html.mode-light .playlist-dialog.theme-anime { --accent: #a63d8b; }
 html.mode-light .playlist-dialog.theme-forest { --accent: #2b7651; }
+html .playlist-dialog.theme-custom { --accent: var(--action-color); }
 .playlist-dialog form { margin-top: 18px; }
 .playlist-create-row { display: flex; align-items: center; gap: 10px; }
 .playlist-create-row input { min-width: 0; flex: 1; }

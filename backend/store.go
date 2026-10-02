@@ -3,6 +3,7 @@ package backend
 import (
 	"context"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"math"
@@ -72,6 +73,7 @@ type Settings struct {
 	HideNetworkMusicActions bool            `json:"hideNetworkMusicActions"`
 	BackupOriginal          bool            `json:"backupOriginal"`
 	Theme                   string          `json:"theme"`
+	ThemeColor              string          `json:"themeColor"`
 	Appearance              string          `json:"appearance"`
 	Visual                  string          `json:"visual"`
 	Scope                   ScopeSettings   `json:"scope"`
@@ -190,7 +192,7 @@ type ScopeSettings struct {
 }
 
 func DefaultSettings() Settings {
-	return Settings{ResumePlayback: true, DropAction: "ask", NetworkCacheCount: 10, ScanOnStart: true, BackupOriginal: true, Theme: "forest", Appearance: "light", Visual: "频谱", Scope: ScopeSettings{Mode: "spectrum", FFTSize: 8192, MinFrequency: 20, MaxFrequency: 20000, Smoothing: 0.72}, LyricEffect: "流动", LyricScroll: "平滑", ShowTranslation: true, LyricAppearance: json.RawMessage(`{"font":"default","size":16,"lineHeight":57,"spacing":0}`), ArtistMappings: json.RawMessage(`[]`), Volume: 65, Mode: "list", Effect: "原声", Equalizer: []float64{0, 0, 0, 0, 0}, CustomEffects: []SavedEffect{}}
+	return Settings{ResumePlayback: true, DropAction: "ask", NetworkCacheCount: 10, ScanOnStart: true, BackupOriginal: true, Theme: "forest", ThemeColor: "#2b7651", Appearance: "light", Visual: "频谱", Scope: ScopeSettings{Mode: "spectrum", FFTSize: 8192, MinFrequency: 20, MaxFrequency: 20000, Smoothing: 0.72}, LyricEffect: "流动", LyricScroll: "平滑", ShowTranslation: true, LyricAppearance: json.RawMessage(`{"font":"default","size":16,"lineHeight":57,"spacing":0}`), ArtistMappings: json.RawMessage(`[]`), Volume: 65, Mode: "list", Effect: "原声", Equalizer: []float64{0, 0, 0, 0, 0}, CustomEffects: []SavedEffect{}}
 }
 
 type State struct {
@@ -510,6 +512,14 @@ func (s *Store) migrate() error {
 	return err
 }
 
+func validThemeColor(value string) bool {
+	if len(value) != 7 || value[0] != '#' {
+		return false
+	}
+	_, err := hex.DecodeString(value[1:])
+	return err == nil
+}
+
 func (s *Store) Settings() (Settings, error) {
 	value := DefaultSettings()
 	var raw string
@@ -522,6 +532,9 @@ func (s *Store) Settings() (Settings, error) {
 	}
 	if err = json.Unmarshal([]byte(raw), &value); err != nil {
 		return DefaultSettings(), err
+	}
+	if !validThemeColor(value.ThemeColor) {
+		value.ThemeColor = DefaultSettings().ThemeColor
 	}
 	if value.Scope.Mode != "spectrum" && value.Scope.Mode != "waveform" {
 		value.Scope.Mode = "spectrum"
@@ -551,6 +564,12 @@ func (s *Store) SaveSettings(value Settings) error {
 	previous, err := s.Settings()
 	if err != nil {
 		return err
+	}
+	if value.ThemeColor == "" {
+		value.ThemeColor = previous.ThemeColor
+	}
+	if !validThemeColor(value.ThemeColor) {
+		return errors.New("invalid theme color")
 	}
 	if value.NetworkCacheCount < 0 || value.NetworkCacheCount > 50 {
 		return errors.New("invalid network cache count")

@@ -100,9 +100,9 @@ html.mode-light .processor-confirm-panel button:last-child { color: #a83c30; }
 .processor-error, .processor-note { grid-column: 1 / -1; margin: 0; font-size: 11px; }
 .processor-error { color: #e8a99a; }
 .processor-note { color: var(--text-secondary); }
-.mode-light .processor-form label > input:not([type="range"]):not([type="checkbox"]), html.mode-light .processor-fir-size select { background: #eef0ef; color: #282d30; }
-.mode-light .processor-name input, .mode-light .processor-delay input { background: #eef0ef; color: #282d30; }
-html.mode-light .processor-confirm-panel { background: #fff; }
+.mode-light .processor-form label > input:not([type="range"]):not([type="checkbox"]), html.mode-light .processor-fir-size select { background: var(--field-background); color: var(--text-primary); }
+.mode-light .processor-name input, .mode-light .processor-delay input { background: var(--field-background); color: var(--text-primary); }
+html.mode-light .processor-confirm-panel { background: var(--panel-background); }
 @media (max-width: 600px) {
   .processor-dialog { width: calc(100vw - 24px) !important; max-height: 90dvh; }
   .processor-audition-title { max-width: 75px; }

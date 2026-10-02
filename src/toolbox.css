@@ -4,6 +4,7 @@
 html.mode-light .toolbox-dialog { --toolbox-accent: #435db8; --toolbox-accent-text: #fff; }
 html.mode-light .toolbox-dialog.theme-anime { --toolbox-accent: #a63d8b; }
 html.mode-light .toolbox-dialog.theme-forest { --toolbox-accent: #2b7651; }
+html .toolbox-dialog.theme-custom { --toolbox-accent: var(--action-color); --toolbox-accent-text: var(--panel-background); }
 .toolbox-dialog > h2 { display: flex; align-items: center; gap: 9px; font-size: 17px; }
 .toolbox-dialog > h2 svg { color: var(--toolbox-accent); }
 .toolbox-drop { display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px; min-height: 110px; border: 1px dashed #677076; border-radius: 7px; background: rgba(109, 145, 151, .08); cursor: pointer; text-align: center; }

@@ -7,21 +7,82 @@
   --action-color: #a5b5ff;
   --danger-color: #efaba1;
 }
-html:has(.theme-anime) { --action-color: #e4a9da; }
-html:has(.theme-forest) { --action-color: #a5cdb0; }
+html:has(.music-app.theme-anime) { --action-color: #e4a9da; }
+html:has(.music-app.theme-forest) { --action-color: #a5cdb0; }
 html.mode-light {
-  --text-primary: #25343a;
-  --text-secondary: #52675b;
-  --panel-background: #fff;
-  --field-background: #edf3f0;
-  --border-color: #c7d4cc;
-  --action-color: #435db8;
+  --page-background: #f6f7fb;
+  --light-text: #293044;
+  --light-muted: #626b80;
+  --light-panel: #fcfcff;
+  --light-soft: #edf0f8;
+  --light-highlight: #e3e9f6;
+  --light-line: #d6dcea;
+  --light-track: #bec7dc;
+  --sidebar-background: #eef1f9;
+  --theme-accent: #435db8;
+  --theme-tint: rgba(67,93,184,.1);
+  --theme-glow: rgba(80,115,181,.08);
+  --background: 228 38% 97%;
+  --secondary: 224 44% 95%;
+  --muted: 224 44% 95%;
+  --border: 222 32% 88%;
+  --input: 222 32% 88%;
+  --text-primary: var(--light-text);
+  --text-secondary: var(--light-muted);
+  --panel-background: var(--light-panel);
+  --field-background: var(--light-soft);
+  --border-color: var(--light-line);
+  --action-color: var(--theme-accent);
   --danger-color: #a83c30;
 }
-html.mode-light:has(.theme-anime) { --action-color: #a63d8b; }
-html.mode-light:has(.theme-forest) { --action-color: #2b7651; }
+html.mode-light:has(.music-app.theme-anime) {
+  --page-background: #fbf7fa;
+  --light-text: #402c3c;
+  --light-muted: #7c6175;
+  --light-panel: #fffcfe;
+  --light-soft: #f6edf4;
+  --light-highlight: #f2e5ef;
+  --light-line: #e6d6e1;
+  --light-track: #d4bdcf;
+  --sidebar-background: #f8f0f5;
+  --theme-accent: #a63d8b;
+  --theme-tint: rgba(166,61,139,.1);
+  --theme-glow: rgba(166,61,139,.07);
+  --background: 315 33% 98%;
+  --secondary: 313 33% 95%;
+  --muted: 313 33% 95%;
+  --border: 319 24% 87%;
+  --input: 319 24% 87%;
+}
+html.mode-light:has(.music-app.theme-forest) {
+  --page-background: #f7faf5;
+  --light-text: #26392f;
+  --light-muted: #596f61;
+  --light-panel: #fcfefb;
+  --light-soft: #e9f2e7;
+  --light-highlight: #e3ebe6;
+  --light-line: #d8e5d8;
+  --light-track: #bccac3;
+  --sidebar-background: #eef5e9;
+  --theme-accent: #2b7651;
+  --theme-tint: rgba(43,118,81,.11);
+  --theme-glow: rgba(119,167,101,.12);
+  --background: 96 33% 97%;
+  --secondary: 109 30% 93%;
+  --muted: 109 30% 93%;
+  --border: 120 20% 87%;
+  --input: 120 20% 87%;
+}
 .dialog-frame { max-height: calc(100dvh - 32px); overflow-y: auto; overscroll-behavior: contain; }
+.music-app.theme-custom { --accent: var(--theme-accent); --tint: var(--theme-tint); --background: var(--page-background); --surface: var(--panel-background); --line: var(--border-color); --muted: var(--text-secondary); --cover-glow: var(--theme-glow); }
+.music-app.theme-custom .sidebar { background: var(--sidebar-background); }
+.music-app.theme-custom .nav-item:is(:hover, .selected) { background: var(--sidebar-highlight); color: var(--text-primary); }
+.music-app.theme-custom .playback-bar { background: var(--panel-background); border-color: var(--border-color); }
+.theme-custom :is(.settings-theme, .settings-options, .lyric-font-select) { background: var(--panel-background); border-color: var(--border-color); }
+.theme-custom .settings-theme:is(.selected, :hover) { background: var(--tint); border-color: var(--accent); }
+.track-tag-popover.theme-custom { --accent: var(--action-color); --tint: var(--theme-tint); --surface: var(--panel-background); --line: var(--border-color); --muted: var(--text-secondary); background: var(--surface); color: var(--text-primary); }
 .dialog-frame.music-dialog { background: var(--panel-background) !important; color: var(--text-primary) !important; border-color: var(--border-color) !important; }
+.music-dialog, .player-popover, .sleep-quick-popover, .queue-context, .playback-mode-menu, .work-timer-preview { --accent: var(--action-color); --tint: color-mix(in srgb, var(--action-color) 12%, transparent); --line: var(--border-color); --muted: var(--text-secondary); --surface: var(--panel-background); }
 .dialog-frame > h2 { padding-right: 24px; }
 .dialog-frame:not(.processor-dialog) > h2 { position: sticky; top: 0; z-index: 2; background: var(--panel-background); grid-column: 1; grid-row: 1; }
 .dialog-frame:not(.processor-dialog) > .dialog-dismiss { position: sticky; top: 0; right: auto; justify-self: end; align-self: start; grid-column: 1; grid-row: 1; z-index: 3; }

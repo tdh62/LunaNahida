@@ -26,7 +26,7 @@
 .work-timer-option input { accent-color: var(--toolbox-accent); }
 .work-timer-sound { display: flex; align-items: center; gap: 8px; }
 .work-timer-sound select { flex: 1; min-width: 0; height: 34px; padding: 0 8px; border: 1px solid var(--line); border-radius: 5px; background: var(--bg, #202523); color: inherit; }
-html.mode-light .work-timer-sound select { background: #fff; color: #25343a; }
+html.mode-light .work-timer-sound select { background: var(--field-background); color: var(--text-primary); }
 .work-timer-sound button { width: 34px; padding: 0; flex: none; }
 .work-timer-volume input { flex: 1; min-width: 0; accent-color: var(--toolbox-accent); }
 .work-timer-volume span { width: 34px; text-align: right; font-variant-numeric: tabular-nums; }
@@ -40,8 +40,8 @@ html .work-timer-preview { z-index: 80; width: min(260px, calc(100vw - 24px)); m
 .work-timer-preview > div { display: flex; justify-content: space-between; font-size: 12px; }
 .work-timer-preview > div > span { color: #a4ada7; font-size: 10px; }
 .work-timer-preview output { display: block; margin: 14px 0; color: var(--accent, #a5cdb0); font: 30px 'DM Mono', monospace; }
-html.mode-light .work-timer-preview { background: #fff; border-color: #d8e1dc; color: #25343a; }
-html.mode-light .work-timer-preview > div > span, html.mode-light .work-timer-hint, html.mode-light .work-timer-face > span { color: #586968; }
+html.mode-light .work-timer-preview { background: var(--panel-background); border-color: var(--border-color); color: var(--text-primary); }
+html.mode-light .work-timer-preview > div > span, html.mode-light .work-timer-hint, html.mode-light .work-timer-face > span { color: var(--text-secondary); }
 @media (max-width: 440px) { .work-timer-face > output { font-size: 34px; } .work-timer-presets button { flex-basis: 100%; } }
 @media (max-width: 480px) {
   .playback-bar.timer-active .transport { width: calc(100% - 136px); justify-self: start; margin-inline: 0; }

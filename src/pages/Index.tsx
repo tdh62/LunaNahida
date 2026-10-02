@@ -39,6 +39,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useMuteVolume } from '@/hooks/use-mute-volume';
+import { customTheme, defaultThemeColor } from '@/lib/custom-theme';
 import { usePlayer } from '@/hooks/use-player';
 import { usePlaybackProbe } from '@/hooks/use-playback-probe';
 import { formatTime, trackTags, type Track } from '@/lib/music';
@@ -150,6 +151,7 @@ export default function Index() {
   const [recentPlaylistIds, setRecentPlaylistIds] = useState<string[]>([]);
   const [theme, setTheme] = useState('forest'), [lyricEffect, setLyricEffect] = useState('流动'), [lyricScroll, setLyricScroll] = useState('平滑'), [visual, setVisual] = useState('频谱');
   const [appearance, setAppearance] = useState<'dark' | 'light'>('light');
+  const [themeColor, setThemeColor] = useState(defaultThemeColor);
   const [lyricAppearance, setLyricAppearance] = useState({ font: 'default', size: 16, lineHeight: 57, spacing: 0 });
   const [scopeSettings, setScopeSettings] = useState<ScopeSettings>(defaultScopeSettings);
   const [scopeOpen, setScopeOpen] = useState(false);
@@ -208,7 +210,7 @@ export default function Index() {
   useEffect(() => {
     const state = runtime.initialState;
     setLibraryTracks(state.tracks); setCustomTags(state.tags); setPlaylists(state.playlists); setLiked(state.liked); setFolders(state.folders);
-    setTheme(state.settings.theme); setAppearance(state.settings.appearance); setVisual(state.settings.visual);
+    setTheme(state.settings.theme); setThemeColor(state.settings.themeColor || defaultThemeColor); setAppearance(state.settings.appearance); setVisual(state.settings.visual);
     setScopeSettings(state.settings.scope ?? defaultScopeSettings);
     setLyricEffect(state.settings.lyricEffect); setLyricScroll(state.settings.lyricScroll);
     setShowTranslation(state.settings.showTranslation); setLyricAppearance(state.settings.lyricAppearance);
@@ -221,15 +223,20 @@ export default function Index() {
   useEffect(() => { if (ready && runtime.backend) void backend.queue(p.queue.filter(track => !track.temporary).map(track => track.id)).catch(error => toast.error(error.message)); }, [p.queue.map(track => track.id).join(','), ready, runtime.backend]);
   useEffect(() => {
     if (!ready || !storedSettings || !runtime.backend) return;
-    const next: StoredSettings = { ...storedSettings, theme, appearance, visual, scope: scopeSettings, lyricEffect, lyricScroll, showTranslation, lyricAppearance, artistMappings: mappings, volume: p.volume, mode: p.mode, effect: p.effect, professionalAudio: p.professionalAudio, equalizer: p.equalizer, customEffects: p.customEffects };
+    const next: StoredSettings = { ...storedSettings, theme, themeColor, appearance, visual, scope: scopeSettings, lyricEffect, lyricScroll, showTranslation, lyricAppearance, artistMappings: mappings, volume: p.volume, mode: p.mode, effect: p.effect, professionalAudio: p.professionalAudio, equalizer: p.equalizer, customEffects: p.customEffects };
     const timer = window.setTimeout(() => void backend.settings(next).catch(error => toast.error(error.message)), 250);
     return () => window.clearTimeout(timer);
-  }, [ready, storedSettings, theme, appearance, visual, scopeSettings, lyricEffect, lyricScroll, showTranslation, lyricAppearance, mappings, p.volume, p.mode, p.effect, p.professionalAudio, p.equalizer, p.customEffects, runtime.backend]);
-  useEffect(() => {
+  }, [ready, storedSettings, theme, themeColor, appearance, visual, scopeSettings, lyricEffect, lyricScroll, showTranslation, lyricAppearance, mappings, p.volume, p.mode, p.effect, p.professionalAudio, p.equalizer, p.customEffects, runtime.backend]);
+  useLayoutEffect(() => {
     document.documentElement.classList.toggle('mode-light', appearance === 'light');
     document.documentElement.style.colorScheme = appearance;
-    return () => { document.documentElement.classList.remove('mode-light'); document.documentElement.style.colorScheme = ''; };
-  }, [appearance]);
+    const colors = theme === 'custom' ? customTheme(themeColor, appearance) : {};
+    for (const [name, value] of Object.entries(colors)) document.documentElement.style.setProperty(name, value);
+    return () => {
+      for (const name of Object.keys(colors)) document.documentElement.style.removeProperty(name);
+      document.documentElement.classList.remove('mode-light'); document.documentElement.style.colorScheme = '';
+    };
+  }, [appearance, theme, themeColor]);
   const reloadLibrary = async () => { if (!runtime.backend) return; const state = await backend.state(); setLibraryTracks(state.tracks); setCustomTags(state.tags); setFolders(state.folders); };
   const importPaths = async (paths: string[], mode: 'temporary' | 'library' | 'watch', options: { addToQueue?: boolean; skipConversion?: boolean; quietEmpty?: boolean } = {}) => {
     if (!paths.length) return;
@@ -701,7 +708,7 @@ export default function Index() {
     </aside>
     {sidebarMode === 'hidden' && <button type="button" className="sidebar-restore" title="展开侧栏" aria-label="展开侧栏" onClick={() => setSidebarMode('expanded')}><PanelLeftOpen size={19} /></button>}
     <main className={`workspace min-w-0 ${isSettings ? 'settings-workspace' : ''} ${isArtists || isAlbums ? 'catalog-workspace' : ''} ${isPlaylists || isTags || pathname === '/music' || pathname === '/liked' || pathname === '/recent' ? 'scrolling-workspace' : ''} ${pathname === '/music' || pathname === '/liked' || pathname === '/recent' ? 'library-workspace' : ''}`}>
-      {isSettings ? <PlayerSettings theme={theme} setTheme={setTheme} appearance={appearance} setAppearance={setAppearance} visual={visual} setVisual={setVisual} lyricEffect={lyricEffect} setLyricEffect={setLyricEffect} lyricScroll={lyricScroll} setLyricScroll={setLyricScroll} showTranslation={showTranslation} setShowTranslation={setShowTranslation} sleep={sleep} setSleep={setSleep} effectName={p.effectName} onEditEffects={() => setEffectEditorOpen(true)} professionalAudio={p.professionalAudio} setProfessionalAudio={p.setProfessionalAudio} equalizer={p.equalizer} setBand={p.setBand} resetEqualizer={p.resetEqualizer} mappings={mappings} setMappings={setMappings} lyricAppearance={lyricAppearance} setLyricAppearance={setLyricAppearance} artistNames={[...new Set(allTracks.map(track => track.artist))]} />
+      {isSettings ? <PlayerSettings theme={theme} setTheme={setTheme} themeColor={themeColor} setThemeColor={setThemeColor} appearance={appearance} setAppearance={setAppearance} visual={visual} setVisual={setVisual} lyricEffect={lyricEffect} setLyricEffect={setLyricEffect} lyricScroll={lyricScroll} setLyricScroll={setLyricScroll} showTranslation={showTranslation} setShowTranslation={setShowTranslation} sleep={sleep} setSleep={setSleep} effectName={p.effectName} onEditEffects={() => setEffectEditorOpen(true)} professionalAudio={p.professionalAudio} setProfessionalAudio={p.setProfessionalAudio} equalizer={p.equalizer} setBand={p.setBand} resetEqualizer={p.resetEqualizer} mappings={mappings} setMappings={setMappings} lyricAppearance={lyricAppearance} setLyricAppearance={setLyricAppearance} artistNames={[...new Set(allTracks.map(track => track.artist))]} />
       : isArtists || isAlbums ? <CatalogView onRefreshInfo={refreshInfo} onSaveLyrics={saveLyrics} kind={isArtists ? 'artists' : 'albums'} artists={catalog.artists} albums={catalog.albums} artist={selectedArtist} album={selectedAlbum} currentId={p.trackId} liked={liked} playlists={displayPlaylists} onPlayTracks={(tracks, startId) => { if (p.playTracks(tracks, startId)) navigate('/'); }} onToggleLike={toggleTrackLike} onViewInfo={setDetailTrack} onAddToPlaylist={addToPlaylist} onArtist={openArtist} onAlbum={openAlbum} />
       : isPlaylists ? <PlaylistView onRefreshInfo={refreshInfo} onSaveLyrics={saveLyrics} playlists={overviewPlaylists} playlist={activePlaylist} displayCover={activePlaylist ? playlistCover(activePlaylist, allTracks) : undefined} tracks={allTracks} currentId={p.trackId} liked={liked} onCreate={() => setCreatePlaylistOpen(true)} onDelete={setDeletePlaylistId} onPlayPlaylist={(tracks, startId) => { if (p.playTracks(tracks, startId)) navigate('/'); }} onToggleLike={toggleTrackLike} onViewInfo={setDetailTrack} onArtist={openArtist} onAlbum={openAlbum} onAddToPlaylist={addToPlaylist} onRemoveFromPlaylist={removeFromPlaylist} onEditPlaylist={edited => setPlaylists(prev => prev.map(item => item.id === edited.id ? edited : item))} />
       : isTags ? <TagsView tracks={allTracks} customTags={customTags} onCreate={createTag} onRename={renameTag} onDelete={deleteTag} onOpen={openTag} />

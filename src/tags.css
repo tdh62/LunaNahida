@@ -32,9 +32,7 @@
 html .track-tag-popover { --accent: #a5b5ff; --tint: rgba(156,174,255,.12); --surface: #202123; --line: #393a3d; --muted: #a1a1a4; z-index: 80; width: min(280px, calc(100vw - 24px)); padding: 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text-primary); box-shadow: 0 12px 30px #0005; }
 .track-tag-popover.theme-forest { --accent: #a5cdb0; --tint: rgba(165,205,176,.13); }
 .track-tag-popover.theme-anime { --accent: #e4a9da; --tint: rgba(228,169,218,.13); }
-html.mode-light .track-tag-popover { --accent: #435db8; --tint: rgba(67,93,184,.1); --surface: #fff; --line: #d8e1dc; --muted: #5f706f; color: #25343a; }
-html.mode-light .track-tag-popover.theme-forest { --accent: #2b7651; --tint: rgba(43,118,81,.11); }
-html.mode-light .track-tag-popover.theme-anime { --accent: #a63d8b; --tint: rgba(166,61,139,.1); }
+html.mode-light .track-tag-popover { --accent: var(--action-color); --tint: var(--theme-tint); --surface: var(--panel-background); --line: var(--border-color); --muted: var(--text-secondary); color: var(--text-primary); }
 .track-tag-popover-title { display: flex; align-items: center; gap: 7px; margin-bottom: 9px; color: var(--accent); font-size: 12px; }
 .track-tag-options { max-height: 176px; overflow-y: auto; }
 .track-tag-options button { width: 100%; min-height: 31px; display: flex; align-items: center; gap: 9px; padding: 5px 4px; border: 0; border-radius: 4px; background: transparent; color: inherit; text-align: left; font-size: 11px; overflow-wrap: anywhere; }

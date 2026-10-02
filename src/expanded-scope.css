@@ -39,12 +39,12 @@
 .scope-range-presets button { height: 28px; padding: 0 7px; border: 1px solid var(--line); border-radius: 4px; background: transparent; color: #aeb2b1; font-size: 10px; }
 .scope-range-presets button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
 .scope-controls .scope-range input { width: 74px; height: 28px; padding: 0 4px; border: 1px solid var(--line); border-radius: 4px; background: #242629; color: var(--text-primary); font-size: 11px; }
-.mode-light .scope-controls .scope-range input { background: #eef0ef; color: #282d30; }
+.mode-light .scope-controls .scope-range input { background: var(--field-background); color: var(--text-primary); }
 .visualizer[role="button"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-.mode-light .expanded-scope { --scope-muted: #60656a; }
+.mode-light .expanded-scope { --scope-muted: var(--text-secondary); }
 .mode-light .scope-track strong { color: var(--light-text, #202529); }
-.mode-light .scope-segments, .mode-light .scope-controls select { background: #eef0ef; }
-.mode-light .scope-controls select { color: #282d30; }
+.mode-light .scope-segments, .mode-light .scope-controls select { background: var(--field-background); }
+.mode-light .scope-controls select { color: var(--text-primary); }
 @media (max-width: 1100px) {
   .scope-header { align-items: flex-start; flex-wrap: wrap; }
   .scope-track { width: 100%; }

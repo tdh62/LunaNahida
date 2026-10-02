@@ -7,9 +7,9 @@
 .playback-mode-option { height: 37px; gap: 9px; padding-left: 28px; font-size: 12px; cursor: pointer; }
 .playback-mode-option[data-state="checked"] { background: #343e37; color: #c9e8d2; font-weight: 600; }
 .playback-mode-option:focus { background: #383a3e; color: #fff; }
-html.mode-light .playback-mode-menu[role="menu"] { background: #fff; border-color: #d8e1dc; color: #25343a; }
-html.mode-light .playback-mode-option[data-state="checked"] { background: #e0eee5; color: #24573b; }
-html.mode-light .playback-mode-option:focus { background: #edf3f0; color: #25343a; }
+html.mode-light .playback-mode-menu[role="menu"] { background: var(--panel-background); border-color: var(--border-color); color: var(--text-primary); }
+html.mode-light .playback-mode-option[data-state="checked"] { background: var(--light-highlight); color: var(--action-color); }
+html.mode-light .playback-mode-option:focus { background: var(--field-background); color: var(--text-primary); }
 @media (max-width: 760px) {
   .playback-bar .playback-mode-control { position: fixed; left: 13px; bottom: 16px; }
   .music-app .playback-bar .transport { justify-self: start; }

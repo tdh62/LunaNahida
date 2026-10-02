@@ -28,6 +28,7 @@ export type StoredSettings = {
   autoConvert: boolean;
   backupOriginal: boolean;
   theme: string;
+  themeColor: string;
   appearance: 'dark' | 'light';
   visual: string;
   scope: ScopeSettings;
