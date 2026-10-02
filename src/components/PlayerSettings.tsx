@@ -1,4 +1,4 @@
-import { Check, Download, FolderOpen, HardDrive, Headphones, Leaf, ListMusic, Moon, Palette, Pencil, Plus, RefreshCw, SlidersHorizontal, Sparkles, Sun, Timer, Trash2, Upload, Users, Waves, Globe2 } from 'lucide-react';
+import { Play, Check, Download, FolderOpen, HardDrive, Headphones, Leaf, ListMusic, Moon, Palette, Pencil, Plus, RefreshCw, SlidersHorizontal, Sparkles, Sun, Timer, Trash2, Upload, Users, Waves, Globe2 } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import { useLocation } from 'react-router';
 import { normalizeName, type ArtistMapping } from '@/lib/catalog';
@@ -228,6 +228,9 @@ export default function PlayerSettings({ theme, setTheme, appearance, setAppeara
     <section className="settings-group"><div className="settings-group-title"><HardDrive size={19} /><div><h2>数据备份</h2></div></div><fieldset disabled={!runtime.backend}>
       <div className="settings-row backup-row"><div><strong>导出压缩包</strong><small>音乐库数据库、歌词及在线资料、封面缓存；不包含音频文件</small></div><button type="button" className="playlist-primary" disabled={backupBusy !== null} onClick={() => void exportBackup()}><Download size={15} />{backupBusy === 'export' ? '导出中' : '导出备份'}</button></div>
       <div className="settings-row backup-row"><div><strong>合并备份</strong><small>添加缺失数据，保留当前已有歌曲信息、歌单和封面</small></div><button type="button" className="playlist-primary" disabled={backupBusy !== null} onClick={() => backupInput.current?.click()}><Upload size={15} />{backupBusy === 'import' ? '导入中' : '导入备份'}</button><input ref={backupInput} className="sr-only" type="file" accept=".zip,application/zip" aria-label="选择备份压缩包" onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; if (file) void importBackup(file); }} /></div>
+    </fieldset></section>
+    <section className="settings-group"><div className="settings-group-title"><Play size={19} /><div><h2>播放恢复</h2></div></div><fieldset disabled={!library}>
+      <div className="settings-row"><div><strong>恢复上次歌曲和播放位置</strong><small>重新打开后保持暂停；仅记录曲库中的歌曲</small></div><button type="button" role="switch" aria-checked={library?.settings.resumePlayback !== false} aria-label="恢复上次歌曲和播放位置" className={`settings-switch ${library?.settings.resumePlayback !== false ? 'on' : ''}`} onClick={() => saveLibrarySettings({resumePlayback: library?.settings.resumePlayback === false})}><span /></button></div>
     </fieldset></section>
     <section className="settings-group"><div className="settings-group-title"><Sun size={19} /><div><h2>外观</h2></div></div>
       <div className="settings-options appearance-options" role="group" aria-label="外观模式">{([{ id: 'dark', label: '深色', icon: Moon }, { id: 'light', label: '浅色', icon: Sun }] as const).map(option => <button key={option.id} type="button" aria-pressed={appearance === option.id} className={appearance === option.id ? 'active' : ''} onClick={() => setAppearance(option.id)}><option.icon size={15} />{option.label}</button>)}</div>

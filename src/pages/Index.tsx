@@ -205,7 +205,7 @@ export default function Index() {
     setLyricEffect(state.settings.lyricEffect); setLyricScroll(state.settings.lyricScroll);
     setShowTranslation(state.settings.showTranslation); setLyricAppearance(state.settings.lyricAppearance);
     setMappings(state.settings.artistMappings); setStoredSettings(state.settings);
-    p.hydrate(state.tracks, state.queue, state.recent, state.settings); setReady(true);
+    p.hydrate(state.tracks, state.queue, state.recent, state.settings, state.playback); setReady(true);
   }, []);
   useEffect(() => { if (ready) p.setCatalog(libraryTracks); }, [libraryTracks, ready]);
   useEffect(() => { if (ready && runtime.backend) void backend.playlists(playlists).catch(error => toast.error(error.message)); }, [playlists, ready, runtime.backend]);

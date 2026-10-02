@@ -58,6 +58,7 @@ type Playlist struct {
 }
 
 type Settings struct {
+	ResumePlayback          bool            `json:"resumePlayback"`
 	TrayEnabled             bool            `json:"trayEnabled"`
 	DropAction              string          `json:"dropAction"`
 	NetworkCacheCount       int             `json:"networkCacheCount"`
@@ -186,10 +187,11 @@ type ScopeSettings struct {
 }
 
 func DefaultSettings() Settings {
-	return Settings{DropAction: "ask", NetworkCacheCount: 10, ScanOnStart: true, BackupOriginal: true, Theme: "forest", Appearance: "light", Visual: "频谱", Scope: ScopeSettings{Mode: "spectrum", FFTSize: 8192, MinFrequency: 20, MaxFrequency: 20000, Smoothing: 0.72}, LyricEffect: "流动", LyricScroll: "平滑", ShowTranslation: true, LyricAppearance: json.RawMessage(`{"font":"default","size":16,"lineHeight":57,"spacing":0}`), ArtistMappings: json.RawMessage(`[]`), Volume: 65, Mode: "list", Effect: "原声", Equalizer: []float64{0, 0, 0, 0, 0}, CustomEffects: []SavedEffect{}}
+	return Settings{ResumePlayback: true, DropAction: "ask", NetworkCacheCount: 10, ScanOnStart: true, BackupOriginal: true, Theme: "forest", Appearance: "light", Visual: "频谱", Scope: ScopeSettings{Mode: "spectrum", FFTSize: 8192, MinFrequency: 20, MaxFrequency: 20000, Smoothing: 0.72}, LyricEffect: "流动", LyricScroll: "平滑", ShowTranslation: true, LyricAppearance: json.RawMessage(`{"font":"default","size":16,"lineHeight":57,"spacing":0}`), ArtistMappings: json.RawMessage(`[]`), Volume: 65, Mode: "list", Effect: "原声", Equalizer: []float64{0, 0, 0, 0, 0}, CustomEffects: []SavedEffect{}}
 }
 
 type State struct {
+	Playback       PlaybackState   `json:"playback"`
 	Tracks         []Track         `json:"tracks"`
 	Tags           []string        `json:"tags"`
 	Playlists      []Playlist      `json:"playlists"`
@@ -600,6 +602,10 @@ func (s *Store) State() (State, error) {
 	}
 	var err error
 	state.Settings, err = s.Settings()
+	if err != nil {
+		return state, err
+	}
+	state.Playback, err = s.Playback()
 	if err != nil {
 		return state, err
 	}

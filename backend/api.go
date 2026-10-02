@@ -71,6 +71,7 @@ func (a *API) Handler() http.Handler {
 		})
 	})
 	newOrganizer(a.Store).register(mux)
+	a.registerPlayback(mux)
 	a.registerWorkTimer(mux)
 	a.registerTimerReminders(mux)
 	mux.HandleFunc("GET /api/backup", func(w http.ResponseWriter, r *http.Request) {

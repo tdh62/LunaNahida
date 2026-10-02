@@ -16,6 +16,7 @@ export type ScopeSettings = { mode: 'spectrum' | 'waveform'; fftSize: 2048 | 409
 export const defaultScopeSettings: ScopeSettings = { mode: 'spectrum', fftSize: 8192, minFrequency: 20, maxFrequency: 20000, smoothing: 0.72 };
 
 export type StoredSettings = {
+  resumePlayback?: boolean;
   professionalAudio?: boolean;
   trayEnabled?: boolean;
   hideLocalMusicActions?: boolean;
@@ -43,7 +44,8 @@ export type StoredSettings = {
 };
 
 export type NetworkSource = { id: number; kind: 'webdav' | 'ftp' | 'ftps' | 'playlist'; url: string; username: string };
-export type LibraryState = { tracks: Track[]; tags: string[]; playlists: Playlist[]; liked: number[]; recent: number[]; queue: number[]; folders: string[]; networkSources: NetworkSource[]; settings: StoredSettings };
+export type PlaybackState = { trackId: number; position: number };
+export type LibraryState = { playback?: PlaybackState; tracks: Track[]; tags: string[]; playlists: Playlist[]; liked: number[]; recent: number[]; queue: number[]; folders: string[]; networkSources: NetworkSource[]; settings: StoredSettings };
 export type ScanResult = { added: number; updated: number; missing: number; removed: number; folders: number; converted: number; errors: string[] };
 export type ConversionResult = { source: string; output?: string; backup?: string; status: 'converted' | 'failed'; error?: string; track?: Track };
 export type CacheStats = { coverBytes: number; webviewBytes: number; metadataBytes: number; networkAudioBytes: number; totalBytes: number; webviewClearPending: boolean };
@@ -59,6 +61,7 @@ async function request<T>(path: string, method = 'GET', body?: unknown): Promise
 }
 
 export const backend = {
+  savePlayback: (value: PlaybackState) => request<{ ok: boolean }>('/api/playback', 'PUT', value),
   timerReminders: () => request<TimerReminders>('/api/timer/reminders'),
   saveTimerReminders: (value: TimerReminders) => request<TimerReminders>('/api/timer/reminders', 'PUT', value),
   authorizeTimerNotification: () => request<{ granted: boolean }>('/api/timer/notification/authorize', 'POST'),

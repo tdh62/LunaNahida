@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { backend } from '@/lib/backend';
+import { backend, type PlaybackState } from '@/lib/backend';
 import { useRuntime } from '@/hooks/use-runtime';
 import { BrowserTrackPool, isBrowserTrack } from '@/lib/browser-tracks';
 import type { Track } from '@/lib/music';
@@ -53,6 +53,7 @@ export function usePlayer() {
   const [customEffects, setCustomEffects] = useState<SavedEffect[]>([]), [previewFilter, setPreviewFilter] = useState<CustomFilter | null>(null), [filterError, setFilterError] = useState<string | null>(null);
   const [frequencyResponse, setFrequencyResponse] = useState<FrequencyResponse | null>(null);
   const audio = useRef<HTMLAudioElement | null>(null), graph = useRef<Graph | null>(null);
+  const pendingResume = useRef<PlaybackState | null>(null);
   const appliedFilter = useRef('');
   const queueRef = useRef(queue), catalogRef = useRef<Track[]>([]), currentId = useRef(trackId), shouldPlay = useRef(false), nextRef = useRef<() => void>(() => {});
   currentId.current = trackId;
@@ -76,7 +77,14 @@ export function usePlayer() {
     updateQueue(next);
   };
   const updateTrack = (track: Track) => updateQueue(queueRef.current.map(item => item.id === track.id ? track : item));
-  const hydrate = (items: Track[], ids: number[], history: number[], settings: { volume: number; mode: typeof mode; effect: string; equalizer: number[]; customEffects?: SavedEffect[]; professionalAudio?: boolean }) => {
+  const hydrate = (items: Track[], ids: number[], history: number[], settings: { volume: number; mode: typeof mode; effect: string; equalizer: number[]; customEffects?: SavedEffect[]; professionalAudio?: boolean; resumePlayback?: boolean }, playback?: PlaybackState) => {
+    if (settings.resumePlayback !== false && playback?.trackId > 0) {
+      const restored = items.find(item => item.id === playback.trackId && item.available !== false && item.playbackStatus !== 'unplayable');
+      if (restored) {
+        if (!ids.includes(restored.id)) ids = [...ids, restored.id];
+        pendingResume.current = playback; currentId.current = restored.id; setTrackId(restored.id); setTime(playback.position);
+      }
+    }
     setProfessionalAudio(settings.professionalAudio ?? false);
     catalogRef.current = items;
     updateQueue(ids.map(id => items.find(item => item.id === id)).filter((item): item is Track => Boolean(item)));
@@ -93,7 +101,12 @@ export function usePlayer() {
     const owner = { stop: () => { shouldPlay.current = false; element.pause(); setPlaying(false); } };
     musicOwner.current = owner;
     element.ontimeupdate = () => setTime(element.currentTime);
-    element.onloadedmetadata = () => { const id = currentId.current; if (id !== null && Number.isFinite(element.duration)) { const updated = queueRef.current.map(item => item.id === id ? { ...item, duration: element.duration } : item); updateQueue(updated); if (id > 0 && runtime.backend) void backend.duration(id, element.duration).catch(() => {}); } };
+    element.onloadedmetadata = () => {
+      if (pendingResume.current?.trackId === currentId.current) {
+        const position = Math.max(0, Math.min(pendingResume.current.position, Number.isFinite(element.duration) ? element.duration : pendingResume.current.position));
+        element.currentTime = position; setTime(position); pendingResume.current = null;
+      }
+      const id = currentId.current; if (id !== null && Number.isFinite(element.duration)) { const updated = queueRef.current.map(item => item.id === id ? { ...item, duration: element.duration } : item); updateQueue(updated); if (id > 0 && runtime.backend) void backend.duration(id, element.duration).catch(() => {}); } };
     element.oncanplay = () => { const id = currentId.current; if (id === null) return; const item = queueRef.current.find(track => track.id === id); if (item?.playbackStatus === 'playable') return; updateQueue(queueRef.current.map(track => track.id === id ? { ...track, playbackStatus: 'playable' } : track)); if (id > 0 && runtime.backend) void backend.playbackStatus(id, 'playable').then(() => window.dispatchEvent(new Event('lunanahida-library-changed'))).catch(() => {}); };
     element.onerror = () => {
       const id = currentId.current;
@@ -149,6 +162,19 @@ export function usePlayer() {
     return () => window.removeEventListener('lunanahidatune-music-refreshed', updateEnrichedTrack);
   }, []);
 
+  useEffect(() => {
+    if (!runtime.backend) return;
+    const save = () => {
+      const id = currentId.current;
+      if (!id || id < 0 || queueRef.current.find(item => item.id === id)?.temporary || pendingResume.current) return;
+      void backend.savePlayback({ trackId: id, position: audio.current?.currentTime ?? 0 }).catch(() => {});
+    };
+    const interval = window.setInterval(save, 5000);
+    const element = audio.current;
+    element?.addEventListener('pause', save);
+    window.addEventListener('pagehide', save);
+    return () => { window.clearInterval(interval); element?.removeEventListener('pause', save); window.removeEventListener('pagehide', save); };
+  }, [runtime.backend]);
   const ensureGraph = () => {
     if (!graph.current && audio.current) {
       const context = new AudioContext(), source = context.createMediaElementSource(audio.current);
@@ -181,7 +207,7 @@ export function usePlayer() {
     const el = audio.current; if (!el) return;
     el.pause(); el.removeAttribute('src'); el.load();
     if (trackId === null || !track) { setTime(0); return; }
-    el.src = track.source; setTime(0);
+    el.src = track.source; setTime(pendingResume.current?.trackId === trackId ? pendingResume.current.position : 0);
     if (shouldPlay.current) void el.play().catch(() => setPlaying(false));
   }, [trackId]);
   useEffect(() => {
@@ -258,7 +284,7 @@ export function usePlayer() {
     let list = queueRef.current;
     if (!list.some(item => item.id === id)) { const item = catalogRef.current.find(item => item.id === id); if (!item || item.available === false || item.playbackStatus === 'unplayable') return; list = [...list, item]; updateQueue(list); }
     if (list.find(item => item.id === id)?.available === false || list.find(item => item.id === id)?.playbackStatus === 'unplayable') return;
-    claimMusic(); currentId.current = id;
+    pendingResume.current = null; claimMusic(); currentId.current = id;
     if (id === trackId) { if (audio.current) { audio.current.currentTime = 0; void audio.current.play().catch(() => setPlaying(false)); } }
     else { audio.current?.pause(); setTrackId(id); }
   };
@@ -266,7 +292,7 @@ export function usePlayer() {
     const playable = items.filter(item => item.available !== false && item.playbackStatus !== 'unplayable');
     if (!playable.length) return false;
     const target = playable.find(item => item.id === startId) ?? playable[0];
-    claimMusic(); currentId.current = target.id;
+    pendingResume.current = null; claimMusic(); currentId.current = target.id;
     updateQueue(playable);
     if (target.id === trackId) {
       if (audio.current) { audio.current.currentTime = 0; void audio.current.play().catch(() => setPlaying(false)); }
