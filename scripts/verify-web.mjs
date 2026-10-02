@@ -41,11 +41,12 @@ function wav() {
 const audio = wav();
 const file = { name: 'browser-sample.wav', mimeType: 'audio/wav', buffer: audio };
 
-async function setup({ backend = false, desktop = false, lateDesktop = false, trackTitle = 'Native Song', viewport = { width: 1280, height: 800 } } = {}) {
+async function setup({ backend = false, desktop = false, lateDesktop = false, trackTitle = 'Native Song', tracks = [], viewport = { width: 1280, height: 800 } } = {}) {
   const page = await browser.newPage({ viewport });
   const errors = [];
   const requests = [];
   const state = emptyLibrary();
+  state.tracks = tracks;
   const nativeWindow = { width: viewport.width, height: viewport.height, x: 100, y: 80, frameless: true, resizable: true, pinned: false, calls: [] };
   state.settings.dropAction = 'watch';
   let disconnected = false;
@@ -247,6 +248,42 @@ try {
   assert.deepEqual(connected.errors, []);
   await connected.page.close();
   console.log('PASS browser with backend: temporary files do not enter the library, native dialogs disabled, backend controls retained');
+
+  const searchTracks = [
+    { title: '黑白配', artist: '范玮琪', album: '我们的纪念日' },
+    { title: '紅豆', artist: '王菲', album: '唱遊' },
+    { title: '前前前世', artist: 'RADWIMPS', album: '君の名は。' },
+    { title: 'ギブス', artist: '椎名林檎', album: '勝訴ストリップ' },
+  ].map((track, index) => ({ id: index + 1, english: '', duration: 180, cover: '/covers/local.svg', genre: '', year: '2016', color: '#8daab0', source: `/api/media/audio/${index + 1}`, customTags: ['夜晚'], ...track }));
+  const phonetic = await setup({ backend: true, tracks: searchTracks });
+  const searchPage = phonetic.page;
+  await searchPage.getByRole('button', { name: '我的音乐', exact: true }).click();
+  const songSearch = searchPage.getByRole('textbox', { name: '搜索歌曲、歌手、专辑或标签', exact: true });
+  for (const [term, title] of [['hbp', '黑白配'], ['HEI BAI PEI', '黑白配'], ['fwq', '黑白配'], ['hongdou', '紅豆'], ['kmnnw', '前前前世'], ['zenzenzense', '前前前世'], ['shiinaringo', 'ギブス']]) {
+    await songSearch.fill(term);
+    await searchPage.waitForFunction(expected => {
+      const names = [...document.querySelectorAll('.library-track-name strong')].map(element => element.textContent);
+      return names.length === 1 && names[0] === expected;
+    }, title);
+  }
+  await songSearch.fill('hbp');
+  await searchPage.getByRole('button', { name: '组合筛选', exact: true }).click();
+  await searchPage.getByLabel('歌手包含', { exact: true }).fill('fanweiqi');
+  await searchPage.getByLabel('专辑包含', { exact: true }).fill('wmdjnr');
+  assert.equal(await searchPage.locator('.library-row').count(), 1);
+  await searchPage.getByRole('button', { name: '完成', exact: true }).click();
+  await searchPage.screenshot({ path: resolve(output, 'phonetic-song-search.png') });
+  await searchPage.getByRole('button', { name: '歌手', exact: true }).click();
+  await searchPage.getByRole('textbox', { name: '搜索歌手', exact: true }).fill('shiinaringo');
+  await searchPage.locator('.catalog-grid strong').filter({ hasText: '椎名林檎' }).waitFor();
+  assert.equal(await searchPage.locator('.catalog-grid > button').count(), 1);
+  await searchPage.getByRole('button', { name: '专辑', exact: true }).click();
+  await searchPage.getByRole('textbox', { name: '搜索专辑', exact: true }).fill('kimi no na wa');
+  await searchPage.locator('.catalog-grid strong').filter({ hasText: '君の名は。' }).waitFor();
+  assert.equal(await searchPage.locator('.catalog-grid > button').count(), 1);
+  assert.deepEqual(phonetic.errors, []);
+  await searchPage.close();
+  console.log('PASS phonetic search: pinyin, initials, traditional Chinese, kana/kanji romaji, asynchronous index updates, combined filters, artists and albums');
 
   const native = await setup({ backend: true, desktop: true, lateDesktop: true });
   assert.equal(await native.page.getByRole('button', { name: '迷你模式', exact: true }).count(), 0);

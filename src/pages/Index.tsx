@@ -14,6 +14,7 @@ import TagsView from '@/components/TagsView';
 import TrackTagEditor from '@/components/TrackTagEditor';
 import PlaylistRuleEditor from '@/components/PlaylistRuleEditor';
 import { queryTracks, validateTrackConditions } from '@/lib/track-query';
+import { usePrepareTrackSearchIndex } from '@/hooks/use-phonetic-search';
 import PlaylistView from '@/components/PlaylistView';
 import CatalogView from '@/components/CatalogView';
 import TrackDetails from '@/components/TrackDetails';
@@ -494,6 +495,7 @@ export default function Index() {
   useEffect(() => { if (!sleep) return; const timer = window.setInterval(() => setSleep(v => Math.max(0, v - 1)), 1000); return () => window.clearInterval(timer); }, [sleep > 0]);
   useEffect(() => { if (sleep === 1 && outputPlaying) p.toggle(); }, [sleep]);
   const allTracks = libraryTracks;
+  usePrepareTrackSearchIndex(allTracks);
   const catalog = useMemo(() => buildCatalog(allTracks, mappings), [allTracks, mappings]);
   const selectedArtist = isArtists && catalogPath[2] ? catalog.artists.find(item => item.key === decodeURIComponent(catalogPath[2])) : undefined;
   const selectedAlbum = isAlbums && catalogPath[2] && catalogPath[3] ? catalog.albums.find(item => item.artistKey === decodeURIComponent(catalogPath[2]) && item.key === decodeURIComponent(catalogPath[3])) : undefined;

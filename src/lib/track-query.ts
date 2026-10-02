@@ -1,4 +1,5 @@
 import { trackTags, type Track } from './music.ts';
+import type { matchesSearch } from './phonetic-search.ts';
 
 export type TrackConditions = {
   keyword?: string; artist?: string; album?: string; tags?: string[]; tagMode?: 'all' | 'any';
@@ -20,9 +21,9 @@ export const playableTrack = (track: Track) => track.available !== false && trac
 export function trackFormat(track: Track) {
   return (track.fileName || track.path || track.source).split(/[?#]/)[0].split('.').at(-1)?.toLowerCase() ?? '';
 }
-export function matchesTrack(track: Track, conditions: TrackConditions, liked: ReadonlySet<number>) {
-  const contains = (value: string, term?: string) => !term?.trim() || value.normalize('NFKC').toLocaleLowerCase().includes(term.trim().normalize('NFKC').toLocaleLowerCase());
-  if (!contains([track.title, track.artist, track.album, ...trackTags(track)].join(' '), conditions.keyword) || !contains(track.artist, conditions.artist) || !contains(track.album, conditions.album)) return false;
+const literalSearch: typeof matchesSearch = (values, term) => !term?.trim() || (typeof values === 'string' ? values : values.join(' ')).normalize('NFKC').toLocaleLowerCase().includes(term.trim().normalize('NFKC').toLocaleLowerCase());
+export function matchesTrack(track: Track, conditions: TrackConditions, liked: ReadonlySet<number>, searchMatch = literalSearch) {
+  if (!searchMatch([track.title, track.artist, track.album, ...trackTags(track)], conditions.keyword) || !searchMatch(track.artist, conditions.artist) || !searchMatch(track.album, conditions.album)) return false;
   const tags = new Set(trackTags(track).map(tag => tag.toLocaleLowerCase()));
   const conditionTags = (conditions.tags ?? []).map(tag => tag.trim().toLocaleLowerCase()).filter(Boolean);
   if (conditionTags.length && !(conditions.tagMode === 'any' ? conditionTags.some(tag => tags.has(tag)) : conditionTags.every(tag => tags.has(tag)))) return false;
@@ -35,9 +36,9 @@ export function matchesTrack(track: Track, conditions: TrackConditions, liked: R
   if ((conditions.minYear !== undefined || conditions.maxYear !== undefined) && !Number.isFinite(year)) return false;
   return !(conditions.minYear !== undefined && year < conditions.minYear || conditions.maxYear !== undefined && year > conditions.maxYear);
 }
-export function queryTracks(tracks: Track[], conditions: TrackConditions, liked: number[], sort: TrackSort = 'original', descending = false) {
+export function queryTracks(tracks: Track[], conditions: TrackConditions, liked: number[], sort: TrackSort = 'original', descending = false, searchMatch = literalSearch) {
   const likedSet = new Set(liked);
-  const result = tracks.filter(track => matchesTrack(track, conditions, likedSet));
+  const result = tracks.filter(track => matchesTrack(track, conditions, likedSet, searchMatch));
   if (sort === 'original') return result;
   return result.sort((a, b) => {
     let comparison: number;

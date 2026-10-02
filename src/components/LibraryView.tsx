@@ -9,6 +9,7 @@ import { getVirtualTrackLocation, getVirtualTrackRange, locateCurrentTrack } fro
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import TrackFilterControls from './TrackFilterControls';
 import { queryTracks, type TrackConditions, type TrackSort } from '@/lib/track-query';
+import { useTrackSearchIndex } from '@/hooks/use-phonetic-search';
 
 type LibraryViewProps = {
   title: string;
@@ -40,6 +41,7 @@ const OVERSCAN = 8;
 const sortOptions = [['original','原有顺序'],['title','歌曲名称'],['artist','歌手'],['album','专辑'],['duration','时长'],['year','年份'],['added','加入时间']] as const;
 
 export default function LibraryView({ title, tracks, currentId, liked, onPlay, onPlayMany, onShufflePlay, onToggleLike, onViewInfo, onRefreshInfo, onSaveLyrics, onArtist, onAlbum, playlists, onAddToPlaylist, onRemoveFromPlaylist, onDeleteTracks, customTags, allTagNames, selectedTag = '', onTagFilter, onSetTrackTag }: LibraryViewProps) {
+  const searchMatch = useTrackSearchIndex(tracks);
   const [search, setSearch] = useState('');
   const [conditions, setConditions] = useState<TrackConditions>({});
   const [sort, setSort] = useState<TrackSort>('original');
@@ -51,7 +53,7 @@ export default function LibraryView({ title, tracks, currentId, liked, onPlay, o
   const anchor = useRef<number | null>(null);
   const rowsRef = useRef<HTMLDivElement>(null);
   const [locateRequest, setLocateRequest] = useState<{ id: number; scrollTop: number } | null>(null);
-  const filtered = useMemo(() => queryTracks(tracks, {...conditions, keyword: search}, liked, sort, descending).filter(track => !selectedTag || trackTags(track).some(tag => tag.toLocaleLowerCase() === selectedTag.toLocaleLowerCase())), [tracks, conditions, search, liked, sort, descending, selectedTag]);
+  const filtered = useMemo(() => queryTracks(tracks, {...conditions, keyword: search}, liked, sort, descending, searchMatch).filter(track => !selectedTag || trackTags(track).some(tag => tag.toLocaleLowerCase() === selectedTag.toLocaleLowerCase())), [tracks, conditions, search, liked, sort, descending, selectedTag, searchMatch]);
   useEffect(() => { setSelectedIds([]); anchor.current = null; setScrollTop(0); if (rowsRef.current) rowsRef.current.scrollTop = 0; }, [conditions, sort, descending]);
   const selected = selectedIds.filter(id => filtered.some(track => track.id === id));
   const selectedDeletable = selected.length > 0 && selected.every(id => tracks.find(track => track.id === id)?.deletable);

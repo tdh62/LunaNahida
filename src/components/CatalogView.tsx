@@ -6,6 +6,7 @@ import { backend } from '@/lib/backend';
 import type { AlbumEntry, ArtistEntry } from '@/lib/catalog';
 import { formatTime, type Track } from '@/lib/music';
 import type { Playlist } from '@/lib/playlists';
+import { usePhoneticSearch } from '@/hooks/use-phonetic-search';
 
 type ArtistDescription = { id: string; name: string; picture?: string; briefDesc: string; introduction: { ti: string; txt: string }[] };
 type AlbumDescription = {
@@ -79,6 +80,8 @@ const yearValue = (year: string) => /^\d{4}$/.test(year.trim()) ? Number(year) :
 const compareText = (a: string, b: string) => a.localeCompare(b, 'zh-CN');
 
 export default function CatalogView({ kind, artists, albums, artist, album, currentId, liked, playlists, onPlayTracks, onToggleLike, onViewInfo, onRefreshInfo, onSaveLyrics, onAddToPlaylist, onArtist, onAlbum }: Props) {
+  const searchTexts = useMemo(() => [...artists.flatMap(item => [item.name, ...item.aliases]), ...albums.flatMap(item => [item.name, item.artistName])], [artists, albums]);
+  const searchMatch = usePhoneticSearch(searchTexts);
   const navigate = useNavigate();
   const detail = kind === 'artists' ? artist : album;
   const items = kind === 'artists' ? artists : albums;
@@ -142,13 +145,13 @@ export default function CatalogView({ kind, artists, albums, artist, album, curr
     return () => controller.abort();
   }, [artist?.key, artist?.name, kind]);
   const filteredArtists = useMemo(() => {
-    const result = artists.filter(item => `${item.name} ${item.aliases.join(' ')}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
+    const result = artists.filter(item => searchMatch([item.name, ...item.aliases], search));
     if (artistSort === 'name') result.sort((a, b) => compareText(a.name, b.name));
     if (artistSort === 'tracks') result.sort((a, b) => b.tracks.length - a.tracks.length || compareText(a.name, b.name));
     return result;
-  }, [artists, artistSort, search]);
+  }, [artists, artistSort, search, searchMatch]);
   const filteredAlbums = useMemo(() => {
-    const result = albums.filter(item => `${item.name} ${item.artistName}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
+    const result = albums.filter(item => searchMatch([item.name, item.artistName], search));
     if (albumSort === 'year') result.sort((a, b) => {
       const yearA = yearValue(a.year), yearB = yearValue(b.year);
       if (yearA === null || yearB === null) return yearA === yearB ? compareText(a.name, b.name) : yearA === null ? 1 : -1;
@@ -157,7 +160,7 @@ export default function CatalogView({ kind, artists, albums, artist, album, curr
     if (albumSort === 'name') result.sort((a, b) => compareText(a.name, b.name));
     if (albumSort === 'artist') result.sort((a, b) => compareText(a.artistName, b.artistName) || compareText(a.name, b.name));
     return result;
-  }, [albums, albumSort, search]);
+  }, [albums, albumSort, search, searchMatch]);
   const refreshArtistDescription = async () => {
     if (!artist) return;
     setArtistDescriptionLoading(true);
