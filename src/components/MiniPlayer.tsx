@@ -13,7 +13,7 @@ type MiniPlayerProps = {
   favorite: boolean; canLike: boolean; onToggleLike: () => void;
   onRestore: () => void; onPin: () => void; onMinimise: () => void; onClose: () => void;
   onToggle: () => void; onPrevious: () => void; onNext: () => void; onSeek: (time: number) => void;
-  onVolume: (volume: number) => void; onStopNoise: () => void;
+  onVolume: (volume: number) => void; onMute: () => void; onStopNoise: () => void;
 };
 
 export default function MiniPlayer(p: MiniPlayerProps) {
@@ -49,6 +49,6 @@ export default function MiniPlayer(p: MiniPlayerProps) {
       <MiniModeButton label={p.playing ? '暂停' : '播放'} className="mini-play" disabled={!p.available} onClick={p.onToggle}>{p.playing ? <Pause size={17} fill="currentColor" /> : <Play size={17} fill="currentColor" />}</MiniModeButton>
       <MiniModeButton label="下一首" disabled={!p.available || p.noise} onClick={p.onNext}><SkipForward size={17} fill="currentColor" /></MiniModeButton>
       {p.noise && <MiniModeButton label="停止噪音" onClick={p.onStopNoise}><Square size={15} /></MiniModeButton>}
-    </div><div className="mini-volume"><MiniModeButton label={p.volume ? '静音' : '恢复音量'} onClick={() => p.onVolume(p.volume ? 0 : p.noise ? 20 : 65)}>{p.volume ? <Volume2 size={16} /> : <VolumeX size={16} />}</MiniModeButton><input type="range" aria-label="音量" min="0" max="100" value={p.volume} onChange={event => p.onVolume(Number(event.target.value))} style={{ '--fill': `${p.volume}%` } as CSSProperties} /></div></div>
+    </div><div className="mini-volume"><MiniModeButton label={p.volume ? '静音' : '恢复音量'} onClick={p.onMute}>{p.volume ? <Volume2 size={16} /> : <VolumeX size={16} />}</MiniModeButton><input type="range" aria-label="音量" min="0" max="100" value={p.volume} onChange={event => p.onVolume(Number(event.target.value))} style={{ '--fill': `${p.volume}%` } as CSSProperties} /></div></div>
   </section>;
 }
