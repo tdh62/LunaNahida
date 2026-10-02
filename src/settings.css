@@ -126,13 +126,43 @@ body[data-ui-fonts] :is(select, textarea) { font-family: inherit; }
   .settings-eq-grid { gap: 6px; }
   .settings-eq-grid label { font-size: 9px; }
 }
-.backup-policy-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; padding: 12px 0; }
-.backup-policy-controls label { display: grid; gap: 5px; font-size: 12px; color: var(--text-secondary); }
-.backup-policy-controls :is(input,select,button), .backup-file-list button, .dialog-actions button { padding: 7px 10px; border: 1px solid var(--border-color); border-radius: 4px; background: var(--field-background); color: var(--text-primary); }
-.backup-policy-controls input { width: 80px; }
-.backup-file-list { max-height: 220px; overflow-y: auto; font-size: 12px; }
-.backup-file-list > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border-color); }
-.backup-history { margin-top: 12px; max-height: 260px; overflow-y: auto; font-size: 12px; color: var(--text-secondary); }
-.backup-history summary { cursor: pointer; padding: 8px 0; }
-.backup-history p { margin: 8px 0; overflow-wrap: anywhere; }
+.automatic-backups { --action-color: var(--accent); }
+.backup-section-title { align-items: center; margin-bottom: 18px; }
+.backup-section-title > div { flex: 1; min-width: 0; }
+.backup-section-title > svg { align-self: flex-start; }
+.backup-section-title p { color: var(--text-secondary); font-size: 11px; }
+.backup-policy-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; padding-bottom: 18px; }
+.backup-policy-controls label { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; font-size: 12px; color: var(--text-primary); }
+.backup-policy-controls :is(input, select) { width: 112px; min-width: 0; flex: none; font-size: 12px; background: var(--field-background); border-color: var(--border-color); }
+.backup-policy-controls :is(input, select):focus-visible { outline: 2px solid var(--action-color); outline-offset: 2px; }
+.backup-list-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 0 12px; border-top: 1px solid var(--border-color); }
+.backup-list-heading h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 12px; font-weight: 500; }
+.backup-list-heading h3 span { color: var(--text-secondary); font-size: 11px; }
+.backup-list-actions { display: flex; align-items: center; gap: 8px; }
+.automatic-backups .playlist-primary { min-height: 34px; padding: 0 12px; font-size: 12px; }
+.backup-refresh { display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-secondary); background: var(--panel-background); }
+.backup-secondary { display: inline-flex; flex: none; align-items: center; justify-content: center; gap: 6px; min-height: 32px; padding: 0 10px; border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary); background: var(--panel-background); font-size: 12px; white-space: nowrap; }
+.automatic-backups :is(.backup-refresh, .backup-secondary):hover:not(:disabled) { color: var(--action-color); background: var(--tint); border-color: var(--action-color); }
+.automatic-backups button:disabled, .automatic-backups fieldset:disabled { cursor: default; opacity: .55; }
+.automatic-backups button:focus-visible, .backup-history summary:focus-visible { outline: 2px solid var(--action-color); outline-offset: 3px; }
+.backup-file-list { max-height: 220px; overflow-y: auto; scrollbar-width: thin; font-size: 12px; }
+.backup-file-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border-color); }
+.backup-file-row > div { min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
+.backup-file-row time { color: var(--text-primary); }
+.backup-file-row small { color: var(--text-secondary); font-size: 11px; }
+.automatic-backups .backup-empty { margin: 0; padding: 16px 12px; border-radius: 6px; background: var(--field-background); text-align: center; color: var(--text-secondary); font-size: 12px; }
+.backup-history { margin-top: 16px; font-size: 12px; color: var(--text-secondary); }
+.backup-history summary { display: flex; align-items: center; gap: 7px; cursor: pointer; padding: 8px 0; list-style: none; }
+.backup-history summary::-webkit-details-marker { display: none; }
+.backup-history summary::before { content: ''; width: 6px; height: 6px; border-right: 1px solid currentColor; border-bottom: 1px solid currentColor; transform: rotate(-45deg); margin-right: 3px; transition: transform .15s; }
+.backup-history[open] summary::before { transform: rotate(45deg); }
+.backup-history-list { max-height: 260px; overflow-y: auto; scrollbar-width: thin; }
+.backup-history-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: baseline; gap: 6px 12px; padding: 10px 0; border-bottom: 1px solid var(--border-color); }
+.backup-history-row p { grid-column: 1 / -1; margin: 0; overflow-wrap: anywhere; font-size: 11px; }
+.backup-status.success { color: var(--action-color); }
+.backup-status.failed { color: var(--danger-color); }
+.backup-error { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; color: var(--danger-color); font-size: 12px; }
+.backup-error > span { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 900px) { .backup-policy-controls { grid-template-columns: 1fr; gap: 12px; } }
+.dialog-actions button { padding: 7px 10px; border: 1px solid var(--border-color); border-radius: 4px; background: var(--field-background); color: var(--text-primary); }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }

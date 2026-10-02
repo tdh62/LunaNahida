@@ -24,7 +24,7 @@ export default function SettingsNavigation({ page, active, onChange, hash }: Pro
         next.push({ id: section.id, label: title, section: '', category, titleText: title, text: `${title} ${section.textContent ?? ''}` });
         section.querySelectorAll<HTMLElement>('.settings-row, .lyric-setting-control, .settings-eq, form > label, .network-source-credentials > label, .backup-policy-controls > label').forEach((element, itemIndex) => {
           element.id ||= `${section.id}-item-${itemIndex}`;
-          let label = element.querySelector('strong, label, .settings-eq-heading span')?.textContent?.trim()
+          let label = element.querySelector('strong, label, .settings-eq-heading span, .backup-policy-controls span')?.textContent?.trim()
             ?? Array.from(element.childNodes).filter(node => node.nodeType === Node.TEXT_NODE).map(node => node.textContent).join('').trim();
           if (/^\d+(\.\d+)?\s+(B|KB|MB|GB|TB)$/.test(label)) label = element.querySelector('button')?.textContent?.trim() ?? title;
           if (!label) return;
