@@ -226,7 +226,7 @@ try {
   await connected.page.getByRole('link', { name: '播放器设置', exact: true }).click();
   assert.equal(await connected.page.getByRole('button', { name: '导出备份', exact: true }).isDisabled(), false);
   assert.equal(await connected.page.getByRole('button', { name: '添加文件夹', exact: true }).isDisabled(), true);
-  assert.equal(await connected.page.getByPlaceholder('后端可访问的文件夹绝对路径').isDisabled(), false);
+  assert.equal(await connected.page.getByPlaceholder('音乐库服务所在电脑的文件夹完整路径').isDisabled(), false);
   assert.ok(!connected.requests.some(request => ['/api/import', '/api/conversion/inspect', '/api/history'].includes(request.path)));
   assert.ok(!connected.requests.some(request => request.path === '/api/queue' && request.body !== '[]'));
   connected.disconnect();

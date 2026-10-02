@@ -7,6 +7,7 @@ import { backend, type CacheStats, type LibraryState, type NetworkSource, type S
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { useRuntime } from '@/hooks/use-runtime';
+import SettingsNavigation from './SettingsNavigation';
 
 export const themes = [
   { id: 'dusk', name: '山间暮色', icon: Moon },
@@ -191,6 +192,7 @@ export default function PlayerSettings({ theme, setTheme, appearance, setAppeara
   };
   return <div ref={pageRef} className="settings-page">
     <header className="settings-heading"><h1>设置</h1>{!runtime.backend && <span className="runtime-mode">仅本次有效</span>}</header>
+    <SettingsNavigation page={pageRef} />
     {runtime.mode === 'desktop' && <section className="settings-group"><div className="settings-group-title"><Headphones size={19} /><div><h2>桌面窗口</h2></div></div><fieldset disabled={!library}>
       <div className="settings-row"><div><strong>最小化到系统托盘</strong></div><button type="button" role="switch" aria-checked={library?.settings.trayEnabled ?? false} aria-label="最小化到系统托盘" className={`settings-switch ${library?.settings.trayEnabled ? 'on' : ''}`} onClick={() => saveLibrarySettings({ trayEnabled: !library?.settings.trayEnabled })}><span /></button></div>
     </fieldset></section>}
