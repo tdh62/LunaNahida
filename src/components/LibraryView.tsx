@@ -1,5 +1,5 @@
 import { Heart, Info, ListMusic, Play, RefreshCw, Save, Search, Shuffle, Plus, Trash2, Tag } from 'lucide-react';
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
+import { useMemo, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import LocateCurrentTrackButton from '@/components/LocateCurrentTrackButton';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { formatTime, trackTags, type Track } from '@/lib/music';
@@ -14,7 +14,7 @@ type LibraryViewProps = {
   liked: number[];
   onPlay: (id: number) => void;
   onPlayMany: (tracks: Track[]) => void;
-  onShufflePlay?: () => void;
+  onShufflePlay?: (tracks: Track[]) => void;
   onToggleLike: (id: number) => void;
   onViewInfo: (track: Track) => void;
   onRefreshInfo?: (track: Track) => void;
@@ -32,18 +32,25 @@ type LibraryViewProps = {
   onSetTrackTag?: (ids: number[], name: string, add: boolean) => void;
 };
 
+import TrackFilterControls from './TrackFilterControls';
+import { queryTracks, type TrackConditions, type TrackSort } from '@/lib/track-query';
+
 const VIRTUAL_THRESHOLD = 200;
 const OVERSCAN = 8;
 
 export default function LibraryView({ title, tracks, currentId, liked, onPlay, onPlayMany, onShufflePlay, onToggleLike, onViewInfo, onRefreshInfo, onSaveLyrics, onArtist, onAlbum, playlists, onAddToPlaylist, onRemoveFromPlaylist, onDeleteTracks, customTags, allTagNames, selectedTag = '', onTagFilter, onSetTrackTag }: LibraryViewProps) {
   const [search, setSearch] = useState('');
+  const [conditions, setConditions] = useState<TrackConditions>({});
+  const [sort, setSort] = useState<TrackSort>('original');
+  const [descending, setDescending] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewport, setViewport] = useState(() => ({ height: window.innerHeight, rowHeight: window.matchMedia('(max-width: 760px)').matches ? 66 : 72 }));
   const anchor = useRef<number | null>(null);
   const rowsRef = useRef<HTMLDivElement>(null);
   const [locateRequest, setLocateRequest] = useState<{ id: number; scrollTop: number } | null>(null);
-  const filtered = tracks.filter(track => (!selectedTag || trackTags(track).some(name => name.toLocaleLowerCase() === selectedTag.toLocaleLowerCase())) && `${track.title}${track.artist}${track.album}${trackTags(track).join('')}`.toLowerCase().includes(search.trim().toLowerCase()));
+  const filtered = useMemo(() => queryTracks(tracks, {...conditions, keyword: search}, liked, sort, descending).filter(track => !selectedTag || trackTags(track).some(tag => tag.toLocaleLowerCase() === selectedTag.toLocaleLowerCase())), [tracks, conditions, search, liked, sort, descending, selectedTag]);
+  useEffect(() => { setSelectedIds([]); anchor.current = null; setScrollTop(0); if (rowsRef.current) rowsRef.current.scrollTop = 0; }, [conditions, sort, descending]);
   const selected = selectedIds.filter(id => filtered.some(track => track.id === id));
   const selectedDeletable = selected.length > 0 && selected.every(id => tracks.find(track => track.id === id)?.deletable);
   const virtualized = filtered.length > VIRTUAL_THRESHOLD;
@@ -141,8 +148,10 @@ export default function LibraryView({ title, tracks, currentId, liked, onPlay, o
   return <section className="library-view">
     <div className="library-heading">
       <div><span className="eyebrow"><span /> MUSIC LIBRARY</span><h1>{title}</h1><p>{filtered.length} 首歌曲{selected.length > 0 && ` · 已选 ${selected.length} 首`}</p></div>
-      <div className="library-filters"><LocateCurrentTrackButton available={currentIndex >= 0} onLocate={onLocate} />{onShufflePlay && <button type="button" className="library-shuffle-play" disabled={!tracks.some(track => track.available !== false && track.playbackStatus !== 'unplayable')} onClick={onShufflePlay}><Shuffle size={16} />随机播放</button>}{onDeleteTracks && selected.length > 0 && <button type="button" className="library-delete-selection" disabled={!selectedDeletable} title={selectedDeletable ? '从曲库移除所选歌曲' : '文件夹或监听路径下的歌曲不支持单独删除'} onClick={() => onDeleteTracks(selected)}><Trash2 size={16} />移除所选 ({selected.length})</button>}{allTagNames && <label className="library-tag-filter"><Tag size={16} /><select aria-label="按标签筛选" value={selectedTag} onChange={event => { onTagFilter?.(event.target.value); setSelectedIds([]); setScrollTop(0); if (rowsRef.current) rowsRef.current.scrollTop = 0; }}><option value="">全部标签</option>{allTagNames.map(name => <option key={name} value={name}>{name}</option>)}</select></label>}<div className="library-search"><Search size={17} /><input aria-label="搜索歌曲、歌手、专辑或标签" placeholder="搜索歌曲、歌手、专辑或标签" value={search} onChange={event => { setSearch(event.target.value); setSelectedIds([]); anchor.current = null; setScrollTop(0); if (rowsRef.current) rowsRef.current.scrollTop = 0; }} /></div></div>
+      <div className="library-filters"><LocateCurrentTrackButton available={currentIndex >= 0} onLocate={onLocate} />{onShufflePlay && <button type="button" className="library-shuffle-play" disabled={!filtered.some(track => track.available !== false && track.playbackStatus !== 'unplayable')} onClick={() => onShufflePlay(filtered)}><Shuffle size={16} />随机播放</button>}{onDeleteTracks && selected.length > 0 && <button type="button" className="library-delete-selection" disabled={!selectedDeletable} title={selectedDeletable ? '从曲库移除所选歌曲' : '文件夹或监听路径下的歌曲不支持单独删除'} onClick={() => onDeleteTracks(selected)}><Trash2 size={16} />移除所选 ({selected.length})</button>}{allTagNames && <label className="library-tag-filter"><Tag size={16} /><select aria-label="按标签筛选" value={selectedTag} onChange={event => { onTagFilter?.(event.target.value); setSelectedIds([]); setScrollTop(0); if (rowsRef.current) rowsRef.current.scrollTop = 0; }}><option value="">全部标签</option>{allTagNames.map(name => <option key={name} value={name}>{name}</option>)}</select></label>}<div className="library-search"><Search size={17} /><input aria-label="搜索歌曲、歌手、专辑或标签" placeholder="搜索歌曲、歌手、专辑或标签" value={search} onChange={event => { setSearch(event.target.value); setSelectedIds([]); anchor.current = null; setScrollTop(0); if (rowsRef.current) rowsRef.current.scrollTop = 0; }} /></div></div>
     </div>
+    <div className="library-query-bar"><label>排序<select aria-label="歌曲排序" value={sort} onChange={event => setSort(event.target.value as TrackSort)}>{[['original','原有顺序'],['title','歌曲名称'],['artist','歌手'],['album','专辑'],['duration','时长'],['year','年份'],['added','加入时间']].map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></label><button type="button" disabled={sort === 'original'} aria-pressed={descending} onClick={() => setDescending(!descending)}>{descending ? '降序' : '升序'}</button><button type="button" onClick={() => onPlayMany(filtered)} disabled={!filtered.some(track => track.available !== false && track.playbackStatus !== 'unplayable')}>播放筛选结果</button></div>
+    <details className="library-combined-filters"><summary>组合筛选</summary><TrackFilterControls value={conditions} onChange={setConditions} /><button type="button" onClick={() => {setConditions({}); setSearch(''); onTagFilter?.('');}}>清除筛选</button></details>
     <div className="library-table-head"><span>歌曲</span><span>专辑</span><span>时长</span><span /></div>
     <div ref={rowsRef} onScroll={onRowsScroll} className={`library-rows ${virtualized ? 'is-virtualized' : ''}`} role="listbox" aria-label={`${title}歌曲列表`} aria-multiselectable="true">
       {virtualized && <div aria-hidden="true" style={{ height: range.topHeight }} />}

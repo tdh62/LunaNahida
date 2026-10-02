@@ -488,8 +488,8 @@ export default function Index() {
   const openArtist = (name: string) => { if (!runtime.backend) return; setDetailTrack(null); navigate(`/artists/${encodeURIComponent(artistKey(name, mappings))}`); };
   const openAlbum = (track: Track) => { if (!runtime.backend) return; setDetailTrack(null); navigate(`/albums/${encodeURIComponent(artistKey(track.artist, mappings))}/${encodeURIComponent(normalizeName(track.album))}`); };
   const visibleTracks = view === '我喜欢的' ? allTracks.filter(t => liked.includes(t.id)) : view === '最近播放' ? p.recent.map(id => allTracks.find(t => t.id === id)).filter((t): t is Track => Boolean(t)) : allTracks;
-  const shuffleLibrary = () => {
-    const playable = allTracks.filter(track => track.available !== false && track.playbackStatus !== 'unplayable');
+  const shuffleLibrary = (items: Track[] = allTracks) => {
+    const playable = items.filter(track => track.available !== false && track.playbackStatus !== 'unplayable');
     if (!playable.length) return;
     const first = playable[Math.floor(Math.random() * playable.length)];
     if (p.playTracks(playable, first.id)) { p.setMode('shuffle'); navigate('/'); }

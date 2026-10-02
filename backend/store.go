@@ -16,6 +16,7 @@ import (
 )
 
 type Track struct {
+	AddedAt        int64    `json:"addedAt"`
 	ID             int64    `json:"id"`
 	Path           string   `json:"path"`
 	Kind           string   `json:"kind"`
@@ -613,7 +614,7 @@ func (s *Store) State() (State, error) {
 	if err != nil {
 		return state, err
 	}
-	rows, err := s.DB.Query(`SELECT id,path,title,artist,album,duration,cover,genre,year,lyrics,translation,size,modified,available,embedded_cover,embedded_lyrics,local_lyrics,embedded_tags,playback_status,provider,provider_id,converted,folder_imported FROM tracks ORDER BY id`)
+	rows, err := s.DB.Query(`SELECT id,path,title,artist,album,duration,cover,genre,year,lyrics,translation,size,modified,available,embedded_cover,embedded_lyrics,local_lyrics,embedded_tags,playback_status,provider,provider_id,converted,folder_imported,added_at FROM tracks ORDER BY id`)
 	if err != nil {
 		return state, err
 	}
@@ -621,7 +622,7 @@ func (s *Store) State() (State, error) {
 		var t Track
 		var available, embeddedCover, embeddedLyrics, localLyrics, converted, folderImported int
 		var embeddedJSON string
-		if err = rows.Scan(&t.ID, &t.Path, &t.Title, &t.Artist, &t.Album, &t.Duration, &t.Cover, &t.Genre, &t.Year, &t.Lyrics, &t.Translation, &t.Size, &t.Modified, &available, &embeddedCover, &embeddedLyrics, &localLyrics, &embeddedJSON, &t.PlaybackStatus, &t.Provider, &t.ProviderID, &converted, &folderImported); err != nil {
+		if err = rows.Scan(&t.ID, &t.Path, &t.Title, &t.Artist, &t.Album, &t.Duration, &t.Cover, &t.Genre, &t.Year, &t.Lyrics, &t.Translation, &t.Size, &t.Modified, &available, &embeddedCover, &embeddedLyrics, &localLyrics, &embeddedJSON, &t.PlaybackStatus, &t.Provider, &t.ProviderID, &converted, &folderImported, &t.AddedAt); err != nil {
 			rows.Close()
 			return state, err
 		}
