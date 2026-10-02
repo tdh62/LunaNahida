@@ -2,6 +2,7 @@ import { type CSSProperties, type DragEvent, type PointerEvent, type ReactNode, 
 import { Link, Navigate, useLocation, useNavigate } from 'react-router';
 import LyricCalibration from '@/components/LyricCalibration';
 import PlayerSettings from '@/components/PlayerSettings';
+import { uiFontStack } from '@/lib/ui-fonts';
 import ExpandedScope from '@/components/ExpandedScope';
 import AudioProcessor from '@/components/AudioProcessor';
 import Toolbox from '@/components/Toolbox';
@@ -152,6 +153,7 @@ export default function Index() {
   const [recentPlaylistIds, setRecentPlaylistIds] = useState<string[]>([]);
   const [theme, setTheme] = useState('forest'), [lyricEffect, setLyricEffect] = useState('流动'), [lyricScroll, setLyricScroll] = useState('平滑'), [visual, setVisual] = useState('频谱');
   const [appearance, setAppearance] = useState<'dark' | 'light'>('light');
+  const [fontFamilies, setFontFamilies] = useState<string[]>([]);
   const [themeColor, setThemeColor] = useState(defaultThemeColor);
   const [lyricAppearance, setLyricAppearance] = useState({ font: 'default', size: 16, lineHeight: 57, spacing: 0 });
   const [scopeSettings, setScopeSettings] = useState<ScopeSettings>(defaultScopeSettings);
@@ -212,6 +214,7 @@ export default function Index() {
     const state = runtime.initialState;
     setLibraryTracks(state.tracks); setCustomTags(state.tags); setPlaylists(state.playlists); setLiked(state.liked); setFolders(state.folders);
     setTheme(state.settings.theme); setThemeColor(state.settings.themeColor || defaultThemeColor); setAppearance(state.settings.appearance); setVisual(state.settings.visual);
+    setFontFamilies(state.settings.uiFontFamilies ?? []);
     setScopeSettings(state.settings.scope ?? defaultScopeSettings);
     setLyricEffect(state.settings.lyricEffect); setLyricScroll(state.settings.lyricScroll);
     setShowTranslation(state.settings.showTranslation); setLyricAppearance(state.settings.lyricAppearance);
@@ -224,10 +227,20 @@ export default function Index() {
   useEffect(() => { if (ready && runtime.backend) void backend.queue(p.queue.filter(track => !track.temporary).map(track => track.id)).catch(error => toast.error(error.message)); }, [p.queue.map(track => track.id).join(','), ready, runtime.backend]);
   useEffect(() => {
     if (!ready || !storedSettings || !runtime.backend) return;
-    const next: StoredSettings = { ...storedSettings, theme, themeColor, appearance, visual, scope: scopeSettings, lyricEffect, lyricScroll, showTranslation, lyricAppearance, artistMappings: mappings, volume: p.volume, mode: p.mode, effect: p.effect, professionalAudio: p.professionalAudio, equalizer: p.equalizer, customEffects: p.customEffects };
+    const next: StoredSettings = { ...storedSettings, theme, themeColor, appearance, uiFontFamilies: fontFamilies, visual, scope: scopeSettings, lyricEffect, lyricScroll, showTranslation, lyricAppearance, artistMappings: mappings, volume: p.volume, mode: p.mode, effect: p.effect, professionalAudio: p.professionalAudio, equalizer: p.equalizer, customEffects: p.customEffects };
     const timer = window.setTimeout(() => void backend.settings(next).catch(error => toast.error(error.message)), 250);
     return () => window.clearTimeout(timer);
-  }, [ready, storedSettings, theme, themeColor, appearance, visual, scopeSettings, lyricEffect, lyricScroll, showTranslation, lyricAppearance, mappings, p.volume, p.mode, p.effect, p.professionalAudio, p.equalizer, p.customEffects, runtime.backend]);
+  }, [ready, storedSettings, theme, themeColor, appearance, fontFamilies, visual, scopeSettings, lyricEffect, lyricScroll, showTranslation, lyricAppearance, mappings, p.volume, p.mode, p.effect, p.professionalAudio, p.equalizer, p.customEffects, runtime.backend]);
+  const useSystemFonts = runtime.mode === 'desktop' && runtime.nativeFonts && fontFamilies.length > 0;
+  useLayoutEffect(() => {
+    if (!useSystemFonts) return;
+    document.body.dataset.uiFonts = '';
+    document.documentElement.style.setProperty('--ui-font-family', uiFontStack(fontFamilies));
+    return () => {
+      delete document.body.dataset.uiFonts;
+      document.documentElement.style.removeProperty('--ui-font-family');
+    };
+  }, [useSystemFonts, fontFamilies]);
   useLayoutEffect(() => {
     document.documentElement.classList.toggle('mode-light', appearance === 'light');
     document.documentElement.style.colorScheme = appearance;
@@ -709,7 +722,7 @@ export default function Index() {
     </aside>
     {sidebarMode === 'hidden' && <button type="button" className="sidebar-restore" title="展开侧栏" aria-label="展开侧栏" onClick={() => setSidebarMode('expanded')}><PanelLeftOpen size={19} /></button>}
     <main className={`workspace min-w-0 ${isSettings ? 'settings-workspace' : ''} ${isArtists || isAlbums ? 'catalog-workspace' : ''} ${isPlaylists || isTags || pathname === '/music' || pathname === '/liked' || pathname === '/recent' ? 'scrolling-workspace' : ''} ${pathname === '/music' || pathname === '/liked' || pathname === '/recent' ? 'library-workspace' : ''} ${isArtists || isAlbums || isPlaylists || view !== '正在播放' ? 'collection-workspace' : ''}`}>
-      {isSettings ? <PlayerSettings theme={theme} setTheme={setTheme} themeColor={themeColor} setThemeColor={setThemeColor} appearance={appearance} setAppearance={setAppearance} visual={visual} setVisual={setVisual} lyricEffect={lyricEffect} setLyricEffect={setLyricEffect} lyricScroll={lyricScroll} setLyricScroll={setLyricScroll} showTranslation={showTranslation} setShowTranslation={setShowTranslation} sleep={sleep} setSleep={setSleep} effectName={p.effectName} onEditEffects={() => setEffectEditorOpen(true)} professionalAudio={p.professionalAudio} setProfessionalAudio={p.setProfessionalAudio} equalizer={p.equalizer} setBand={p.setBand} resetEqualizer={p.resetEqualizer} mappings={mappings} setMappings={setMappings} lyricAppearance={lyricAppearance} setLyricAppearance={setLyricAppearance} artistNames={[...new Set(allTracks.map(track => track.artist))]} />
+      {isSettings ? <PlayerSettings fontFamilies={fontFamilies} setFontFamilies={setFontFamilies} theme={theme} setTheme={setTheme} themeColor={themeColor} setThemeColor={setThemeColor} appearance={appearance} setAppearance={setAppearance} visual={visual} setVisual={setVisual} lyricEffect={lyricEffect} setLyricEffect={setLyricEffect} lyricScroll={lyricScroll} setLyricScroll={setLyricScroll} showTranslation={showTranslation} setShowTranslation={setShowTranslation} sleep={sleep} setSleep={setSleep} effectName={p.effectName} onEditEffects={() => setEffectEditorOpen(true)} professionalAudio={p.professionalAudio} setProfessionalAudio={p.setProfessionalAudio} equalizer={p.equalizer} setBand={p.setBand} resetEqualizer={p.resetEqualizer} mappings={mappings} setMappings={setMappings} lyricAppearance={lyricAppearance} setLyricAppearance={setLyricAppearance} artistNames={[...new Set(allTracks.map(track => track.artist))]} />
       : isArtists || isAlbums ? <CatalogView onRefreshInfo={refreshInfo} onSaveLyrics={saveLyrics} kind={isArtists ? 'artists' : 'albums'} artists={catalog.artists} albums={catalog.albums} artist={selectedArtist} album={selectedAlbum} currentId={p.trackId} liked={liked} playlists={displayPlaylists} onPlayTracks={(tracks, startId) => { if (p.playTracks(tracks, startId)) navigate('/'); }} onToggleLike={toggleTrackLike} onViewInfo={setDetailTrack} onAddToPlaylist={addToPlaylist} onArtist={openArtist} onAlbum={openAlbum} />
       : isPlaylists ? <PlaylistView onRefreshInfo={refreshInfo} onSaveLyrics={saveLyrics} playlists={overviewPlaylists} playlist={activePlaylist} displayCover={activePlaylist ? playlistCover(activePlaylist, allTracks) : undefined} tracks={allTracks} currentId={p.trackId} liked={liked} onCreate={() => setCreatePlaylistOpen(true)} onDelete={setDeletePlaylistId} onPlayPlaylist={(tracks, startId) => { if (p.playTracks(tracks, startId)) navigate('/'); }} onToggleLike={toggleTrackLike} onViewInfo={setDetailTrack} onArtist={openArtist} onAlbum={openAlbum} onAddToPlaylist={addToPlaylist} onRemoveFromPlaylist={removeFromPlaylist} onEditPlaylist={edited => setPlaylists(prev => prev.map(item => item.id === edited.id ? edited : item))} />
       : isTags ? <TagsView tracks={allTracks} customTags={customTags} onCreate={createTag} onRename={renameTag} onDelete={deleteTag} onOpen={openTag} />
@@ -721,7 +734,7 @@ export default function Index() {
               <div
                 ref={lyricsWindow}
                 className="lyrics-window"
-                style={{ '--lyric-font': lyricAppearance.font === 'serif' ? 'Georgia, "Noto Serif SC", serif' : lyricAppearance.font === 'sans' ? 'Arial, "Noto Sans SC", sans-serif' : '"DM Sans", "Noto Sans SC", sans-serif', '--lyric-size': `${lyricAppearance.size}px`, '--lyric-row-height': `${lyricAppearance.lineHeight}px`, '--lyric-spacing': `${lyricAppearance.spacing}px` } as CSSProperties}
+                style={{ '--lyric-font': lyricAppearance.font === 'serif' ? 'Georgia, "Noto Serif SC", serif' : lyricAppearance.font === 'sans' ? 'Arial, "Noto Sans SC", sans-serif' : useSystemFonts ? uiFontStack(fontFamilies) : '"DM Sans", "Noto Sans SC", sans-serif', '--lyric-size': `${lyricAppearance.size}px`, '--lyric-row-height': `${lyricAppearance.lineHeight}px`, '--lyric-spacing': `${lyricAppearance.spacing}px` } as CSSProperties}
                 onWheel={onLyricWheel}
                 onPointerDown={onLyricPointerDown}
                 onPointerMove={onLyricPointerMove}

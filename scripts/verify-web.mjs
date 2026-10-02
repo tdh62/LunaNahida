@@ -41,7 +41,7 @@ function wav() {
 const audio = wav();
 const file = { name: 'browser-sample.wav', mimeType: 'audio/wav', buffer: audio };
 
-async function setup({ backend = false, desktop = false, lateDesktop = false, trackTitle = 'Native Song', tracks = [], queue = [], dictionary = 'available', viewport = { width: 1280, height: 800 } } = {}) {
+async function setup({ backend = false, desktop = false, lateDesktop = false, fontFamilies = [], nativeFonts = desktop, trackTitle = 'Native Song', tracks = [], queue = [], dictionary = 'available', viewport = { width: 1280, height: 800 } } = {}) {
   const page = await browser.newPage({ viewport });
   const errors = [];
   const requests = [];
@@ -49,6 +49,7 @@ async function setup({ backend = false, desktop = false, lateDesktop = false, tr
   const state = emptyLibrary();
   state.tracks = tracks;
   state.queue = queue;
+  state.settings.uiFontFamilies = fontFamilies;
   const nativeWindow = { width: viewport.width, height: viewport.height, x: 100, y: 80, frameless: true, resizable: true, pinned: false, calls: [] };
   state.settings.dropAction = 'watch';
   let disconnected = false;
@@ -112,7 +113,8 @@ async function setup({ backend = false, desktop = false, lateDesktop = false, tr
   if (backend) await page.route('**/api/**', async route => {
     const path = new URL(route.request().url()).pathname;
     if (disconnected) { await route.fulfill({ status: 503, json: { error: 'test backend unavailable' } }); return; }
-    if (path === '/api/capabilities') await route.fulfill({ json: { application: 'LunaNahida', nativeFiles: desktop, nativeFolders: desktop, nativeCover: desktop, nativeBackup: desktop } });
+    if (path === '/api/capabilities') await route.fulfill({ json: { application: 'LunaNahida', nativeFiles: desktop, nativeFolders: desktop, nativeCover: desktop, nativeBackup: desktop, nativeFonts } });
+    else if (path === '/api/fonts') await route.fulfill({ json: ['Arial', 'Segoe UI', 'Microsoft YaHei', 'Yu Gothic'] });
     else if (path === '/api/state') await route.fulfill({ json: state });
     else if (path === '/api/timer') await route.fulfill({ json: { timer: defaultWorkTimer, serverNow: Date.now() } });
     else if (path === '/api/timer/reminders') await route.fulfill({ json: route.request().method() === 'PUT' ? route.request().postDataJSON() : defaultTimerReminders });
@@ -172,6 +174,8 @@ try {
   await page.getByRole('tab', { name: '音乐库', exact: true }).click();
   assert.equal(await page.getByRole('combobox', { name: '打开文件或文件夹处理方式' }).inputValue(), 'temporary');
   await page.getByRole('tab', { name: '外观', exact: true }).click();
+  assert.equal(await page.getByRole('heading', { name: '界面字体', exact: true }).count(), 0);
+  assert.ok(!requests.some(request => request.path === '/api/fonts'));
   await page.getByRole('button', { name: '深色', exact: true }).click();
   assert.ok(await page.locator('.music-app').evaluate(element => element.classList.contains('mode-dark')));
   await page.screenshot({ path: resolve(output, 'web-settings.png') });
@@ -235,7 +239,7 @@ try {
   await page.close();
   console.log('PASS static Web: playback, audio graph, scope, session metadata, settings, timer, noise, drag/drop, URL cleanup, refresh, no background API requests');
 
-  const connected = await setup({ backend: true });
+  const connected = await setup({ backend: true, nativeFonts: true, fontFamilies: ['Arial'] });
   assert.equal(await connected.page.getByRole('button', { name: '迷你模式', exact: true }).count(), 0);
   assert.equal(await connected.page.getByRole('button', { name: '我的音乐', exact: true }).isDisabled(), false);
   await connected.page.locator('input[type=file][multiple]').setInputFiles(file);
@@ -243,6 +247,10 @@ try {
   await connected.page.getByRole('button', { name: '我的音乐', exact: true }).click();
   assert.equal(await connected.page.locator('.library-row').count(), 0);
   await connected.page.getByRole('link', { name: '播放器设置', exact: true }).click();
+  await connected.page.getByRole('tab', { name: '外观', exact: true }).click();
+  assert.equal(await connected.page.getByRole('heading', { name: '界面字体', exact: true }).count(), 0);
+  assert.ok(!connected.requests.some(request => request.path === '/api/fonts'));
+  assert.ok(!await connected.page.locator('.music-app').evaluate(element => getComputedStyle(element).fontFamily.startsWith('Arial')));
   await connected.page.getByRole('tab', { name: '数据与备份', exact: true }).click();
   assert.equal(await connected.page.getByRole('button', { name: '导出备份', exact: true }).isDisabled(), false);
   await connected.page.getByRole('tab', { name: '音乐库', exact: true }).click();
@@ -312,6 +320,44 @@ try {
     await optional.page.close();
   }
   console.log('PASS optional dictionary: missing, incomplete and corrupt resources disable Japanese readings, literal and pinyin search remain usable');
+
+  const fonts = await setup({ backend: true, desktop: true });
+  const fontPage = fonts.page;
+  await fontPage.getByRole('link', { name: '播放器设置', exact: true }).click();
+  await fontPage.getByRole('tab', { name: '外观', exact: true }).click();
+  for (const name of ['Arial', 'Microsoft YaHei', 'Yu Gothic']) {
+    await fontPage.getByRole('button', { name: '添加字体', exact: true }).click();
+    await fontPage.getByRole('searchbox', { name: '搜索系统字体', exact: true }).fill(name);
+    await fontPage.locator('.system-font-results').getByRole('button', { name, exact: true }).click();
+  }
+  await fontPage.waitForFunction(() => getComputedStyle(document.querySelector('.music-app')).fontFamily.startsWith('Arial, "Microsoft YaHei", "Yu Gothic"'));
+  const reorderedSaved = fontPage.waitForResponse(response => response.url().endsWith('/api/settings') && JSON.stringify(response.request().postDataJSON().uiFontFamilies) === '["Arial","Yu Gothic","Microsoft YaHei"]');
+  await fontPage.getByRole('button', { name: '上移 Yu Gothic', exact: true }).click();
+  await fontPage.waitForFunction(() => getComputedStyle(document.querySelector('.music-app')).fontFamily.startsWith('Arial, "Yu Gothic", "Microsoft YaHei"'));
+  await fontPage.locator('.system-font-footer').scrollIntoViewIfNeeded();
+  await fontPage.screenshot({ path: resolve(output, 'desktop-fonts.png') });
+  await fontPage.getByRole('button', { name: '添加字体', exact: true }).click();
+  assert.ok((await fontPage.locator('.system-font-dialog').evaluate(element => getComputedStyle(element).fontFamily)).startsWith('Arial, "Yu Gothic"'));
+  await fontPage.locator('.system-font-dialog').evaluate(async element => { await Promise.all(element.getAnimations({ subtree: true }).map(animation => animation.finished.catch(() => {}))); });
+  await fontPage.screenshot({ path: resolve(output, 'desktop-font-picker.png') });
+  await fontPage.keyboard.press('Escape');
+  await reorderedSaved;
+  await fontPage.reload();
+  await fontPage.locator('.music-app').waitFor();
+  assert.ok((await fontPage.locator('.music-app').evaluate(element => getComputedStyle(element).fontFamily)).startsWith('Arial, "Yu Gothic", "Microsoft YaHei"'));
+  await fontPage.getByRole('button', { name: '迷你模式', exact: true }).click();
+  await fontPage.locator('.desktop-mini-player').waitFor();
+  assert.ok((await fontPage.locator('.desktop-mini-player').evaluate(element => getComputedStyle(element).fontFamily)).startsWith('Arial, "Yu Gothic"'));
+  await fontPage.getByRole('button', { name: '退出迷你模式', exact: true }).click();
+  await fontPage.getByRole('link', { name: '播放器设置', exact: true }).click();
+  await fontPage.getByRole('tab', { name: '外观', exact: true }).click();
+  await fontPage.getByRole('button', { name: '移除 Yu Gothic', exact: true }).click();
+  await fontPage.getByRole('button', { name: '恢复默认', exact: true }).click();
+  await fontPage.waitForFunction(() => !document.body.hasAttribute('data-ui-fonts'));
+  assert.equal(await fontPage.locator('.system-font-row').count(), 0);
+  assert.deepEqual(fonts.errors, []);
+  await fontPage.close();
+  console.log('PASS desktop system fonts: search, priority, persistence, dialogs, mini player and reset; Web modes hide and disable');
 
   const themed = await setup({ backend: true, desktop: true, tracks: searchTracks, queue: [1] });
   const themePage = themed.page;

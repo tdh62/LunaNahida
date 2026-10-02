@@ -7,6 +7,7 @@ export type Runtime = {
   nativeFolders: boolean;
   nativeCover: boolean;
   nativeBackup: boolean;
+  nativeFonts: boolean;
   initialState: LibraryState;
 };
 
@@ -35,7 +36,7 @@ function validState(value: LibraryState): boolean {
 }
 
 export async function discoverRuntime(desktop: boolean, signal: AbortSignal, fetcher: typeof fetch = fetch): Promise<Runtime> {
-  const web: Runtime = { mode: 'web', backend: false, nativeFiles: false, nativeFolders: false, nativeCover: false, nativeBackup: false, initialState: emptyLibrary() };
+  const web: Runtime = { mode: 'web', backend: false, nativeFiles: false, nativeFolders: false, nativeCover: false, nativeBackup: false, nativeFonts: false, initialState: emptyLibrary() };
   let response: Response;
   try { response = await fetcher('/api/capabilities', { signal }); }
   catch (error) { if (desktop) throw error; return web; }
@@ -56,5 +57,6 @@ export async function discoverRuntime(desktop: boolean, signal: AbortSignal, fet
     nativeFolders: desktop && capabilities.nativeFolders === true,
     nativeCover: desktop && capabilities.nativeCover === true,
     nativeBackup: desktop && capabilities.nativeBackup === true,
+    nativeFonts: desktop && capabilities.nativeFonts === true,
   };
 }

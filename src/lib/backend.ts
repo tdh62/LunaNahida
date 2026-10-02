@@ -30,6 +30,7 @@ export type StoredSettings = {
   theme: string;
   themeColor: string;
   appearance: 'dark' | 'light';
+  uiFontFamilies?: string[];
   visual: string;
   scope: ScopeSettings;
   lyricEffect: string;
@@ -85,6 +86,7 @@ export const backend = {
   deleteTag: (name: string) => request<{ ok: boolean }>('/api/tags', 'DELETE', { name }),
   changeTrackTag: (ids: number[], name: string, add: boolean) => request<{ ok: boolean }>('/api/tracks/tags', 'PATCH', { ids, name, add }),
   settings: (value: StoredSettings) => request<StoredSettings>('/api/settings', 'PUT', value),
+  systemFonts: () => request<string[]>('/api/fonts'),
   playlists: (value: Playlist[]) => request<{ ok: boolean }>('/api/playlists', 'PUT', value),
   liked: (value: number[]) => request<{ ok: boolean }>('/api/liked', 'PUT', value),
   queue: (value: number[]) => request<{ ok: boolean }>('/api/queue', 'PUT', value),

@@ -9,6 +9,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 	"unicode/utf8"
@@ -75,6 +76,7 @@ type Settings struct {
 	Theme                   string          `json:"theme"`
 	ThemeColor              string          `json:"themeColor"`
 	Appearance              string          `json:"appearance"`
+	UIFontFamilies          []string        `json:"uiFontFamilies"`
 	Visual                  string          `json:"visual"`
 	Scope                   ScopeSettings   `json:"scope"`
 	LyricEffect             string          `json:"lyricEffect"`
@@ -570,6 +572,17 @@ func (s *Store) SaveSettings(value Settings) error {
 	}
 	if !validThemeColor(value.ThemeColor) {
 		return errors.New("invalid theme color")
+	}
+	if len(value.UIFontFamilies) > 8 {
+		return errors.New("too many font families")
+	}
+	seenFonts := map[string]bool{}
+	for _, family := range value.UIFontFamilies {
+		key := strings.ToLower(family)
+		if family == "" || strings.TrimSpace(family) != family || utf8.RuneCountInString(family) > 100 || strings.ContainsAny(family, "\x00\r\n\t") || seenFonts[key] {
+			return errors.New("invalid font family")
+		}
+		seenFonts[key] = true
 	}
 	if value.NetworkCacheCount < 0 || value.NetworkCacheCount > 50 {
 		return errors.New("invalid network cache count")

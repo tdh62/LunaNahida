@@ -38,6 +38,25 @@
 .settings-theme-color { display: flex; align-items: center; gap: 12px; margin-top: 16px; color: var(--text-primary); font-size: 12px; }
 .settings-theme-color input { width: 44px; height: 32px; padding: 3px; border: 1px solid var(--border-color); border-radius: 5px; background: var(--panel-background); cursor: pointer; }
 .settings-theme-color output { color: var(--text-secondary); font: 11px 'DM Mono', monospace; }
+.system-font-hint { margin: -4px 0 16px; color: var(--text-secondary); font-size: 12px; }
+.system-font-stack { display: grid; gap: 8px; }
+.system-font-row { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 7px 10px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--field-background); }
+.system-font-order { flex: none; width: 18px; color: var(--text-secondary); font-size: 12px; text-align: center; }
+.system-font-choice { flex: 1; min-width: 0; padding: 5px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; font-size: 14px; }
+.system-font-actions { display: flex; flex: none; gap: 4px; }
+.system-font-actions button { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 5px; color: var(--text-secondary); }
+.system-font-actions button:disabled { opacity: .35; cursor: default; }
+.system-font-actions button:hover:not(:disabled), .system-font-choice:hover { color: var(--action-color); }
+.system-font-actions button:hover:not(:disabled) { background: var(--tint); }
+.system-font-footer { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+.system-font-dialog { display: grid; grid-template-rows: auto auto minmax(0, 1fr); width: min(480px, calc(100vw - 32px)); max-height: min(560px, calc(100dvh - 48px)); }
+.system-font-results { min-height: 0; height: 320px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--border-color) transparent; }
+.system-font-results > button { display: block; width: 100%; padding: 10px 12px; border-radius: 5px; text-align: left; font-size: 15px; overflow-wrap: anywhere; }
+.system-font-results > button:is(:hover, :focus-visible) { outline: none; background: var(--tint); color: var(--action-color); }
+.system-font-results > button:disabled { opacity: .35; cursor: default; }
+.system-font-results p { padding: 12px; color: var(--text-secondary); font-size: 13px; }
+body[data-ui-fonts] :is(.music-app, .dialog-frame, [data-radix-popper-content-wrapper]) { font-family: var(--ui-font-family); }
+body[data-ui-fonts] :is(select, textarea) { font-family: inherit; }
 .settings-theme { position: relative; display: flex; align-items: center; gap: 12px; min-width: 0; padding: 10px; border: 1px solid #36383a; border-radius: 8px; text-align: left; background: #202123; color: var(--text-primary); transition: border-color .2s, background .2s; }
 .settings-theme:hover, .settings-theme.selected { border-color: var(--accent); background: var(--tint); }
 .settings-theme-preview { display: grid; place-items: center; width: 56px; height: 56px; flex: none; border-radius: 5px; }

@@ -30,6 +30,7 @@ type API struct {
 	AuthorizeTimerNotification func() (bool, error)
 	SendTimerNotification      func(int64) error
 	SettingsChanged            func(Settings)
+	SystemFonts                func() ([]string, error)
 }
 
 func NewAPI(store *Store, dialogs Dialogs) *API {
@@ -69,7 +70,20 @@ func (a *API) Handler() http.Handler {
 			"nativeFolders": a.Dialogs.Folder != nil,
 			"nativeCover":   a.Dialogs.Cover != nil,
 			"nativeBackup":  a.Dialogs.BackupSave != nil,
+			"nativeFonts":   a.SystemFonts != nil,
 		})
+	})
+	mux.HandleFunc("GET /api/fonts", func(w http.ResponseWriter, r *http.Request) {
+		if a.SystemFonts == nil {
+			http.NotFound(w, r)
+			return
+		}
+		fonts, err := a.SystemFonts()
+		if err != nil {
+			fail(w, 500, err)
+			return
+		}
+		respond(w, 200, fonts)
 	})
 	newOrganizer(a.Store).register(mux)
 	a.registerAutomaticBackup(mux)

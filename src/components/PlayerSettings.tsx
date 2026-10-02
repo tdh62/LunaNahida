@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { useRuntime } from '@/hooks/use-runtime';
 import AutomaticBackupSettings from './AutomaticBackupSettings';
 import SettingsNavigation from './SettingsNavigation';
+import SystemFontSettings from './SystemFontSettings';
 import type { SettingsCategory } from '@/lib/settings-categories';
 
 export const themes = [
@@ -33,6 +34,8 @@ type SettingsProps = {
   setThemeColor: (value: string) => void;
   appearance: 'dark' | 'light';
   setAppearance: (value: 'dark' | 'light') => void;
+  fontFamilies: string[];
+  setFontFamilies: (families: string[]) => void;
   visual: string;
   setVisual: (value: string) => void;
   lyricEffect: string;
@@ -57,7 +60,7 @@ type SettingsProps = {
   artistNames: string[];
 };
 
-export default function PlayerSettings({ theme, setTheme, themeColor, setThemeColor, appearance, setAppearance, visual, setVisual, lyricEffect, setLyricEffect, lyricScroll, setLyricScroll, showTranslation, setShowTranslation, sleep, setSleep, effectName, onEditEffects, professionalAudio, setProfessionalAudio, equalizer, setBand, resetEqualizer, mappings, setMappings, lyricAppearance, setLyricAppearance, artistNames }: SettingsProps) {
+export default function PlayerSettings({ theme, setTheme, themeColor, setThemeColor, appearance, setAppearance, fontFamilies, setFontFamilies, visual, setVisual, lyricEffect, setLyricEffect, lyricScroll, setLyricScroll, showTranslation, setShowTranslation, sleep, setSleep, effectName, onEditEffects, professionalAudio, setProfessionalAudio, equalizer, setBand, resetEqualizer, mappings, setMappings, lyricAppearance, setLyricAppearance, artistNames }: SettingsProps) {
   const runtime = useRuntime();
   const { hash } = useLocation();
   const pageRef = useRef<HTMLDivElement>(null);
@@ -241,6 +244,7 @@ export default function PlayerSettings({ theme, setTheme, themeColor, setThemeCo
       <div className="settings-themes">{themes.map(t => <button type="button" key={t.id} aria-pressed={theme === t.id} onClick={() => setTheme(t.id)} className={`settings-theme ${theme === t.id ? 'selected' : ''}`}><span className={`settings-theme-preview preview-${t.id}`} style={t.id === 'custom' ? { background: themeColor, color: '#fff' } : undefined}><t.icon size={24} /></span><span className="settings-theme-label"><strong><t.icon size={15} /> {t.name}</strong></span><span className="settings-theme-check">{theme === t.id && <Check size={15} />}</span></button>)}</div>
       {theme === 'custom' && <label className="settings-theme-color"><span>基色</span><input type="color" aria-label="自定义主题基色" value={themeColor} onChange={event => setThemeColor(event.target.value)} /><output>{themeColor.toUpperCase()}</output></label>}
     </section>
+    {runtime.mode === 'desktop' && runtime.nativeFonts && <SystemFontSettings hidden={category !== 'appearance'} families={fontFamilies} onChange={setFontFamilies} />}
     <section id="player-style" className="settings-group" data-settings-category="playback" hidden={category !== 'playback'}><div className="settings-group-title"><Headphones size={19} /><div><h2>播放器样式</h2></div></div>
       <div className="settings-row"><div><strong>播放氛围</strong></div><div className="settings-options">{['频谱', '唱片', '呼吸'].map(v => <button key={v} aria-pressed={visual === v} className={visual === v ? 'active' : ''} onClick={() => setVisual(v)}>{v}</button>)}</div></div>
       <div className="settings-row"><div><strong>歌词效果</strong></div><div className="settings-options">{['流动', '聚焦', '逐字'].map(v => <button key={v} aria-pressed={lyricEffect === v} className={lyricEffect === v ? 'active' : ''} onClick={() => setLyricEffect(v)}>{v}</button>)}</div></div>

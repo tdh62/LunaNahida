@@ -15,6 +15,7 @@ test('static hosting and absent API enter an empty web session', async () => {
     const runtime = await discoverRuntime(false, signal(), fetcher);
     assert.equal(runtime.mode, 'web');
     assert.equal(runtime.backend, false);
+    assert.equal(runtime.nativeFonts, false);
     assert.deepEqual(runtime.initialState.tracks, []);
   }
 });
@@ -22,19 +23,21 @@ test('static hosting and absent API enter an empty web session', async () => {
 test('browser backend retains state but cannot open native dialogs', async () => {
   const state = emptyLibrary();
   state.liked = [2];
-  const runtime = await discoverRuntime(false, signal(), async path => json(path === '/api/state' ? state : { application: 'LunaNahida', nativeFiles: true, nativeFolders: true }));
+  const runtime = await discoverRuntime(false, signal(), async path => json(path === '/api/state' ? state : { application: 'LunaNahida', nativeFiles: true, nativeFolders: true, nativeFonts: true }));
   assert.equal(runtime.mode, 'browser-backend');
   assert.equal(runtime.nativeFiles, false);
   assert.equal(runtime.nativeFolders, false);
+  assert.equal(runtime.nativeFonts, false);
   assert.deepEqual(runtime.initialState.liked, [2]);
 });
 
 test('desktop honors advertised native capabilities', async () => {
-  const runtime = await discoverRuntime(true, signal(), async path => json(path === '/api/state' ? emptyLibrary() : { application: 'LunaNahida', nativeFiles: true, nativeFolders: true, nativeCover: false }));
+  const runtime = await discoverRuntime(true, signal(), async path => json(path === '/api/state' ? emptyLibrary() : { application: 'LunaNahida', nativeFiles: true, nativeFolders: true, nativeCover: false, nativeFonts: true }));
   assert.equal(runtime.mode, 'desktop');
   assert.equal(runtime.nativeFiles, true);
   assert.equal(runtime.nativeFolders, true);
   assert.equal(runtime.nativeCover, false);
+  assert.equal(runtime.nativeFonts, true);
 });
 
 test('known backend or desktop failures must not silently become web mode', async () => {

@@ -19,6 +19,7 @@ import (
 	"lunanahida/backend"
 	"lunanahida/internal/logging"
 	"lunanahida/internal/searchdict"
+	"lunanahida/internal/systemfonts"
 )
 
 // Embed only interface assets, excluding search-dict even after a static Web build.
@@ -138,6 +139,7 @@ func main() {
 			return app.Dialog.SaveFile().SetFilename("LunaNahida-"+time.Now().Format("2006-01-02")+".zip").AddFilter("ZIP 备份", "*.zip").PromptForSingleSelection()
 		},
 	})
+	api.SystemFonts = systemfonts.List
 	api.AuthorizeTimerNotification = notifier.RequestNotificationAuthorization
 	api.SendTimerNotification = func(startedAt int64) error {
 		return notifier.SendNotification(notifications.NotificationOptions{ID: "work-timer-" + strconv.FormatInt(startedAt, 10), Title: "LunaNahida · 倒计时结束", Body: "可以休息一下了。", Sound: &notifications.NotificationSound{Silent: true}})
