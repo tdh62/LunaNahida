@@ -206,6 +206,11 @@ type State struct {
 }
 
 type Store struct {
+	backupMu      sync.Mutex
+	backupOnce    sync.Once
+	backupWake    chan struct{}
+	backupStop    chan struct{}
+	backupWG      sync.WaitGroup
 	DB            *sql.DB
 	Root          string
 	mu            sync.Mutex
@@ -258,7 +263,7 @@ func Open(root string) (*Store, error) {
 		return nil, err
 	}
 	db.SetMaxOpenConns(1)
-	store := &Store{DB: db, Root: root, temporary: map[int64]Track{}, nextTemporary: -1, networkJobs: map[int64]bool{}, networkCancel: map[int64]context.CancelFunc{}, networkChecks: map[int64]time.Time{}, networkSlots: make(chan struct{}, 2)}
+	store := &Store{backupWake: make(chan struct{}, 1), backupStop: make(chan struct{}), DB: db, Root: root, temporary: map[int64]Track{}, nextTemporary: -1, networkJobs: map[int64]bool{}, networkCancel: map[int64]context.CancelFunc{}, networkChecks: map[int64]time.Time{}, networkSlots: make(chan struct{}, 2)}
 	if _, err = db.Exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;`); err != nil {
 		db.Close()
 		return nil, err
@@ -271,6 +276,8 @@ func Open(root string) (*Store, error) {
 }
 
 func (s *Store) Close() error {
+	close(s.backupStop)
+	s.backupWG.Wait()
 	s.networkMu.Lock()
 	s.networkClosed = true
 	s.networkEpoch++
@@ -498,7 +505,7 @@ func (s *Store) migrate() error {
 			return err
 		}
 	}
-	_, err = s.DB.Exec(`CREATE TABLE IF NOT EXISTS track_lyric_offsets(track_id INTEGER PRIMARY KEY REFERENCES tracks(id) ON DELETE CASCADE,offset_ms INTEGER NOT NULL DEFAULT 0)`)
+	_, err = s.DB.Exec(`CREATE TABLE IF NOT EXISTS track_lyric_offsets(track_id INTEGER PRIMARY KEY REFERENCES tracks(id) ON DELETE CASCADE,offset_ms INTEGER NOT NULL DEFAULT 0); CREATE TABLE IF NOT EXISTS backup_events(id INTEGER PRIMARY KEY AUTOINCREMENT,time INTEGER NOT NULL,action TEXT NOT NULL,name TEXT NOT NULL,status TEXT NOT NULL,detail TEXT NOT NULL)`)
 	return err
 }
 

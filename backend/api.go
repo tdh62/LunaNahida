@@ -33,6 +33,7 @@ type API struct {
 }
 
 func NewAPI(store *Store, dialogs Dialogs) *API {
+	store.startBackupScheduler()
 	return &API{Store: store, Dialogs: dialogs, Music: NewMusic(store)}
 }
 
@@ -71,6 +72,7 @@ func (a *API) Handler() http.Handler {
 		})
 	})
 	newOrganizer(a.Store).register(mux)
+	a.registerAutomaticBackup(mux)
 	a.registerLyricOffset(mux)
 	a.registerPlayback(mux)
 	a.registerWorkTimer(mux)
@@ -128,6 +130,7 @@ func (a *API) Handler() http.Handler {
 		}
 		defer file.Close()
 		result, err := a.Store.ImportBackup(file)
+		a.Store.recordBackup("restore", "导入的备份", err)
 		if err != nil {
 			fail(w, 400, err)
 			return

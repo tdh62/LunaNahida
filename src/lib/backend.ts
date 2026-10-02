@@ -60,7 +60,13 @@ async function request<T>(path: string, method = 'GET', body?: unknown): Promise
   return response.json() as Promise<T>;
 }
 
+export type BackupPolicy = {enabled: boolean; intervalHours: number; keepCount: number};
+export type AutomaticBackupState = {policy: BackupPolicy; files: {name:string;createdAt:number;size:number}[];events:{id:number;time:number;action:string;name:string;status:string;detail:string}[]};
 export const backend = {
+  automaticBackups: () => request<AutomaticBackupState>('/api/backups'),
+  saveBackupPolicy: (value: BackupPolicy) => request<BackupPolicy>('/api/backups/policy','PUT',value),
+  createAutomaticBackup: () => request<{name:string}>('/api/backups','POST'),
+  restoreAutomaticBackup: (name: string) => request<BackupImportResult>(`/api/backups/${encodeURIComponent(name)}/restore`,'POST'),
   lyricOffset: (id: number, offsetMs: number) => request<{ok: boolean}>(`/api/tracks/${id}/lyric-offset`, 'PUT', {offsetMs}),
   savePlayback: (value: PlaybackState) => request<{ ok: boolean }>('/api/playback', 'PUT', value),
   timerReminders: () => request<TimerReminders>('/api/timer/reminders'),

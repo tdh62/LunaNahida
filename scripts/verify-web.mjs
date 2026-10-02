@@ -107,6 +107,7 @@ async function setup({ backend = false, desktop = false, lateDesktop = false, tr
     else if (path === '/api/state') await route.fulfill({ json: state });
     else if (path === '/api/timer') await route.fulfill({ json: { timer: defaultWorkTimer, serverNow: Date.now() } });
     else if (path === '/api/timer/reminders') await route.fulfill({ json: route.request().method() === 'PUT' ? route.request().postDataJSON() : defaultTimerReminders });
+    else if (path === '/api/backups') await route.fulfill({json:{policy:{enabled:false,intervalHours:24,keepCount:7},files:[],events:[]}});
     else if (path === '/api/cache') await route.fulfill({ json: { coverBytes: 0, webviewBytes: 100, metadataBytes: 0, networkAudioBytes: 0, totalBytes: 100, webviewClearPending: false } });
     else if (path === '/api/dialog/files' || path === '/api/dialog/folder') await route.fulfill({ json: { paths: [] } });
     else if (path === '/api/conversion/inspect') await route.fulfill({ json: { paths: [] } });

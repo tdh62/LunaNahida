@@ -86,3 +86,13 @@
   .settings-eq-grid { gap: 6px; }
   .settings-eq-grid label { font-size: 9px; }
 }
+.backup-policy-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; padding: 12px 0; }
+.backup-policy-controls label { display: grid; gap: 5px; font-size: 12px; color: var(--text-secondary); }
+.backup-policy-controls :is(input,select,button), .backup-file-list button, .dialog-actions button { padding: 7px 10px; border: 1px solid var(--border-color); border-radius: 4px; background: var(--field-background); color: var(--text-primary); }
+.backup-policy-controls input { width: 80px; }
+.backup-file-list { max-height: 220px; overflow-y: auto; font-size: 12px; }
+.backup-file-list > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border-color); }
+.backup-history { margin-top: 12px; max-height: 260px; overflow-y: auto; font-size: 12px; color: var(--text-secondary); }
+.backup-history summary { cursor: pointer; padding: 8px 0; }
+.backup-history p { margin: 8px 0; overflow-wrap: anywhere; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }

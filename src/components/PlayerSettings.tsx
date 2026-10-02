@@ -7,6 +7,7 @@ import { backend, type CacheStats, type LibraryState, type NetworkSource, type S
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { useRuntime } from '@/hooks/use-runtime';
+import AutomaticBackupSettings from './AutomaticBackupSettings';
 import SettingsNavigation from './SettingsNavigation';
 
 export const themes = [
@@ -228,7 +229,7 @@ export default function PlayerSettings({ theme, setTheme, appearance, setAppeara
     <section className="settings-group"><div className="settings-group-title"><HardDrive size={19} /><div><h2>数据备份</h2></div></div><fieldset disabled={!runtime.backend}>
       <div className="settings-row backup-row"><div><strong>导出压缩包</strong><small>音乐库数据库、歌词及在线资料、封面缓存；不包含音频文件</small></div><button type="button" className="playlist-primary" disabled={backupBusy !== null} onClick={() => void exportBackup()}><Download size={15} />{backupBusy === 'export' ? '导出中' : '导出备份'}</button></div>
       <div className="settings-row backup-row"><div><strong>合并备份</strong><small>添加缺失数据，保留当前已有歌曲信息、歌单和封面</small></div><button type="button" className="playlist-primary" disabled={backupBusy !== null} onClick={() => backupInput.current?.click()}><Upload size={15} />{backupBusy === 'import' ? '导入中' : '导入备份'}</button><input ref={backupInput} className="sr-only" type="file" accept=".zip,application/zip" aria-label="选择备份压缩包" onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; if (file) void importBackup(file); }} /></div>
-    </fieldset></section>
+    <AutomaticBackupSettings /></fieldset></section>
     <section className="settings-group"><div className="settings-group-title"><Play size={19} /><div><h2>播放恢复</h2></div></div><fieldset disabled={!library}>
       <div className="settings-row"><div><strong>恢复上次歌曲和播放位置</strong><small>重新打开后保持暂停；仅记录曲库中的歌曲</small></div><button type="button" role="switch" aria-checked={library?.settings.resumePlayback !== false} aria-label="恢复上次歌曲和播放位置" className={`settings-switch ${library?.settings.resumePlayback !== false ? 'on' : ''}`} onClick={() => saveLibrarySettings({resumePlayback: library?.settings.resumePlayback === false})}><span /></button></div>
     </fieldset></section>
