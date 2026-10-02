@@ -7,6 +7,7 @@ import { emptyLibrary } from '../src/lib/runtime.ts';
 import { defaultWorkTimer } from '../src/lib/work-timer.ts';
 import { defaultTimerReminders } from '../src/lib/timer-reminders.ts';
 import verifyTextSize from './verify-text-size.mjs';
+import verifyCatalogNavigation from './verify-catalog-navigation.mjs';
 
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : 'playwright');
 const root = resolve('dist');
@@ -139,6 +140,7 @@ async function setup({ backend = false, desktop = false, lateDesktop = false, fo
 try {
   browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}) });
   await verifyTextSize(setup, output);
+  await verifyCatalogNavigation(setup, output);
   const web = await setup();
   const { page, requests } = web;
   assert.equal(await page.getByRole('button', { name: '迷你模式', exact: true }).count(), 0);

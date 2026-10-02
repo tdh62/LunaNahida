@@ -7,6 +7,7 @@ import type { AlbumEntry, ArtistEntry } from '@/lib/catalog';
 import { formatTime, type Track } from '@/lib/music';
 import type { Playlist } from '@/lib/playlists';
 import { usePhoneticSearch } from '@/hooks/use-phonetic-search';
+import { useCatalogListScroll, type CatalogListState } from '@/hooks/use-catalog-list-scroll';
 
 type ArtistDescription = { id: string; name: string; picture?: string; briefDesc: string; introduction: { ti: string; txt: string }[] };
 type AlbumDescription = {
@@ -59,6 +60,7 @@ async function fetchAlbumDescription(album: AlbumEntry, refresh = false, signal?
 
 type Props = {
   kind: 'artists' | 'albums';
+  listState: CatalogListState;
   artists: ArtistEntry[];
   albums: AlbumEntry[];
   artist?: ArtistEntry;
@@ -79,19 +81,22 @@ type Props = {
 const yearValue = (year: string) => /^\d{4}$/.test(year.trim()) ? Number(year) : null;
 const compareText = (a: string, b: string) => a.localeCompare(b, 'zh-CN');
 
-export default function CatalogView({ kind, artists, albums, artist, album, currentId, liked, playlists, onPlayTracks, onToggleLike, onViewInfo, onRefreshInfo, onSaveLyrics, onAddToPlaylist, onArtist, onAlbum }: Props) {
+export default function CatalogView({ kind, listState, artists, albums, artist, album, currentId, liked, playlists, onPlayTracks, onToggleLike, onViewInfo, onRefreshInfo, onSaveLyrics, onAddToPlaylist, onArtist, onAlbum }: Props) {
   const searchTexts = useMemo(() => [...artists.flatMap(item => [item.name, ...item.aliases]), ...albums.flatMap(item => [item.name, item.artistName])], [artists, albums]);
   const searchMatch = usePhoneticSearch(searchTexts);
   const navigate = useNavigate();
   const detail = kind === 'artists' ? artist : album;
+  const page = useRef<HTMLElement>(null);
+  const detailKey = detail ? kind === 'albums' && album ? albumCacheKey(album) : detail.key : '';
+  const rememberListPosition = useCatalogListScroll(page, listState, detailKey);
   const items = kind === 'artists' ? artists : albums;
   const label = kind === 'artists' ? '歌手' : '专辑';
   const relatedAlbums = artist ? albums.filter(item => item.artistKey === artist.key) : [];
   const [artistTab, setArtistTab] = useState<'albums' | 'songs' | 'info'>('albums');
   const [albumTab, setAlbumTab] = useState<'songs' | 'info'>('songs');
-  const [search, setSearch] = useState('');
-  const [artistSort, setArtistSort] = useState<'added' | 'name' | 'tracks'>('added');
-  const [albumSort, setAlbumSort] = useState<'added' | 'year' | 'name' | 'artist'>('added');
+  const [search, setSearch] = useState(listState.search);
+  const [artistSort, setArtistSort] = useState<'added' | 'name' | 'tracks'>(kind === 'artists' ? listState.sort as 'added' | 'name' | 'tracks' : 'added');
+  const [albumSort, setAlbumSort] = useState<'added' | 'year' | 'name' | 'artist'>(kind === 'albums' ? listState.sort as 'added' | 'year' | 'name' | 'artist' : 'added');
   const [artistDescription, setArtistDescription] = useState<{ name: string; data: ArtistDescription } | null>(null);
   const [artistDescriptionError, setArtistDescriptionError] = useState('');
   const [artistDescriptionLoading, setArtistDescriptionLoading] = useState(false);
@@ -226,7 +231,7 @@ export default function CatalogView({ kind, artists, albums, artist, album, curr
       {currentArtistDescription.introduction.map((section, index) => <section className="artist-description-section" key={`${section.ti}-${index}`}><h2>{section.ti}</h2><p>{section.txt}</p></section>)}
     </>}
   </section>;
-  return <section className="catalog-page collection-page">
+  return <section ref={page} className="catalog-page collection-page">
     {detail ? <>
       <Link className="playlist-back" to={kind === 'artists' ? '/artists' : '/albums'}><ArrowLeft size={16} /> 返回{label}</Link>
       <header className="catalog-hero collection-hero"><img src={kind === 'artists' ? artistCover : currentAlbumDescription?.picture ?? detail.cover} alt="" /><div><h1>{detail.name}</h1>
@@ -272,8 +277,8 @@ export default function CatalogView({ kind, artists, albums, artist, album, curr
         </section>}
       </> : null}
     </> : <><header className="catalog-heading collection-heading"><div className="collection-heading-title"><h1>{label}</h1><p>{items.length} {kind === 'artists' ? '位歌手' : '张专辑'}</p></div></header>
-      <div className="catalog-toolbar"><label className="catalog-search"><Search size={16} /><input value={search} onChange={event => setSearch(event.target.value)} aria-label={`搜索${label}`} placeholder={kind === 'artists' ? '搜索歌手名称' : '搜索专辑或歌手'} /></label><label className="catalog-sort"><ArrowDownAZ size={16} /><span>排序</span><select aria-label={`${label}排序`} value={kind === 'artists' ? artistSort : albumSort} onChange={event => kind === 'artists' ? setArtistSort(event.target.value as typeof artistSort) : setAlbumSort(event.target.value as typeof albumSort)}>{kind === 'artists' ? <><option value="added">添加时间</option><option value="name">名称</option><option value="tracks">歌曲数量</option></> : <><option value="added">添加时间</option><option value="year">发行年份</option><option value="name">专辑名称</option><option value="artist">歌手名称</option></>}</select></label></div>
-      <div className="catalog-grid">{kind === 'artists' ? filteredArtists.map(item => <button type="button" className="catalog-card" key={item.key} onClick={() => navigate(`/artists/${encodeURIComponent(item.key)}`)}><span className="catalog-cover"><img src={item.cover} alt="" /><small className="catalog-cover-badge">{item.tracks.length} 首</small></span><strong>{item.name}</strong><small><Mic2 size={13} /> {albums.filter(albumItem => albumItem.artistKey === item.key).length} 张专辑</small></button>) : filteredAlbums.map(item => <button type="button" className="catalog-card" key={`${item.artistKey}-${item.key}`} onClick={() => navigate(`/albums/${encodeURIComponent(item.artistKey)}/${encodeURIComponent(item.key)}`)}><span className="catalog-cover"><img src={item.cover} alt="" /><small className="catalog-cover-badge">{item.tracks.length} 首</small></span><strong>{item.name}</strong><small><Users size={13} /> {item.artistName}{yearValue(item.year) === null ? '' : ` · ${item.year}`}</small></button>)}</div>
+      <div className="catalog-toolbar"><label className="catalog-search"><Search size={16} /><input value={search} onChange={event => { listState.search = event.target.value; setSearch(event.target.value); }} aria-label={`搜索${label}`} placeholder={kind === 'artists' ? '搜索歌手名称' : '搜索专辑或歌手'} /></label><label className="catalog-sort"><ArrowDownAZ size={16} /><span>排序</span><select aria-label={`${label}排序`} value={kind === 'artists' ? artistSort : albumSort} onChange={event => { listState.sort = event.target.value as CatalogListState['sort']; if (kind === 'artists') setArtistSort(event.target.value as typeof artistSort); else setAlbumSort(event.target.value as typeof albumSort); }}>{kind === 'artists' ? <><option value="added">添加时间</option><option value="name">名称</option><option value="tracks">歌曲数量</option></> : <><option value="added">添加时间</option><option value="year">发行年份</option><option value="name">专辑名称</option><option value="artist">歌手名称</option></>}</select></label></div>
+      <div className="catalog-grid">{kind === 'artists' ? filteredArtists.map(item => <button type="button" className="catalog-card" key={item.key} onClick={() => { rememberListPosition(); navigate(`/artists/${encodeURIComponent(item.key)}`); }}><span className="catalog-cover"><img src={item.cover} alt="" /><small className="catalog-cover-badge">{item.tracks.length} 首</small></span><strong>{item.name}</strong><small><Mic2 size={13} /> {albums.filter(albumItem => albumItem.artistKey === item.key).length} 张专辑</small></button>) : filteredAlbums.map(item => <button type="button" className="catalog-card" key={`${item.artistKey}-${item.key}`} onClick={() => { rememberListPosition(); navigate(`/albums/${encodeURIComponent(item.artistKey)}/${encodeURIComponent(item.key)}`); }}><span className="catalog-cover"><img src={item.cover} alt="" /><small className="catalog-cover-badge">{item.tracks.length} 首</small></span><strong>{item.name}</strong><small><Users size={13} /> {item.artistName}{yearValue(item.year) === null ? '' : ` · ${item.year}`}</small></button>)}</div>
       {!items.length && <div className="library-empty"><Disc3 size={28} /><p>音乐库还没有歌曲</p></div>}
       {items.length > 0 && (kind === 'artists' ? filteredArtists.length : filteredAlbums.length) === 0 && <div className="library-empty"><Search size={25} /><p>没有找到匹配的{label}</p></div>}
     </>}
