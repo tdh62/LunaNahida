@@ -2,6 +2,8 @@
 
 Windows desktop music player built with React, Go, SQLite, and Wails v3 beta.26.
 
+设置提供分类导航和搜索；支持恢复上次曲库歌曲与播放位置、组合筛选及排序、每首歌的歌词时间校准、自动备份和恢复记录。新建或编辑歌单时可选择条件歌单，符合用户设置条件的歌曲会自动收录。详见 [产品改进与使用说明](docs/product-improvements.md)。
+
 **设置 → 桌面窗口 → 最小化到系统托盘** is disabled by default. Enabling it immediately adds a tray icon; minimising either the main or mini player hides the window while music/noise continues. Click the tray icon to restore the window, or right-click for playback controls and **退出**. Closing the window still exits the app. The preference is saved across restarts. Media Session metadata follows the current title, artist, album and displayed cover, with play/pause, track changes and seeking available to the system. On Windows WebView2, the system reads the title, artist (the secondary display line) and thumbnail; its separate Subtitle and AlbumTitle fields may remain empty.
 
 ## Requirements

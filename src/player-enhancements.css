@@ -72,3 +72,4 @@ body { overflow-y: hidden; }
 .lyric-calibration-panel input { padding: 7px; background: var(--field-background); color: inherit; border: 1px solid var(--border-color); border-radius: 4px; }
 .lyric-calibration-panel > div { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .lyric-calibration-panel button { padding: 6px 8px; border: 1px solid var(--border-color); border-radius: 4px; color: var(--action-color); }
+.immersive-overlay { --text-primary: #efeeea; --text-secondary: #b3bbb5; }

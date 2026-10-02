@@ -24,6 +24,8 @@ const Toaster = ({ ...props }: ToasterProps) => {
     <div onClick={closeClickedToast} onKeyDown={closeClickedToast}>
       <Sonner
         closeButton
+        position="top-right"
+        offset={40}
         theme={theme as ToasterProps["theme"]}
         className="toaster group"
         toastOptions={{

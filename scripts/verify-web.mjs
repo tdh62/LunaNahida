@@ -46,7 +46,7 @@ async function setup({ backend = false, desktop = false, lateDesktop = false, tr
   const errors = [];
   const requests = [];
   const state = emptyLibrary();
-  const nativeWindow = { width: viewport.width, height: viewport.height, x: 100, y: 80, frameless: false, resizable: true, pinned: false, calls: [] };
+  const nativeWindow = { width: viewport.width, height: viewport.height, x: 100, y: 80, frameless: true, resizable: true, pinned: false, calls: [] };
   state.settings.dropAction = 'watch';
   let disconnected = false;
   page.on('pageerror', error => errors.push(error.message));
@@ -289,10 +289,12 @@ try {
     });
     assert.deepEqual(bounds, { outside: [], overflow: false });
     await native.page.screenshot({ path: resolve(output, `mini-player-${pass}.png`) });
+    await mini.getByRole('button', { name: '取消置顶', exact: true }).click();
+    await mini.getByRole('button', { name: '窗口置顶', exact: true }).waitFor();
     if (pass === 0) await mini.getByRole('button', { name: '退出迷你模式', exact: true }).click();
     else await native.page.keyboard.press('Escape');
     await native.page.locator('.music-app:not(.is-mini)').waitFor();
-    assert.equal(native.nativeWindow.frameless, false);
+    assert.equal(native.nativeWindow.frameless, true);
     assert.equal(native.nativeWindow.pinned, false);
     assert.equal(native.nativeWindow.resizable, true);
     assert.deepEqual(native.page.viewportSize(), { width: 1280, height: 800 });

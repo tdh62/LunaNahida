@@ -1,9 +1,9 @@
-import { useLayoutEffect, useState, type RefObject } from 'react';
+import { useEffect, useState, type RefObject } from 'react';
 
 export default function SettingsNavigation({ page }: { page: RefObject<HTMLDivElement | null> }) {
   const [query, setQuery] = useState('');
   const [sections, setSections] = useState<{ id: string; title: string }[]>([]);
-  useLayoutEffect(() => {
+  useEffect(() => {
     const root = page.current;
     if (!root) return;
     const update = () => {
@@ -23,7 +23,7 @@ export default function SettingsNavigation({ page }: { page: RefObject<HTMLDivEl
     return () => observer.disconnect();
   }, [page, query]);
   return <div className="settings-navigation">
-    <label>搜索设置<input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="例如：歌词、备份、网络" /></label>
+    <label><span>搜索设置</span><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="例如：歌词、备份、网络" /></label>
     {query && <button type="button" onClick={() => setQuery('')}>清除搜索</button>}
     <nav aria-label="设置分类">{sections.map(section => <button type="button" key={section.id} onClick={() => document.getElementById(section.id)?.scrollIntoView({ block: 'start', behavior: 'smooth' })}>{section.title}</button>)}</nav>
     {!sections.length && <p role="status">没有找到相关设置</p>}

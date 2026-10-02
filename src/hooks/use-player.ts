@@ -54,6 +54,7 @@ export function usePlayer() {
   const [frequencyResponse, setFrequencyResponse] = useState<FrequencyResponse | null>(null);
   const audio = useRef<HTMLAudioElement | null>(null), graph = useRef<Graph | null>(null);
   const pendingResume = useRef<PlaybackState | null>(null);
+  const audioTrackId = useRef<number | null>(null);
   const appliedFilter = useRef('');
   const queueRef = useRef(queue), catalogRef = useRef<Track[]>([]), currentId = useRef(trackId), shouldPlay = useRef(false), nextRef = useRef<() => void>(() => {});
   currentId.current = trackId;
@@ -166,14 +167,15 @@ export function usePlayer() {
     if (!runtime.backend) return;
     const save = () => {
       const id = currentId.current;
-      if (!id || id < 0 || queueRef.current.find(item => item.id === id)?.temporary || pendingResume.current) return;
+      if (!id || id < 0 || queueRef.current.find(item => item.id === id)?.temporary || pendingResume.current || audioTrackId.current !== id || !audio.current?.readyState) return;
       void backend.savePlayback({ trackId: id, position: audio.current?.currentTime ?? 0 }).catch(() => {});
     };
     const interval = window.setInterval(save, 5000);
     const element = audio.current;
     element?.addEventListener('pause', save);
+    element?.addEventListener('loadedmetadata', save);
     window.addEventListener('pagehide', save);
-    return () => { window.clearInterval(interval); element?.removeEventListener('pause', save); window.removeEventListener('pagehide', save); };
+    return () => { window.clearInterval(interval); element?.removeEventListener('pause', save); element?.removeEventListener('loadedmetadata', save); window.removeEventListener('pagehide', save); };
   }, [runtime.backend]);
   const ensureGraph = () => {
     if (!graph.current && audio.current) {
@@ -205,9 +207,10 @@ export function usePlayer() {
   };
   useEffect(() => {
     const el = audio.current; if (!el) return;
+    audioTrackId.current = null;
     el.pause(); el.removeAttribute('src'); el.load();
     if (trackId === null || !track) { setTime(0); return; }
-    el.src = track.source; setTime(pendingResume.current?.trackId === trackId ? pendingResume.current.position : 0);
+    el.src = track.source; audioTrackId.current = trackId; setTime(pendingResume.current?.trackId === trackId ? pendingResume.current.position : 0);
     if (shouldPlay.current) void el.play().catch(() => setPlaying(false));
   }, [trackId]);
   useEffect(() => {
@@ -317,7 +320,7 @@ export function usePlayer() {
     setCustomEffects(previous => previous.filter(item => item.id !== id));
     if (effect === id) setEffect('原声');
   };
-  const clearQueue = () => { audio.current?.pause(); shouldPlay.current = false; setTrackId(null); setTime(0); updateQueue([]); };
+  const clearQueue = () => { audio.current?.pause(); shouldPlay.current = false; setTrackId(null); setTime(0); updateQueue([]); if (runtime.backend) void backend.savePlayback({trackId:0,position:0}).catch(() => {}); };
   const removeTracks = (ids: number[]) => { const removed = new Set(ids); const remaining = queueRef.current.filter(item => !removed.has(item.id)); if (trackId !== null && removed.has(trackId)) { audio.current?.pause(); shouldPlay.current = false; setTrackId(remaining[0]?.id ?? null); } updateQueue(remaining); };
   const move = (from: number, to: number) => { const list = [...queueRef.current], start = list.findIndex(item => item.id === from), end = list.findIndex(item => item.id === to); if (start < 0 || end < 0 || start === end) return; list.splice(end, 0, list.splice(start, 1)[0]); updateQueue(list); };
   const markLyricsSaved = (saved: Track) => updateQueue(queueRef.current.map(item => item.id === saved.id ? { ...item, lyrics: saved.lyrics, translation: saved.translation, localLyrics: true, embeddedLyrics: false } : item));

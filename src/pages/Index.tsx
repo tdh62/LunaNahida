@@ -368,7 +368,7 @@ export default function Index() {
     try {
       if (runtime.backend && updated.id > 0 && !updated.temporary) await backend.lyricOffset(updated.id, offset);
       p.updateTrack(updated); setLibraryTracks(items => items.map(item => item.id === updated.id ? {...item, lyricOffsetMs: offset} : item));
-    } catch (error) { toast.error(error instanceof Error ? error.message : '歌词校准保存失败'); }
+    } catch (error) { toast.error(error instanceof Error ? error.message : '歌词校准保存失败'); throw error; }
   };
   const timedLines = enrichment.lines.map(line => ({...line, time: line.time + lyricOffset / 1000}));
   const lines = timedLines.map(line => line.text);
