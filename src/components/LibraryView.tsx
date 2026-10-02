@@ -151,9 +151,9 @@ export default function LibraryView({ title, tracks, currentId, liked, onPlay, o
     if (event.key === 'Delete' && onDeleteTracks && selectedDeletable) { event.preventDefault(); onDeleteTracks(selected.includes(id) ? selected : [id]); }
   };
 
-  return <section className="library-view">
-    <div className="library-heading">
-      <div className="library-heading-title"><h1>{title}</h1><p>{filtered.length} 首歌曲{selected.length > 0 && ` · 已选 ${selected.length}`}</p></div>
+  return <section className="library-view collection-page">
+    <div className="library-heading collection-heading">
+      <div className="library-heading-title collection-heading-title"><h1>{title}</h1><p>{filtered.length} 首歌曲{selected.length > 0 && ` · 已选 ${selected.length}`}</p></div>
       <div className="library-actions">
         <button type="button" className="library-tool-button library-play-results" aria-label="播放筛选结果" title="播放筛选结果" onClick={() => onPlayMany(filtered)} disabled={!canPlay}><Play size={16} /><span>播放</span></button>
         {onShufflePlay && <button type="button" className="library-tool-button" aria-label="随机播放" title="随机播放" disabled={!canPlay} onClick={() => onShufflePlay(filtered)}><Shuffle size={16} /><span>随机播放</span></button>}
@@ -161,7 +161,7 @@ export default function LibraryView({ title, tracks, currentId, liked, onPlay, o
         {onDeleteTracks && selected.length > 0 && <button type="button" className="library-tool-button" aria-label={`移除所选 (${selected.length})`} disabled={!selectedDeletable} title={selectedDeletable ? `移除所选 (${selected.length})` : '文件夹或监听路径下的歌曲不支持单独删除'} onClick={() => onDeleteTracks(selected)}><Trash2 size={16} /><span>移除所选 ({selected.length})</span></button>}
       </div>
     </div>
-    <div className="library-toolbar">
+    <div className="library-toolbar collection-toolbar">
       <div className="library-search"><Search size={17} /><input aria-label="搜索歌曲、歌手、专辑或标签" placeholder="搜索歌曲、歌手、专辑或标签" value={search} onChange={event => { setSearch(event.target.value); setSelectedIds([]); anchor.current = null; setScrollTop(0); if (rowsRef.current) rowsRef.current.scrollTop = 0; }} />{search && <button type="button" aria-label="清除搜索" onClick={() => { setSearch(''); setSelectedIds([]); anchor.current = null; if (rowsRef.current) rowsRef.current.scrollTop = 0; setScrollTop(0); }}><X size={14} /></button>}</div>
       <div className="library-refine-controls">
         <label className="library-sort-control"><ArrowDownUp size={16} /><select aria-label="歌曲排序" value={sort} onChange={event => setSort(event.target.value as TrackSort)}>{sortOptions.map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></label>

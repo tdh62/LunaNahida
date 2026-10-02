@@ -1,0 +1,37 @@
+.collection-workspace { --collection-inset-x: 28px; --collection-inset-y: 26px; }
+.collection-workspace > .collection-page { min-height: 0; padding: var(--collection-inset-y) var(--collection-inset-x) 24px; }
+.collection-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 20px; margin: 0 0 18px; }
+.collection-heading-title { display: flex; flex-wrap: wrap; align-items: baseline; min-width: 0; gap: 8px 12px; }
+.collection-heading h1 { margin: 0; color: var(--text-primary); font-size: 24px; line-height: 36px; font-weight: 600; overflow-wrap: anywhere; }
+.collection-heading p { margin: 0; color: var(--text-secondary); font-size: 12px; line-height: 20px; }
+.collection-toolbar, .catalog-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin: 0 0 18px; }
+.catalog-toolbar .catalog-search { flex: 1; width: auto; min-width: min(100%, 220px); max-width: 420px; height: 36px; min-height: 36px; border-radius: 6px; }
+.catalog-toolbar .catalog-sort { height: 36px; min-height: 36px; margin-left: auto; border-radius: 6px; }
+.tags-create { max-width: 420px; margin-bottom: 18px; }
+.tags-create :is(input, button) { height: 36px; }
+.collection-heading > .playlist-primary { min-height: 36px; border-radius: 6px; }
+.collection-page > .playlist-back { min-height: 28px; }
+.collection-hero { display: flex; align-items: center; gap: 24px; margin: 24px 0 28px; }
+.collection-hero > img, .collection-hero > .playlist-hero-cover { width: clamp(120px, 19vw, 210px); }
+.collection-hero h1 { margin: 0 0 8px; font-size: 28px; line-height: 1.35; font-weight: 600; color: var(--text-primary); }
+.collection-hero p { margin: 0; color: var(--text-secondary); font-size: 12px; line-height: 1.7; }
+.collection-hero p:empty { display: none; }
+.collection-hero small { margin-top: 6px; color: var(--text-secondary); }
+.collection-hero .playlist-hero-actions, .collection-hero > div > .playlist-primary { margin-top: 14px; }
+.track-details-heading { justify-content: flex-end; }
+@media (max-width: 760px) {
+  .collection-workspace { --collection-inset-x: 16px; --collection-inset-y: 22px; }
+  .collection-heading { align-items: flex-start; margin-bottom: 16px; gap: 12px; }
+  .collection-heading h1 { font-size: 22px; line-height: 32px; }
+  .collection-toolbar, .catalog-toolbar { gap: 10px; margin-bottom: 16px; flex-direction: row; }
+  .catalog-toolbar .catalog-search { flex-basis: 100%; width: 100%; max-width: none; }
+  .catalog-toolbar .catalog-sort { margin-left: 0; }
+  .tags-create { max-width: none; margin-bottom: 16px; }
+  .collection-hero { gap: 16px; margin: 20px 0 24px; }
+  .collection-hero > img, .collection-hero > .playlist-hero-cover { width: 110px; }
+  .collection-hero h1 { font-size: 22px; }
+}
+@media (max-width: 420px) {
+  .collection-hero > img, .collection-hero > .playlist-hero-cover { width: 88px; }
+  .collection-hero h1 { font-size: 19px; }
+}

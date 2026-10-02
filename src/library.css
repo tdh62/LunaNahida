@@ -26,7 +26,6 @@
   .music-app .workspace.scrolling-workspace, .music-app .workspace.catalog-workspace { display: block; height: auto; overflow: visible; }
 }
 
-.library-view { min-height: calc(100vh - 153px); padding: 26px 28px 24px; }
 .library-heading { display: flex; flex-wrap: wrap; flex: none; align-items: center; justify-content: space-between; gap: 12px 20px; margin-bottom: 18px; }
 .library-heading-title { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 12px; }
 .library-heading h1 { margin: 0; color: var(--text-primary); font-size: 24px; line-height: 36px; font-weight: 600; }
@@ -90,7 +89,6 @@
 .library-empty svg { color: var(--accent); }
 .library-empty p { margin: 0; font-size: 13px; }
 @media (max-width: 760px) {
-  .library-view { min-height: calc(100vh - 220px); padding: 20px 16px 24px; }
   .library-heading { gap: 12px; margin-bottom: 16px; }
   .library-heading h1 { font-size: 21px; }
   .library-actions { gap: 6px; }

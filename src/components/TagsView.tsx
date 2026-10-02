@@ -43,8 +43,8 @@ export default function TagsView({ tracks, customTags, onCreate, onRename, onDel
     if (await onRename(oldName, editName.trim())) setEditing(null);
     setBusy(false);
   };
-  return <section className="tags-view">
-    <div className="tags-heading"><div><span className="eyebrow"><span /> MUSIC LIBRARY</span><h1>标签</h1><p>{tags.length} 个标签</p></div></div>
+  return <section className="tags-view collection-page">
+    <div className="tags-heading collection-heading"><div className="collection-heading-title"><h1>标签</h1><p>{tags.length} 个标签</p></div></div>
     <form className="tags-create" onSubmit={event => { event.preventDefault(); void create(); }}><input aria-label="新标签名称" placeholder="新标签名称" maxLength={40} value={newName} onChange={event => setNewName(event.target.value)} /><button type="submit" disabled={!newName.trim() || busy}><Plus size={16} />新建标签</button></form>
     {tags.length ? <div className="tags-list">{tags.map(tag => <div className="tags-row" key={tag.name}>
       <Tag size={18} className="tags-row-icon" />

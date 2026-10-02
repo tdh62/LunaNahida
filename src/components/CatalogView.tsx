@@ -226,10 +226,10 @@ export default function CatalogView({ kind, artists, albums, artist, album, curr
       {currentArtistDescription.introduction.map((section, index) => <section className="artist-description-section" key={`${section.ti}-${index}`}><h2>{section.ti}</h2><p>{section.txt}</p></section>)}
     </>}
   </section>;
-  return <section className="catalog-page">
+  return <section className="catalog-page collection-page">
     {detail ? <>
       <Link className="playlist-back" to={kind === 'artists' ? '/artists' : '/albums'}><ArrowLeft size={16} /> 返回{label}</Link>
-      <header className="catalog-hero"><img src={kind === 'artists' ? artistCover : currentAlbumDescription?.picture ?? detail.cover} alt="" /><div><span className="eyebrow"><span /> {kind === 'artists' ? 'ARTIST' : 'ALBUM'}</span><h1>{detail.name}</h1>
+      <header className="catalog-hero collection-hero"><img src={kind === 'artists' ? artistCover : currentAlbumDescription?.picture ?? detail.cover} alt="" /><div><h1>{detail.name}</h1>
         {album && kind === 'albums' && <button className="catalog-text-link" onClick={() => onArtist(album.artistName)}>{album.artistName}</button>}
         {artist && kind === 'artists' && artist.aliases.length > 1 && <p>收录名称：{artist.aliases.join(' / ')}</p>}
         <p>{detail.tracks.length} 首歌曲{album && kind === 'albums' ? ` · ${yearValue(album.year) === null ? '未知年份' : album.year}` : ''}</p>
@@ -271,7 +271,7 @@ export default function CatalogView({ kind, artists, albums, artist, album, curr
           </>}
         </section>}
       </> : null}
-    </> : <><header className="catalog-heading"><span className="eyebrow"><span /> YOUR COLLECTION</span><h1>{label}</h1><p>音乐库中共 {items.length} {kind === 'artists' ? '位歌手' : '张专辑'}</p></header>
+    </> : <><header className="catalog-heading collection-heading"><div className="collection-heading-title"><h1>{label}</h1><p>{items.length} {kind === 'artists' ? '位歌手' : '张专辑'}</p></div></header>
       <div className="catalog-toolbar"><label className="catalog-search"><Search size={16} /><input value={search} onChange={event => setSearch(event.target.value)} aria-label={`搜索${label}`} placeholder={kind === 'artists' ? '搜索歌手名称' : '搜索专辑或歌手'} /></label><label className="catalog-sort"><ArrowDownAZ size={16} /><span>排序</span><select aria-label={`${label}排序`} value={kind === 'artists' ? artistSort : albumSort} onChange={event => kind === 'artists' ? setArtistSort(event.target.value as typeof artistSort) : setAlbumSort(event.target.value as typeof albumSort)}>{kind === 'artists' ? <><option value="added">添加时间</option><option value="name">名称</option><option value="tracks">歌曲数量</option></> : <><option value="added">添加时间</option><option value="year">发行年份</option><option value="name">专辑名称</option><option value="artist">歌手名称</option></>}</select></label></div>
       <div className="catalog-grid">{kind === 'artists' ? filteredArtists.map(item => <button type="button" className="catalog-card" key={item.key} onClick={() => navigate(`/artists/${encodeURIComponent(item.key)}`)}><span className="catalog-cover"><img src={item.cover} alt="" /><small className="catalog-cover-badge">{item.tracks.length} 首</small></span><strong>{item.name}</strong><small><Mic2 size={13} /> {albums.filter(albumItem => albumItem.artistKey === item.key).length} 张专辑</small></button>) : filteredAlbums.map(item => <button type="button" className="catalog-card" key={`${item.artistKey}-${item.key}`} onClick={() => navigate(`/albums/${encodeURIComponent(item.artistKey)}/${encodeURIComponent(item.key)}`)}><span className="catalog-cover"><img src={item.cover} alt="" /><small className="catalog-cover-badge">{item.tracks.length} 首</small></span><strong>{item.name}</strong><small><Users size={13} /> {item.artistName}{yearValue(item.year) === null ? '' : ` · ${item.year}`}</small></button>)}</div>
       {!items.length && <div className="library-empty"><Disc3 size={28} /><p>音乐库还没有歌曲</p></div>}

@@ -1,8 +1,5 @@
 .catalog-workspace { overflow-y: auto; scrollbar-width: thin; scrollbar-color: #44464a transparent; }
-.catalog-page { min-height: calc(100vh - 160px); padding: 36px clamp(16px, 4vw, 56px) 60px; }
-.catalog-heading { margin-bottom: 28px; }
-.catalog-heading h1, .catalog-hero h1 { margin: 10px 0 7px; font-size: 29px; font-weight: 600; overflow-wrap: anywhere; }
-.catalog-heading p, .catalog-hero p { color: var(--text-secondary); font-size: 12px; line-height: 1.7; }
+.catalog-hero h1 { overflow-wrap: anywhere; }
 .catalog-toolbar { display: flex; align-items: center; gap: 10px; margin: 0 0 24px; }
 .catalog-search { display: flex; align-items: center; gap: 9px; width: min(100%, 360px); min-height: 40px; padding: 0 12px; border: 1px solid #3e4144; border-radius: 7px; background: #202224; color: var(--text-secondary); }
 .catalog-search:focus-within { border-color: var(--accent); }
@@ -67,4 +64,4 @@
 .track-meta-link { padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .library-track-name .track-meta-link { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary); }
 .library-album .track-meta-link { overflow: hidden; max-width: 100%; text-overflow: ellipsis; white-space: nowrap; }
-@media (max-width: 760px) { .sidebar > nav.space-y-1 { overflow-x: auto; min-width: 0; scrollbar-width: none; } .sidebar > nav.space-y-1 .nav-item { flex: none; } .catalog-workspace { overflow: visible; } .catalog-page { padding: 24px 16px 48px; } .catalog-toolbar { align-items: stretch; flex-direction: column; margin-bottom: 19px; } .catalog-search { width: 100%; } .catalog-sort { align-self: flex-start; } .catalog-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 12px; } .catalog-hero { gap: 16px; } .catalog-hero > img { width: 100px; } .catalog-hero h1 { font-size: 22px; } }
+@media (max-width: 760px) { .sidebar > nav.space-y-1 { overflow-x: auto; min-width: 0; scrollbar-width: none; } .sidebar > nav.space-y-1 .nav-item { flex: none; } .catalog-workspace { overflow: visible; } .catalog-toolbar { align-items: stretch; flex-direction: column; margin-bottom: 19px; } .catalog-search { width: 100%; } .catalog-sort { align-self: flex-start; } .catalog-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 12px; } .catalog-hero { gap: 16px; } .catalog-hero > img { width: 100px; } .catalog-hero h1 { font-size: 22px; } }
