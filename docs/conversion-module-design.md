@@ -193,8 +193,10 @@ LunaNahida.Converter.exe restore "C:\Music\song.ncm" --output-dir "C:\Restored"
 ## 9. 建议的代码结构与分发
 
 ```text
-cmd/music-restore/main.go                # --describe / --worker / restore
-internal/musicrestore/                  # 解码、原始格式识别、标签写入
+extensions/music-restore/               # 独立 Go module / Git Submodule
+  cmd/music-restore/main.go             # --describe / --worker / restore
+  internal/musicrestore/                # 解码、原始格式识别、标签写入
+  third_party/unlock-music/              # 保留上游源码和许可证
 internal/restoreprotocol/               # 自有协议、元数据和错误码，无第三方解码依赖
 internal/restoreformats/                # 轻量分类和输出文件头识别
 internal/restorefiles/                  # 无数据库的发布、冲突及恢复记录组件
@@ -203,7 +205,7 @@ backend/conversion.go                   # Store.Convert：编排和曲库更新
 scripts/build-converter.mjs             # 单独构建并复制许可证及模块说明
 ```
 
-`internal/musicrestore` 只能被转换命令和它的测试引用；主程序不得间接导入它。同一 Go module 足够实现两份独立二进制，暂不拆成两个仓库或引入 Go 动态插件。
+解码工程使用独立 Go module，通过 Git Submodule 关联。它只能被模块命令和模块测试引用；主程序不得间接导入它，也不能在 go.mod 中要求初始化私有源码。两个工程分别拥有协议类型和必要辅助代码，由 `docs/music-restore-contract.json` 与各自测试校验公开契约，主仓库构建模块时检查契约快照一致。详见 `music-restore-submodule.md`。
 
 保留第三方源码供模块构建使用；主程序的依赖图必须不含 `unlock-music.dev/cli/algo/*` 和只被解码器使用的依赖。主程序仍需要读取普通音频标签，不能为了拆分而移走其正常播放/元数据功能使用的依赖。
 

@@ -35,7 +35,7 @@ func TestConverterCancellationKillsDescendants(t *testing.T) {
 			executable, _ := os.Executable()
 			store.converter.cancel()
 			store.converter = newConverter(executable)
-			source, _, _ := qmcFixture(t, t.TempDir(), "song")
+			source, _, _ := conversionFixture(t, t.TempDir(), "song")
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			done := make(chan ConversionResult, 1)

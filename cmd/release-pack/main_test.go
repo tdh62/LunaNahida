@@ -18,10 +18,10 @@ func TestDistributionInventoryAndDeterministicArchive(t *testing.T) {
 	os.MkdirAll(filepath.Join(source, "modules", "music-restore"), 0755)
 	os.WriteFile(filepath.Join(source, "modules", "music-restore", "中文说明.txt"), []byte("文件清单测试"), 0644)
 	first, second := filepath.Join(parent, "first.zip"), filepath.Join(parent, "second.zip")
-	if err := pack(source, first, "full"); err != nil {
+	if err := packVersion(source, first, "converter", "9.8.7"); err != nil {
 		t.Fatal(err)
 	}
-	if err := pack(source, second, "full"); err != nil {
+	if err := packVersion(source, second, "converter", "9.8.7"); err != nil {
 		t.Fatal(err)
 	}
 	a, _ := os.ReadFile(first)
@@ -48,7 +48,7 @@ func TestDistributionInventoryAndDeterministicArchive(t *testing.T) {
 			actual[file.Name] = body
 		}
 	}
-	if inventory.Flavor != "full" || len(inventory.Files) != 1 {
+	if inventory.Flavor != "converter" || inventory.Version != "9.8.7" || len(inventory.Files) != 1 {
 		t.Fatalf("%+v", inventory)
 	}
 	for _, record := range inventory.Files {

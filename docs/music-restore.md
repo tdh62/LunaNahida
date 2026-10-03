@@ -63,11 +63,12 @@ MP3/FLAC 的标题、歌手、专辑及封面沿用已有写入方式。其他�
 | `corepack pnpm build:portable` | 原有便携包，不包含还原模块 |
 | `corepack pnpm build:portable:full` | 便携包及 `bin/portable/modules/music-restore` |
 | `corepack pnpm build:release` | `bin/releases/<版本>/`：精简版、完整版、独立模块三个 ZIP，以及校验值和发布清单 |
+| `corepack pnpm build:release:lean` | 无需模块源码，生成 `bin/releases/<版本>/lean-only/` 精简版 ZIP |
 | `corepack pnpm build:release:portable` | 上述三个 ZIP，另附便携精简版和便携完整版 ZIP；需要本地 WebView2 固定运行环境 |
 
-版本统一来源为 `internal/buildinfo/VERSION`。修改后执行 `corepack pnpm build:version` 同步前端包版本和 Windows 资源描述，`check:version` 检查是否一致。Windows 构建会重建 EXE 的版本、图标与清单资源，需要安装与项目匹配的 Wails CLI：`go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.26`。协议版本单独管理，应用版本变化不意味着协议变化。
+播放器版本来源为 `internal/buildinfo/VERSION`，模块版本独立来源为 `extensions/music-restore/internal/buildinfo/VERSION`。修改播放器版本后执行 `corepack pnpm build:version` 同步前端包版本和 Windows 资源描述，`check:version` 检查是否一致。Windows 构建会重建 EXE 的版本、图标与清单资源，需要安装与项目匹配的 Wails CLI：`go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.26`。播放器和模块通过协议版本、格式分类版本判断兼容性，不要求产品版本相等。
 
-发布构建从专用暂存目录生成包，不读取已有便携版的 `userdata`。每个 ZIP 包含 `README.txt`、安装说明、`MANIFEST.json`（各文件大小与 SHA-256）。发布目录中的 `SHA256SUMS.txt` 校验完整 ZIP，`release.json` 记录应用版本、模块协议与文件清单。独立模块 ZIP 的 `modules` 可直接解压到播放器 EXE 旁。相同包内容生成一致的 ZIP；Go 工具链或构建内容变化仍可能使 EXE 和 ZIP 校验值变化。
+发布构建从专用暂存目录生成包，不读取已有便携版的 `userdata`。每个 ZIP 包含 `README.txt`、安装说明、`MANIFEST.json`（对应产物版本、各文件大小与 SHA-256）。发布目录中的 `SHA256SUMS.txt` 校验完整 ZIP，`release.json` 记录应用版本、模块版本和协议、模块源码提交及是否有未提交修改。精简发布的模块信息为 null。独立模块 ZIP 使用模块自己的版本号，`modules` 可直接解压到播放器 EXE 旁。相同包内容生成一致的 ZIP；Go 工具链或构建内容变化仍可能使 EXE 和 ZIP 校验值变化。
 
 先生成完整包、再构建精简包时，构建脚本会移除输出目录中残留的还原模块；便携版 `userdata` 保留。模块包应整体分发，包含 `README.txt` 和 `LICENSES`。
 
@@ -77,4 +78,6 @@ MP3/FLAC 的标题、歌手、专辑及封面沿用已有写入方式。其他�
 
 主程序通过版本 1 JSON 协议按需启动子进程，不打开新的网络端口、不常驻转换服务。模块只有解码、标签和文件输出逻辑，不能访问播放器数据库；主 EXE 的生产依赖图不包含 `unlock-music` 解码器。
 
-`go test ./...` 覆盖真实还原样本、缺模块导入及扫描、协议/文件路径异常、独立使用、模块卸载重装、重名保护、重启恢复、文件篡改、原 ID 与收藏保留、提前及执行中取消、分发包清单与用户数据排除。Windows 测试还验证取消和退出会终止后代进程。前端测试和 `test:web` 验证能力开关、入口及设置隐藏、主/迷你窗口混合拖入、恢复确认、批量进度、取消、继续及失败项重试。
+主仓库 `go test ./...` 使用模拟模块，覆盖缺模块导入及扫描、协议/文件路径异常、模块卸载重装、重名保护、重启恢复、文件篡改、原 ID 与收藏保留、提前及执行中取消、分发包清单与用户数据排除；无需初始化模块源码。Windows 测试还验证取消和退出会终止后代进程。
+
+模块仓库的 `go test ./...` 覆盖真实 QMC、NCM MP3/FLAC 还原、标签和封面、字符串歌曲 ID、TM/ifmt 识别及独立使用。主仓库 `corepack pnpm test:converter:integration` 构建真实 EXE，通过公开协议验证实际还原、播放器入库、备份、独立使用和重名保护。前端测试和 `test:web` 验证能力开关、入口及设置隐藏、主/迷你窗口混合拖入、恢复确认、批量进度、取消、继续及失败项重试。源码拆分说明见 [music-restore-submodule.md](music-restore-submodule.md)。

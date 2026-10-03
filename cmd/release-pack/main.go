@@ -30,6 +30,10 @@ type manifest struct {
 }
 
 func pack(source, output, flavor string) (err error) {
+	return packVersion(source, output, flavor, buildinfo.Version())
+}
+
+func packVersion(source, output, flavor, version string) (err error) {
 	source, err = filepath.Abs(source)
 	if err != nil {
 		return err
@@ -124,7 +128,7 @@ func pack(source, output, flavor string) (err error) {
 	}
 	encoder := json.NewEncoder(target)
 	encoder.SetIndent("", "  ")
-	if err = encoder.Encode(manifest{buildinfo.Version(), flavor, records}); err != nil {
+	if err = encoder.Encode(manifest{version, flavor, records}); err != nil {
 		return err
 	}
 	if err = archive.Close(); err != nil {
@@ -143,12 +147,13 @@ func main() {
 	source := flag.String("source", "", "package directory")
 	output := flag.String("output", "", "zip output")
 	flavor := flag.String("flavor", "", "distribution flavor")
+	version := flag.String("version", buildinfo.Version(), "artifact version")
 	flag.Parse()
 	if *source == "" || *output == "" || *flavor == "" {
 		fmt.Fprintln(os.Stderr, "source, output and flavor are required")
 		os.Exit(1)
 	}
-	if err := pack(*source, *output, *flavor); err != nil {
+	if err := packVersion(*source, *output, *flavor, *version); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

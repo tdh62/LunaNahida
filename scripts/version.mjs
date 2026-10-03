@@ -39,7 +39,7 @@ export function synchronizeVersion(checkOnly = false) {
   return version;
 }
 
-export function prepareWindowsResources(converter = false) {
+export function prepareWindowsResources() {
   synchronizeVersion();
   if (process.platform !== 'win32') return;
   const resources = join(projectRoot, 'bin/build-resources');
@@ -49,21 +49,9 @@ export function prepareWindowsResources(converter = false) {
     const icons = spawnSync('wails3', ['generate', 'icons', '-input', join(projectRoot, 'build/appicon.png'), '-windowsfilename', icon, '-macfilename', join(resources, 'icon.icns')], { cwd: projectRoot, stdio: 'inherit', shell: false });
     if (icons.error || icons.status !== 0) throw new Error('Cannot generate application icons. Install the matching Wails v3 CLI and retry.');
   }
-  const info = JSON.parse(readFileSync(join(projectRoot, 'build/windows/info.json'), 'utf8'));
-  let infoPath = join(projectRoot, 'build/windows/info.json');
-  let target = join(projectRoot, 'windows_amd64.syso');
-  let manifestPath = join(projectRoot, 'build/windows/app.manifest');
-  if (converter) {
-    for (const entry of Object.values(info.info)) {
-      entry.FileDescription = 'LunaNahida encrypted music restoration module';
-      entry.ProductName = 'LunaNahida.Converter';
-    }
-    infoPath = join(projectRoot, 'build/windows/converter-info.json');
-    writeFileSync(infoPath, JSON.stringify(info, null, 2) + '\n');
-    target = join(projectRoot, 'cmd/music-restore/windows_amd64.syso');
-    manifestPath = join(projectRoot, 'build/windows/converter.manifest');
-    writeFileSync(manifestPath, readFileSync(join(projectRoot, 'build/windows/app.manifest'), 'utf8').replace('LunaNahida.Player', 'LunaNahida.Converter'));
-  }
+  const infoPath = join(projectRoot, 'build/windows/info.json');
+  const target = join(projectRoot, 'windows_amd64.syso');
+  const manifestPath = join(projectRoot, 'build/windows/app.manifest');
   const result = spawnSync('wails3', ['generate', 'syso', '-arch', 'amd64', '-icon', icon, '-info', infoPath, '-manifest', manifestPath, '-out', target], { cwd: projectRoot, stdio: 'inherit', shell: false });
   if (result.error || result.status !== 0) throw new Error('Cannot generate Windows version resources. Install the matching Wails v3 CLI and retry.');
 }

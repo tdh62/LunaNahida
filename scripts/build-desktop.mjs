@@ -2,10 +2,11 @@ import { spawnSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
 import { mkdirSync, rmSync } from 'node:fs';
 import { copySearchDictionary } from './search-dictionary.mjs';
-import { buildConverter, moduleRelativePath } from './build-converter.mjs';
+import { assertConverterSource, buildConverter, moduleRelativePath } from './build-converter.mjs';
 import { binOutput, prepareWindowsResources, verifyWindowsVersion } from './version.mjs';
 
 const root = resolve(import.meta.dirname, '..');
+if (process.argv.includes('--with-converter')) assertConverterSource();
 const outputArgument = process.argv.indexOf('--output-dir');
 const output = binOutput(outputArgument >= 0 ? process.argv[outputArgument + 1] : join(root, 'bin'));
 prepareWindowsResources();

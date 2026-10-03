@@ -16,7 +16,7 @@ func recoveryFixture(t *testing.T, s *Store, stage string) (string, restorefiles
 	ctx := context.Background()
 	parent := t.TempDir()
 	parent, _ = canonical(parent)
-	source, encrypted, audio := qmcFixture(t, parent, "中断 song")
+	source, encrypted, audio := conversionFixture(t, parent, "中断 song")
 	dir, err := os.MkdirTemp(parent, restoreformats.JobPrefix)
 	if err != nil {
 		t.Fatal(err)

@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/png"
 	"io"
 	"lunanahida/internal/restoreformats"
 	"lunanahida/internal/restoreprotocol"
@@ -13,15 +15,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
-	"sync"
 	"testing"
 	"time"
 )
 
-var converterBuildOnce sync.Once
-var converterTestPath, converterBuildDir string
-var converterBuildErr error
+var converterTestPath string
 
 func TestMain(m *testing.M) {
 	if len(os.Args) == 2 && os.Args[1] == "--test-descendant" {
@@ -29,42 +27,26 @@ func TestMain(m *testing.M) {
 		time.Sleep(time.Hour)
 		os.Exit(0)
 	}
-	// The test executable also acts as a deliberately broken module for client tests.
+	// The test executable also acts as a simulated module for client tests.
 	if len(os.Args) >= 2 && (os.Args[1] == "--describe" || os.Args[1] == "--worker") {
 		fakeConverter()
 		os.Exit(0)
 	}
 	result := m.Run()
-	if converterBuildDir != "" {
-		_ = os.RemoveAll(converterBuildDir)
-	}
+
 	os.Exit(result)
 }
 
 func conversionStore(t *testing.T) *Store {
 	t.Helper()
-	converterBuildOnce.Do(func() {
-		converterBuildDir, converterBuildErr = os.MkdirTemp("", "lunanahida-converter-tests-")
-		if converterBuildErr != nil {
-			return
-		}
-		name := "LunaNahida.Converter"
-		if runtime.GOOS == "windows" {
-			name += ".exe"
-		}
-		converterTestPath = filepath.Join(converterBuildDir, name)
-		command := exec.Command("go", "build", "-o", converterTestPath, "./cmd/music-restore")
-		command.Dir = ".."
-		if output, err := command.CombinedOutput(); err != nil {
-			converterBuildErr = fmt.Errorf("build converter: %w: %s", err, output)
-		}
-	})
-	if converterBuildErr != nil {
-		t.Fatal(converterBuildErr)
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
 	}
+	converterTestPath = executable
 	store := testStore(t)
 	store.converter.cancel()
-	store.converter = newConverter(converterTestPath)
+	store.converter = newConverter(executable)
 	return store
 }
 
@@ -75,9 +57,12 @@ func fakeConverter() {
 		if mode == "handshake-timeout" {
 			time.Sleep(5 * time.Second)
 		}
-		description := restoreprotocol.Describe()
+		description := restoreprotocol.Describe("99.0.0")
 		if mode == "protocol" {
 			description.Protocol++
+		}
+		if mode == "classification" {
+			description.ClassificationRevision++
 		}
 		_ = json.NewEncoder(os.Stdout).Encode(description)
 		return
@@ -108,8 +93,33 @@ func fakeConverter() {
 		fmt.Print(string(bytes.Repeat([]byte("x"), restoreprotocol.MaxMessage+1)))
 		return
 	}
-	response := restoreprotocol.Response{Protocol: 1, RequestID: request.RequestID, Status: "ready", AudioFile: "audio.mp3", SourceSuffix: ".qmc0", Extension: ".mp3"}
-	_ = os.WriteFile(filepath.Join(request.WorkDir, response.AudioFile), append([]byte("ID3"), make([]byte, 128)...), 0600)
+
+	response := restoreprotocol.Response{Protocol: restoreprotocol.Version, RequestID: request.RequestID, Status: "ready", AudioFile: "audio.mp3", SourceSuffix: restoreformats.SourceSuffix(request.Source), Extension: ".mp3"}
+	audio := stubAudio()
+	if mode == "" {
+		input, err := os.ReadFile(request.Source)
+		if err != nil {
+			os.Exit(3)
+		}
+		switch {
+		case bytes.HasPrefix(input, []byte("LUNA-TEST:")):
+			audio = input[len("LUNA-TEST:"):]
+		case bytes.HasPrefix(input, []byte("ifmt")) && len(input) > 16:
+			audio = input[16:]
+		case bytes.HasPrefix(input, []byte("FRM8")):
+			audio, response.Extension, response.AudioFile = input, ".dff", "audio.dff"
+		default:
+			response.Status, response.Code, response.Message = "failed", "RESTORE_FAILED", "测试输入损坏"
+		}
+		if response.SourceSuffix == ".ncm" && response.Status == "ready" {
+			response.Metadata = &restoreprotocol.Metadata{Title: "Local title", Artists: []string{"Local artist"}, Album: "Local album", Provider: "ncm", ProviderID: "123456", CoverFile: "cover.image"}
+			var cover bytes.Buffer
+			_ = png.Encode(&cover, image.NewRGBA(image.Rect(0, 0, 2, 2)))
+			_ = os.WriteFile(filepath.Join(request.WorkDir, "cover.image"), cover.Bytes(), 0600)
+		}
+	}
+	_ = os.WriteFile(filepath.Join(request.WorkDir, response.AudioFile), audio, 0600)
+
 	switch mode {
 	case "outside":
 		response.AudioFile = "../outside.mp3"
@@ -128,7 +138,7 @@ func TestMissingConverterDisablesEveryBackendEntry(t *testing.T) {
 	store.converter.cancel()
 	store.converter = newConverter(filepath.Join(t.TempDir(), "missing.exe"))
 	folder := t.TempDir()
-	encrypted, _, _ := qmcFixture(t, folder, "encrypted")
+	encrypted, _, _ := conversionFixture(t, folder, "encrypted")
 	plain := filepath.Join(folder, "plain.wav")
 	if err := os.WriteFile(plain, []byte("RIFFsample audio"), 0600); err != nil {
 		t.Fatal(err)
@@ -218,14 +228,14 @@ func TestMissingConverterDisablesEveryBackendEntry(t *testing.T) {
 }
 
 func TestConverterFailuresPreserveSource(t *testing.T) {
-	for _, mode := range []string{"protocol", "handshake-timeout", "json", "large", "outside", "suffix", "request-id", "crash", "failed", "wait"} {
+	for _, mode := range []string{"protocol", "classification", "handshake-timeout", "json", "large", "outside", "suffix", "request-id", "crash", "failed", "wait"} {
 		t.Run(mode, func(t *testing.T) {
 			t.Setenv("LUNANAHIDA_TEST_MODULE", mode)
 			store := testStore(t)
 			store.converter.cancel()
 			executable, _ := os.Executable()
 			store.converter = newConverter(executable)
-			source, _, _ := qmcFixture(t, t.TempDir(), "song")
+			source, _, _ := conversionFixture(t, t.TempDir(), "song")
 			before, _ := os.ReadFile(source)
 			ctx := context.Background()
 			if mode == "wait" {
@@ -290,25 +300,5 @@ func TestConverterRemovalAndReinstallation(t *testing.T) {
 	settings, _ = store.Settings()
 	if settings.AutoConvert {
 		t.Fatal("reinstallation enabled automatic restore")
-	}
-}
-
-func TestStandaloneConverterRetainsSourceAndRejectsCollision(t *testing.T) {
-	_ = conversionStore(t)
-	source, _, want := qmcFixture(t, t.TempDir(), "歌曲 空格")
-	outputDir := t.TempDir()
-	command := exec.Command(converterTestPath, "restore", source, "--output-dir", outputDir)
-	if output, err := command.CombinedOutput(); err != nil {
-		t.Fatalf("CLI: %v %s", err, output)
-	}
-	actual, err := os.ReadFile(filepath.Join(outputDir, "歌曲 空格.mp3"))
-	if err != nil || !bytes.Equal(actual, want) {
-		t.Fatal("wrong standalone output")
-	}
-	if _, err := os.Stat(source); err != nil {
-		t.Fatal("standalone mode removed source")
-	}
-	if err := exec.Command(converterTestPath, "restore", source, "--output-dir", outputDir).Run(); err == nil {
-		t.Fatal("standalone mode overwrote output")
 	}
 }

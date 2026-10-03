@@ -2,7 +2,7 @@ import { cpSync, existsSync, mkdirSync, rmSync, statSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
 import { copySearchDictionary } from './search-dictionary.mjs';
-import { buildConverter, moduleRelativePath } from './build-converter.mjs';
+import { assertConverterSource, buildConverter, moduleRelativePath } from './build-converter.mjs';
 import { binOutput, prepareWindowsResources, verifyWindowsVersion } from './version.mjs';
 
 if (process.platform !== 'win32' || process.arch !== 'x64') {
@@ -10,6 +10,7 @@ if (process.platform !== 'win32' || process.arch !== 'x64') {
 }
 
 const root = resolve(import.meta.dirname, '..');
+if (process.argv.includes('--with-converter')) assertConverterSource();
 const source = join(root, 'resources', 'WebView2');
 for (const name of ['msedgewebview2.exe', join('EBWebView', 'x64', 'EmbeddedBrowserWebView.dll')]) {
   const file = join(source, name);

@@ -1,43 +1,50 @@
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, cpSync, readdirSync, writeFileSync, rmSync } from 'node:fs';
-import { join, resolve, sep } from 'node:path';
+import { mkdirSync, cpSync, readFileSync, existsSync, rmSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { version, prepareWindowsResources, verifyWindowsVersion } from './version.mjs';
+import { binOutput, projectRoot } from './version.mjs';
 
-const root = resolve(import.meta.dirname, '..');
 export const moduleRelativePath = join('modules', 'music-restore');
+export const converterSource = join(projectRoot, 'extensions/music-restore');
+const contract = JSON.parse(readFileSync(join(projectRoot, 'docs/music-restore-contract.json'), 'utf8'));
 
-export function buildConverter(packageDirectory = join(root, 'bin', 'converter')) {
-  prepareWindowsResources(true);
-  const output = resolve(packageDirectory, moduleRelativePath);
-  if (!output.startsWith(resolve(root, 'bin') + sep)) throw new Error('Converter output must stay inside the project bin directory.');
-  rmSync(output, { recursive: true, force: true });
-  mkdirSync(output, { recursive: true });
-  const executable = join(output, process.platform === 'win32' ? 'LunaNahida.Converter.exe' : 'LunaNahida.Converter');
-  const build = spawnSync('go', ['build', '-trimpath', '-o', executable, './cmd/music-restore'], { cwd: root, stdio: 'inherit', shell: false });
+export function assertConverterSource() {
+  if (!existsSync(join(converterSource, 'go.mod')) || !existsSync(join(converterSource, 'scripts/build-converter.mjs'))) {
+    throw new Error('还原模块源码未初始化。请使用有权限的 Git 凭据执行 git submodule update --init -- extensions/music-restore；只构建播放器可使用 build:desktop 或 build:release:lean。');
+  }
+  const snapshot = JSON.parse(readFileSync(join(converterSource, 'docs/music-restore-contract.json'), 'utf8'));
+  if (JSON.stringify(snapshot) !== JSON.stringify(contract)) throw new Error('还原模块的协议契约与播放器不一致，请更新兼容的子模块提交。');
+}
+
+export function describeConverter(executable) {
+  const handshake = spawnSync(executable, ['--describe'], { encoding: 'utf8', shell: false, timeout: 5000 });
+  if (handshake.error || handshake.status !== 0) throw new Error('Cannot verify the built converter.');
+  const info = JSON.parse(handshake.stdout);
+  if (info.module !== contract.module || info.protocol !== contract.protocol || info.classificationRevision !== contract.classificationRevision || !info.operations?.includes('restore')) {
+    throw new Error('Built converter does not implement the player restoration contract.');
+  }
+  return info;
+}
+
+export function converterRevision() {
+  const result = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: converterSource, encoding: 'utf8', shell: false });
+  if (result.error || result.status !== 0) throw new Error('Cannot read the converter source commit.');
+  const status = spawnSync('git', ['status', '--porcelain'], { cwd: converterSource, encoding: 'utf8', shell: false });
+  if (status.error || status.status !== 0) throw new Error('Cannot inspect converter source changes.');
+  return { commit: result.stdout.trim(), dirty: status.stdout.trim() !== '' };
+}
+
+export function buildConverter(packageDirectory = join(projectRoot, 'bin/converter')) {
+  assertConverterSource();
+  const output = binOutput(resolve(packageDirectory, moduleRelativePath));
+  const build = spawnSync(process.execPath, [join(converterSource, 'scripts/build-converter.mjs')], { cwd: converterSource, stdio: 'inherit', shell: false });
   if (build.error) throw build.error;
   if (build.status !== 0) throw new Error(`Converter build failed (${build.status}).`);
-  verifyWindowsVersion(executable);
-  const handshake = spawnSync(executable, ['--describe'], { cwd: root, encoding: 'utf8', shell: false, timeout: 5000 });
-  if (handshake.error || handshake.status !== 0) throw new Error('Cannot verify the built converter.');
-  const description = JSON.parse(handshake.stdout);
-  if (description.version !== version) throw new Error('Converter version does not match VERSION.');
-
-  const licenses = join(output, 'LICENSES');
-  mkdirSync(licenses, { recursive: true });
-  const dependencies = spawnSync('go', ['list', '-deps', '-f', '{{if not .Standard}}{{if .Module}}{{.Module.Path}}|{{.Module.Dir}}{{end}}{{end}}', './cmd/music-restore'], { cwd: root, encoding: 'utf8', shell: false });
-  if (dependencies.error) throw dependencies.error;
-  if (dependencies.status !== 0) throw new Error(dependencies.stderr || 'Cannot enumerate converter licenses.');
-  for (const dependency of new Set(dependencies.stdout.trim().split(/\r?\n/).filter(Boolean))) {
-    const [moduleName, directory] = dependency.split('|');
-    if (!directory) continue;
-    for (const entry of readdirSync(directory, { withFileTypes: true })) {
-      if (entry.isFile() && /^(licen[cs]e|copying|notice)([._-]|$)/i.test(entry.name)) {
-        cpSync(join(directory, entry.name), join(licenses, `${moduleName.replaceAll('/', '_')}-${entry.name}`));
-      }
-    }
-  }
-  writeFileSync(join(output, 'README.txt'), `LunaNahida 加密音乐还原模块 ${version}（协议 ${description.protocol}）\n\n安装：退出播放器，将 modules 文件夹复制到 LunaNahida.exe 所在目录，重新启动。\n卸载：退出播放器，删除 modules/music-restore 目录。\n只提供现有加密音乐还原；不提供音频转码。\n独立使用：LunaNahida.Converter restore "加密文件路径" --output-dir "输出目录"\n独立使用默认保留源文件，已有目标文件不会被覆盖。\n不需要播放器、Go、Node.js 或 WebView2。\n\n许可证见 LICENSES 文件夹。\n`, 'utf8');
+  const source = join(converterSource, 'bin/converter', moduleRelativePath);
+  describeConverter(join(source, process.platform === 'win32' ? 'LunaNahida.Converter.exe' : 'LunaNahida.Converter'));
+  rmSync(output, { recursive: true, force: true });
+  mkdirSync(output, { recursive: true });
+  cpSync(source, output, { recursive: true });
   return output;
 }
 

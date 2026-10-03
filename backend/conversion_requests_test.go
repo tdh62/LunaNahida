@@ -19,7 +19,7 @@ func TestExplicitCancellationBeforeAndDuringRestore(t *testing.T) {
 			s.converter.cancel()
 			executable, _ := os.Executable()
 			s.converter = newConverter(executable)
-			source, encrypted, _ := qmcFixture(t, t.TempDir(), "cancel")
+			source, encrypted, _ := conversionFixture(t, t.TempDir(), "cancel")
 			api := NewAPI(s, Dialogs{})
 			server := httptest.NewServer(api.Handler())
 			defer server.Close()

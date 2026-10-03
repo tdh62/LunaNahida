@@ -1,0 +1,108 @@
+{
+  "module": "LunaNahida.MusicRestore",
+  "protocol": 1,
+  "classificationRevision": 1,
+  "maxMessage": 262144,
+  "maxCover": 15728640,
+  "operations": [
+    "restore"
+  ],
+  "suffixes": [
+    ".kgm.flac",
+    ".vpr.flac",
+    ".ncm",
+    ".kgg",
+    ".kgm",
+    ".kgma",
+    ".vpr",
+    ".kwm",
+    ".xm",
+    ".x2m",
+    ".x3m",
+    ".tm0",
+    ".tm2",
+    ".tm3",
+    ".tm6",
+    ".qmc0",
+    ".qmc3",
+    ".qmc2",
+    ".qmc4",
+    ".qmc6",
+    ".qmc8",
+    ".qmcflac",
+    ".qmcogg",
+    ".tkm",
+    ".bkcmp3",
+    ".bkcm4a",
+    ".bkcflac",
+    ".bkcwav",
+    ".bkcape",
+    ".bkcogg",
+    ".bkcwma",
+    ".666c6163",
+    ".6d7033",
+    ".6f6767",
+    ".6d3461",
+    ".776176",
+    ".mmp4",
+    ".mgg",
+    ".mgg0",
+    ".mgg1",
+    ".mgga",
+    ".mggh",
+    ".mggl",
+    ".mggm",
+    ".mflac",
+    ".mflac0",
+    ".mflac1",
+    ".mflaca",
+    ".mflach",
+    ".mflacl",
+    ".mflacm"
+  ],
+  "contentDetectedSuffixes": [
+    ".mp3",
+    ".flac",
+    ".m4a",
+    ".wav"
+  ],
+  "description": {
+    "module": "LunaNahida.MusicRestore",
+    "protocol": 1,
+    "version": "9.8.7",
+    "operations": [
+      "restore"
+    ],
+    "classificationRevision": 1
+  },
+  "request": {
+    "protocol": 1,
+    "requestId": "contract-example",
+    "operation": "restore",
+    "source": "C:/Music/song.ncm",
+    "workDir": "C:/Music/.lunanahida-convert-job-example"
+  },
+  "response": {
+    "protocol": 1,
+    "requestId": "contract-example",
+    "status": "ready",
+    "audioFile": "audio.mp3",
+    "sourceSuffix": ".ncm",
+    "extension": ".mp3",
+    "metadata": {
+      "title": "Title",
+      "artists": [
+        "Artist"
+      ],
+      "album": "Album",
+      "provider": "ncm",
+      "providerId": "123",
+      "coverFile": "cover.image"
+    },
+    "warnings": [
+      "example"
+    ],
+    "code": "EXAMPLE",
+    "message": "example"
+  }
+}

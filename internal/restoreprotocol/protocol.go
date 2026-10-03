@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"lunanahida/internal/buildinfo"
 )
 
 const Version = 1
@@ -21,8 +20,8 @@ type Description struct {
 	ClassificationRevision int      `json:"classificationRevision"`
 }
 
-func Describe() Description {
-	return Description{Module, Version, buildinfo.Version(), []string{"restore"}, ClassificationRevision}
+func Describe(version string) Description {
+	return Description{Module, Version, version, []string{"restore"}, ClassificationRevision}
 }
 
 type Metadata struct {
