@@ -222,6 +222,7 @@ type Store struct {
 	mu            sync.Mutex
 	coverMu       sync.Mutex
 	convertMu     sync.Mutex
+	converter     *converterClient
 	timerMu       sync.Mutex
 	temporary     map[int64]Track
 	nextTemporary int64
@@ -278,10 +279,16 @@ func Open(root string) (*Store, error) {
 		db.Close()
 		return nil, err
 	}
+	store.converter = newConverter("")
 	return store, nil
 }
 
 func (s *Store) Close() error {
+	if s.converter != nil {
+		s.converter.cancel()
+	}
+	s.convertMu.Lock()
+	defer s.convertMu.Unlock()
 	close(s.backupStop)
 	s.backupWG.Wait()
 	s.networkMu.Lock()
@@ -305,6 +312,7 @@ func (s *Store) migrate() error {
 	CREATE TABLE IF NOT EXISTS history(track_id INTEGER PRIMARY KEY REFERENCES tracks(id) ON DELETE CASCADE,played_at INTEGER NOT NULL);
 	CREATE TABLE IF NOT EXISTS queue(track_id INTEGER PRIMARY KEY REFERENCES tracks(id) ON DELETE CASCADE,position INTEGER NOT NULL);
 	CREATE TABLE IF NOT EXISTS folders(path TEXT PRIMARY KEY COLLATE NOCASE);
+	CREATE TABLE IF NOT EXISTS conversion_jobs(path TEXT PRIMARY KEY COLLATE NOCASE);
 	CREATE TABLE IF NOT EXISTS preferences(key TEXT PRIMARY KEY,value TEXT NOT NULL);
 	CREATE TABLE IF NOT EXISTS metadata_cache(key TEXT PRIMARY KEY,value TEXT NOT NULL,expires_at INTEGER NOT NULL);
 	CREATE INDEX IF NOT EXISTS tracks_artist ON tracks(artist); CREATE INDEX IF NOT EXISTS history_played_at ON history(played_at DESC);`)
@@ -567,10 +575,21 @@ func (s *Store) Settings() (Settings, error) {
 	if value.Scope.Smoothing < 0 || value.Scope.Smoothing > 0.95 {
 		value.Scope.Smoothing = 0.72
 	}
+	if value.AutoConvert && !s.ConversionAvailable() {
+		value.AutoConvert = false
+		encoded, encodeErr := json.Marshal(value)
+		if encodeErr != nil {
+			return value, encodeErr
+		}
+		if _, err = s.DB.Exec(`UPDATE preferences SET value=? WHERE key='settings' AND value=?`, string(encoded), raw); err != nil {
+			return value, err
+		}
+	}
 	return value, nil
 }
 
 func (s *Store) SaveSettings(value Settings) error {
+	value.AutoConvert = value.AutoConvert && s.ConversionAvailable()
 	previous, err := s.Settings()
 	if err != nil {
 		return err

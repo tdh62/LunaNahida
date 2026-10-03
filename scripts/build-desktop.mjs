@@ -1,14 +1,21 @@
 import { spawnSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, rmSync } from 'node:fs';
 import { copySearchDictionary } from './search-dictionary.mjs';
+import { buildConverter, moduleRelativePath } from './build-converter.mjs';
+import { binOutput, prepareWindowsResources, verifyWindowsVersion } from './version.mjs';
 
 const root = resolve(import.meta.dirname, '..');
-const output = join(root, 'bin');
+const outputArgument = process.argv.indexOf('--output-dir');
+const output = binOutput(outputArgument >= 0 ? process.argv[outputArgument + 1] : join(root, 'bin'));
+prepareWindowsResources();
 mkdirSync(output, { recursive: true });
 const executable = join(output, process.platform === 'win32' ? 'LunaNahida.exe' : 'LunaNahida');
 const build = spawnSync('go', ['build', '-tags', 'production', ...(process.platform === 'win32' ? ['-ldflags', '-H windowsgui'] : []), '-o', executable, '.'], { cwd: root, stdio: 'inherit', shell: false });
 if (build.error) throw build.error;
 if (build.status !== 0) process.exit(build.status ?? 1);
+verifyWindowsVersion(executable);
 await copySearchDictionary(output);
+if (process.argv.includes('--with-converter')) buildConverter(output);
+else rmSync(join(output, moduleRelativePath), { recursive: true, force: true });
 console.log(`Desktop package: ${output}`);

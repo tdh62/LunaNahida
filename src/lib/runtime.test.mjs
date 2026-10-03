@@ -15,6 +15,7 @@ test('static hosting and absent API enter an empty web session', async () => {
     const runtime = await discoverRuntime(false, signal(), fetcher);
     assert.equal(runtime.mode, 'web');
     assert.equal(runtime.backend, false);
+    assert.equal(runtime.conversion, false);
     assert.equal(runtime.nativeFonts, false);
     assert.deepEqual(runtime.initialState.tracks, []);
   }
@@ -45,4 +46,14 @@ test('known backend or desktop failures must not silently become web mode', asyn
   await assert.rejects(discoverRuntime(false, signal(), async () => new Response('', { status: 503 })));
   await assert.rejects(discoverRuntime(false, signal(), async path => path === '/api/state' ? new Response('', { status: 500 }) : json({ application: 'LunaNahida' })));
   await assert.rejects(discoverRuntime(false, signal(), async path => json(path === '/api/state' ? {} : { application: 'LunaNahida' })));
+});
+
+test('restore capability is opt-in and independent of native file dialogs', async () => {
+  for (const conversion of [undefined, false, true]) {
+    for (const desktop of [false, true]) {
+      const runtime = await discoverRuntime(desktop, signal(), async path => json(path === '/api/state' ? emptyLibrary() : { application: 'LunaNahida', conversion }));
+      assert.equal(runtime.conversion, conversion === true);
+      assert.equal(runtime.nativeFiles, false);
+    }
+  }
 });

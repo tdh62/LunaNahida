@@ -229,6 +229,9 @@ export default function Index() {
     setMappings(state.settings.artistMappings); setStoredSettings(state.settings);
     p.hydrate(state.tracks, state.queue, state.recent, state.settings, state.playback); setReady(true);
   }, []);
+  useEffect(() => {
+    if (!runtime.conversion) setStoredSettings(previous => previous?.autoConvert ? { ...previous, autoConvert: false } : previous);
+  }, [runtime.conversion]);
   useEffect(() => { if (ready) p.setCatalog(libraryTracks); }, [libraryTracks, ready]);
   useEffect(() => { if (ready && runtime.backend) void backend.playlists(playlists).catch(error => toast.error(error.message)); }, [playlists, ready, runtime.backend]);
   useEffect(() => { if (ready && runtime.backend) void backend.liked(liked).catch(error => toast.error(error.message)); }, [liked, ready, runtime.backend]);
@@ -277,7 +280,10 @@ export default function Index() {
   const handleMiniDrop = async (paths: string[]) => {
     paths = [...new Set(paths.filter(Boolean))];
     if (!paths.length) return;
-    const encrypted = [...new Set((await backend.inspectConversion(paths)).paths)];
+    const inspected = await backend.inspectConversion(paths);
+    const conversionAvailable = runtime.conversion && inspected.available !== false;
+    const encrypted = [...new Set(inspected.paths)];
+    if (!conversionAvailable && encrypted.length) toast.info(`已跳过 ${encrypted.length} 个加密音频文件，未安装或无法使用还原模块`);
     const encryptedSet = new Set(encrypted);
     const ordinary = paths.filter(path => !encryptedSet.has(path));
     const failures: string[] = [];
@@ -297,26 +303,36 @@ export default function Index() {
       try { await enqueue(await backend.import(ordinary, 'library', true)); }
       catch (error) { failures.push(error instanceof Error ? error.message : '导入失败'); }
     }
-    for (const path of encrypted) {
+    for (const path of conversionAvailable ? encrypted : []) {
       try {
         const result = await backend.convert(path, true);
         if (result.status !== 'converted' || !result.track) throw new Error(result.error || '转换后未能加入音乐库');
         await enqueue([result.track]);
         if (result.error) warnings.push(result.error);
-      } catch (error) { failures.push(`${path.split(/[\\/]/).pop()}：${error instanceof Error ? error.message : '转换失败'}`); }
+      } catch (error) { failures.push(`${path.split(/[\\/]/).pop()}：${error instanceof Error ? error.message : '转换失败'}`); if ((error as { code?: string }).code === 'CONVERTER_UNAVAILABLE') break; }
     }
     if (added) toast.success(`已处理 ${added} 首歌曲`);
     if (failures.length) toast.error('部分音频处理失败', { description: failures.slice(0, 2).join('；') });
-    else if (!added) toast.info('没有找到可导入的音频文件');
+    else if (!added && (conversionAvailable || !encrypted.length)) toast.info('没有找到可导入的音频文件');
     if (warnings.length) toast.warning(warnings[0]);
   };
   const handlePaths = async (paths: string[], dropped = false) => {
     if (!paths.length) return;
     let encrypted: string[] = [];
-    if (dropped || !storedSettings?.autoConvert) {
+    let conversionAvailable = runtime.conversion;
+    if (dropped || !runtime.conversion || !storedSettings?.autoConvert) {
       try {
-        encrypted = (await backend.inspectConversion(paths)).paths;
+        const inspected = await backend.inspectConversion(paths);
+        encrypted = inspected.paths;
+        conversionAvailable = conversionAvailable && inspected.available !== false;
       } catch (error) { toast.error(error instanceof Error ? error.message : '无法检查文件格式'); return; }
+    }
+    if (!conversionAvailable && encrypted.length) {
+      toast.info(`已跳过 ${encrypted.length} 个加密音频文件，未安装或无法使用还原模块`);
+      const encryptedSet = new Set(encrypted);
+      paths = paths.filter(path => !encryptedSet.has(path));
+      encrypted = [];
+      if (!paths.length) return;
     }
     if (dropped) {
       await importPaths(paths, 'library', { addToQueue: pathname === '/', skipConversion: true, quietEmpty: encrypted.length > 0 });
@@ -348,7 +364,7 @@ export default function Index() {
     try {
       const result = await p.addFiles(files);
       if (result.tracks.length) { p.select(result.tracks[0].id); navigate('/'); }
-      if (result.rejected.length) toast.warning(`${result.rejected.length} 个文件无法临时播放`, { description: '加密音频请使用桌面版格式还原。' });
+      if (result.rejected.length) toast.warning(`${result.rejected.length} 个文件无法临时播放`, { description: runtime.conversion ? '加密音频请使用桌面版格式还原。' : '加密音频需要安装还原模块。' });
     } catch (error) { toast.error(error instanceof Error ? error.message : '文件打开失败'); }
   };
   const chooseFiles = () => {
@@ -393,7 +409,7 @@ export default function Index() {
       ];
     }).catch(error => toast.error(error.message));
     return () => { disposed = true; cleanups.forEach(off => off()); };
-  }, [storedSettings, toolboxOpen, pathname, runtime.mode, mini.active]);
+  }, [storedSettings, toolboxOpen, pathname, runtime.mode, runtime.conversion, mini.active]);
   useEffect(() => {
     if (!runtime.backend) return;
     const settingsChanged = (event: Event) => setStoredSettings((event as CustomEvent<StoredSettings>).detail);

@@ -7,9 +7,20 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"runtime"
 )
 
 func main() {
+	// go run places the executable in a temporary directory; locate the module explicitly.
+	if os.Getenv("LUNANAHIDA_CONVERTER") == "" {
+		name := "LunaNahida.Converter"
+		if runtime.GOOS == "windows" {
+			name += ".exe"
+		}
+		path, _ := filepath.Abs(filepath.Join("bin", "converter", "modules", "music-restore", name))
+		_ = os.Setenv("LUNANAHIDA_CONVERTER", path)
+	}
 	store, err := backend.Open("")
 	if err != nil {
 		log.Fatal(err)

@@ -1,4 +1,15 @@
 .toolbox-dialog { --toolbox-accent: #a5b5ff; --toolbox-accent-text: #191b21; width: min(520px, calc(100vw - 28px)); max-width: 520px; gap: 14px; }
+.conversion-recovery { display: flex; flex-direction: column; gap: 12px; min-width: 0; max-height: 65dvh; overflow-y: auto; font-size: 12px; }
+.conversion-recovery p { color: var(--text-muted); line-height: 1.7; }
+.recovery-jobs { display: grid; gap: 12px; }
+.recovery-jobs article, .recovery-confirmation { border: 1px solid var(--line); border-radius: 6px; padding: 12px; }
+.recovery-jobs dl { display: grid; gap: 4px; font-size: 11px; }
+.recovery-jobs dd { margin: 0 0 5px; overflow-wrap: anywhere; color: var(--text-muted); }
+.recovery-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.recovery-actions button { border: 1px solid var(--line); border-radius: 4px; padding: 6px 9px; }
+.recovery-actions button:disabled { opacity: .4; }
+.conversion-progress { display: grid; gap: 7px; font-size: 12px; }
+.conversion-progress progress { width: 100%; height: 6px; accent-color: var(--toolbox-accent); }
 .toolbox-dialog.theme-anime { --toolbox-accent: #e4a9da; }
 .toolbox-dialog.theme-forest { --toolbox-accent: #a5cdb0; }
 html.mode-light .toolbox-dialog { --toolbox-accent: #435db8; --toolbox-accent-text: #fff; }

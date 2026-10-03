@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"lunanahida/internal/restoreformats"
 	"math"
 	"net/http"
 	"os"
@@ -234,7 +235,7 @@ func (o *Organizer) previewWithProgress(ctx context.Context, options organizeOpt
 				return walkErr
 			}
 			if entry.IsDir() {
-				if entry.Name() == organizerRecoveryFolder || entry.Name() == backupFolder {
+				if entry.Name() == organizerRecoveryFolder || entry.Name() == backupFolder || restoreformats.JobDirectory(entry.Name()) {
 					return filepath.SkipDir
 				}
 				return nil

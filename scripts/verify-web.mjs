@@ -8,6 +8,7 @@ import { defaultWorkTimer } from '../src/lib/work-timer.ts';
 import { defaultTimerReminders } from '../src/lib/timer-reminders.ts';
 import verifyTextSize from './verify-text-size.mjs';
 import verifyCatalogNavigation from './verify-catalog-navigation.mjs';
+import verifyConversionWorkflow from './verify-conversion-workflow.mjs';
 
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : 'playwright');
 const root = resolve('dist');
@@ -43,7 +44,7 @@ function wav() {
 const audio = wav();
 const file = { name: 'browser-sample.wav', mimeType: 'audio/wav', buffer: audio };
 
-async function setup({ backend = false, desktop = false, lateDesktop = false, fontFamilies = [], textSize = 100, nativeFonts = desktop, trackTitle = 'Native Song', tracks = [], queue = [], dictionary = 'available', viewport = { width: 1280, height: 800 } } = {}) {
+async function setup({ backend = false, desktop = false, conversion = backend, autoConvert = false, lateDesktop = false, fontFamilies = [], textSize = 100, nativeFonts = desktop, trackTitle = 'Native Song', tracks = [], queue = [], dictionary = 'available', viewport = { width: 1280, height: 800 } } = {}) {
   const page = await browser.newPage({ viewport });
   const errors = [];
   const requests = [];
@@ -53,6 +54,7 @@ async function setup({ backend = false, desktop = false, lateDesktop = false, fo
   state.queue = queue;
   state.settings.uiFontFamilies = fontFamilies;
   state.settings.uiTextSize = textSize;
+  state.settings.autoConvert = autoConvert;
   const nativeWindow = { width: viewport.width, height: viewport.height, x: 100, y: 80, frameless: true, resizable: true, pinned: false, calls: [] };
   state.settings.dropAction = 'watch';
   let disconnected = false;
@@ -116,7 +118,7 @@ async function setup({ backend = false, desktop = false, lateDesktop = false, fo
   if (backend) await page.route('**/api/**', async route => {
     const path = new URL(route.request().url()).pathname;
     if (disconnected) { await route.fulfill({ status: 503, json: { error: 'test backend unavailable' } }); return; }
-    if (path === '/api/capabilities') await route.fulfill({ json: { application: 'LunaNahida', nativeFiles: desktop, nativeFolders: desktop, nativeCover: desktop, nativeBackup: desktop, nativeFonts } });
+    if (path === '/api/capabilities') await route.fulfill({ json: { application: 'LunaNahida', conversion, nativeFiles: desktop, nativeFolders: desktop, nativeCover: desktop, nativeBackup: desktop, nativeFonts } });
     else if (path === '/api/fonts') await route.fulfill({ json: ['Arial', 'Segoe UI', 'Microsoft YaHei', 'Yu Gothic'] });
     else if (path === '/api/state') await route.fulfill({ json: state });
     else if (path === '/api/timer') await route.fulfill({ json: { timer: defaultWorkTimer, serverNow: Date.now() } });
@@ -125,6 +127,7 @@ async function setup({ backend = false, desktop = false, lateDesktop = false, fo
     else if (path === '/api/cache') await route.fulfill({ json: { coverBytes: 0, webviewBytes: 100, metadataBytes: 0, networkAudioBytes: 0, totalBytes: 100, webviewClearPending: false } });
     else if (path === '/api/dialog/files' || path === '/api/dialog/folder') await route.fulfill({ json: { paths: [] } });
     else if (path === '/api/conversion/inspect') await route.fulfill({ json: { paths: [] } });
+    else if (path === '/api/conversion/jobs') await route.fulfill({ json: [] });
     else if (path === '/api/import') {
       state.tracks = [{ id: 1, title: trackTitle, english: '', artist: '本地文件', album: 'Native Album', duration: 30, cover: '/covers/local.svg', genre: '', year: '', color: '#8daab0', source: '/api/media/audio/1', path: 'C:/music/native.wav' }];
       await route.fulfill({ json: state.tracks });
@@ -191,7 +194,7 @@ try {
   assert.equal(await page.getByRole('tab', { name: '播放与歌词', exact: true }).getAttribute('aria-selected'), 'true');
   await page.getByRole('button', { name: '正在播放', exact: true }).click();
   await page.getByRole('button', { name: '音频工具箱', exact: true }).click();
-  assert.equal(await page.getByRole('button', { name: '格式还原', exact: true }).isDisabled(), true);
+  assert.equal(await page.getByRole('button', { name: '格式还原', exact: true }).count(), 0);
   assert.equal(await page.getByRole('button', { name: '曲库整理', exact: true }).isDisabled(), true);
   await page.getByRole('button', { name: '计时器', exact: true }).click();
   assert.equal(await page.getByRole('checkbox', { name: '播放音效' }).isChecked(), false);
@@ -496,6 +499,71 @@ try {
   assert.deepEqual(droppedMini.errors, []);
   await dropPage.close();
   console.log('PASS mini file drops: direct import and conversion, append existing queue, immediate playback, partial failures, consecutive drops and unchanged window size');
+
+  const missingModule = await setup({ backend: true, desktop: true, conversion: false });
+  const absentPage = missingModule.page;
+  await absentPage.getByRole('button', { name: '音频工具箱', exact: true }).click();
+  await absentPage.getByRole('button', { name: '曲库整理', exact: true }).waitFor();
+  assert.equal(await absentPage.getByRole('button', { name: '格式还原', exact: true }).count(), 0);
+  await absentPage.keyboard.press('Escape');
+  await absentPage.getByRole('link', { name: '播放器设置', exact: true }).click();
+  await absentPage.getByRole('tab', { name: '音乐库', exact: true }).click();
+  assert.equal(await absentPage.getByRole('switch', { name: '自动转换加密音频', exact: true }).count(), 0);
+  assert.equal(await absentPage.getByRole('switch', { name: '备份加密源文件', exact: true }).count(), 0);
+  assert.equal(await absentPage.getByText('本次保留源文件备份', { exact: true }).count(), 0);
+  assert.equal(await absentPage.getByRole('button', { name: '立即扫描', exact: true }).isEnabled(), true);
+  await absentPage.getByRole('button', { name: '搜索设置', exact: true }).click();
+  await absentPage.getByPlaceholder('搜索设置项').fill('自动转换');
+  await absentPage.getByText('没有找到相关设置').waitFor();
+  await absentPage.keyboard.press('Escape');
+  await absentPage.getByRole('button', { name: '正在播放', exact: true }).click();
+  const availableTrack = miniDropTrack(21, 'Available without converter');
+  await absentPage.route('**/api/conversion/inspect', route => route.fulfill({ json: { paths: route.request().postDataJSON().paths.filter(path => path.endsWith('.qmc0')), available: false } }));
+  await absentPage.route('**/api/import', route => {
+    const input = route.request().postDataJSON();
+    assert.equal(input.skipConversion, true);
+    if (input.paths.includes(availableTrack.path)) { missingModule.state.tracks = [availableTrack]; return route.fulfill({ json: [availableTrack] }); }
+    return route.fulfill({ json: [] });
+  });
+  await absentPage.route('**/api/media/audio/*', route => route.fulfill({ contentType: 'audio/wav', body: audio }));
+  const mixedPaths = [availableTrack.path, 'C:/music/unavailable.qmc0'];
+  await absentPage.waitForFunction(() => typeof window._wails?.dispatchWailsEvent === 'function');
+  await absentPage.evaluate(paths => window._wails.dispatchWailsEvent({ name: 'lunanahida:files-dropped', data: paths }), mixedPaths);
+  await absentPage.locator('.album-title h2').filter({ hasText: availableTrack.title }).waitFor();
+  assert.equal(await absentPage.getByRole('dialog').count(), 0);
+  await absentPage.getByRole('button', { name: '迷你模式', exact: true }).click();
+  await absentPage.getByRole('region', { name: '迷你播放器' }).waitFor();
+  await absentPage.evaluate(paths => window._wails.dispatchWailsEvent({ name: 'lunanahida:files-dropped', data: paths }), mixedPaths);
+  await absentPage.getByText('已跳过 1 个加密音频文件，未安装或无法使用还原模块', { exact: true }).first().waitFor();
+  assert.ok(!missingModule.requests.some(request => request.path === '/api/conversion'));
+  assert.deepEqual(missingModule.errors, []);
+  await absentPage.screenshot({ path: resolve(output, 'converter-unavailable-mini.png') });
+  await absentPage.close();
+  console.log('PASS absent converter: hidden toolbox and settings/search, scan retained, mixed main/mini drops import ordinary audio without conversion');
+
+  await verifyConversionWorkflow(setup, output, miniDropTrack);
+
+  const changingModule = await setup({ backend: true, desktop: true, conversion: true, autoConvert: true });
+  await changingModule.page.getByRole('button', { name: '音频工具箱', exact: true }).click();
+  await changingModule.page.getByRole('button', { name: '格式还原', exact: true }).click();
+  await changingModule.page.getByText('拖入或选择加密音频', { exact: true }).waitFor();
+  await changingModule.page.route('**/api/capabilities', route => route.fulfill({ json: { application: 'LunaNahida', conversion: false, nativeFiles: true, nativeFolders: true } }));
+  await changingModule.page.evaluate(() => window.dispatchEvent(new Event('lunanahida-capabilities-changed')));
+  await changingModule.page.getByRole('button', { name: '曲库整理', exact: true }).waitFor();
+  assert.equal(await changingModule.page.getByRole('button', { name: '格式还原', exact: true }).count(), 0);
+  assert.equal(await changingModule.page.getByText('拖入或选择加密音频', { exact: true }).count(), 0);
+  await changingModule.page.route('**/api/capabilities', route => route.fulfill({ json: { application: 'LunaNahida', conversion: true, nativeFiles: true, nativeFolders: true } }));
+  await changingModule.page.evaluate(() => window.dispatchEvent(new Event('lunanahida-capabilities-changed')));
+  await changingModule.page.getByRole('button', { name: '格式还原', exact: true }).waitFor();
+  await changingModule.page.keyboard.press('Escape');
+  await changingModule.page.route('**/api/dialog/files', route => route.fulfill({ json: { paths: ['C:/music/reinstalled.qmc0'] } }));
+  await changingModule.page.route('**/api/conversion/inspect', route => route.fulfill({ json: { paths: ['C:/music/reinstalled.qmc0'], available: true } }));
+  await changingModule.page.getByRole('button', { name: '打开歌曲', exact: true }).click();
+  await changingModule.page.getByText('拖入或选择加密音频', { exact: true }).waitFor();
+  assert.ok(!changingModule.requests.some(request => request.path === '/api/import' || request.path === '/api/conversion'));
+  assert.deepEqual(changingModule.errors, []);
+  await changingModule.page.close();
+  console.log('PASS converter capability refresh: unavailable module closes idle restore panel, hides its card, and reinstallation restores the entry');
 
   const native = await setup({ backend: true, desktop: true, lateDesktop: true });
   assert.equal(await native.page.getByRole('button', { name: '迷你模式', exact: true }).count(), 0);

@@ -7,6 +7,8 @@ import (
 	"errors"
 	"io"
 	"log"
+	"lunanahida/internal/buildinfo"
+	"lunanahida/internal/restoreformats"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -24,6 +26,7 @@ type Dialogs struct {
 }
 
 type API struct {
+	conversionRequests         conversionRequests
 	Store                      *Store
 	Dialogs                    Dialogs
 	Music                      *Music
@@ -63,9 +66,87 @@ func decode(r *http.Request, value any) error {
 
 func (a *API) Handler() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/conversion/cancel", func(w http.ResponseWriter, r *http.Request) {
+		var input struct {
+			RequestID string `json:"requestId"`
+		}
+		if err := decode(r, &input); err != nil {
+			fail(w, 400, err)
+			return
+		}
+		if err := a.conversionRequests.stop(input.RequestID); err != nil {
+			fail(w, 400, err)
+			return
+		}
+		respond(w, 200, map[string]bool{"ok": true})
+	})
+	mux.HandleFunc("POST /api/conversion/jobs", func(w http.ResponseWriter, r *http.Request) {
+		var input struct {
+			Folders []string `json:"folders"`
+		}
+		if err := decode(r, &input); err != nil {
+			fail(w, 400, err)
+			return
+		}
+		jobs, err := a.Store.ConversionJobs(r.Context(), input.Folders)
+		if err != nil {
+			fail(w, 409, err)
+			return
+		}
+		respond(w, 200, jobs)
+	})
+	mux.HandleFunc("POST /api/conversion/recover", func(w http.ResponseWriter, r *http.Request) {
+		var input struct {
+			Path   string `json:"path"`
+			Action string `json:"action"`
+		}
+		if err := decode(r, &input); err != nil {
+			fail(w, 400, err)
+			return
+		}
+		result, err := a.Store.RecoverConversion(r.Context(), input.Path, input.Action)
+		if err != nil {
+			fail(w, 409, err)
+			return
+		}
+		respond(w, 200, result)
+	})
+	mux.HandleFunc("POST /api/conversion/jobs/open", func(w http.ResponseWriter, r *http.Request) {
+		if a.Dialogs.Folder == nil {
+			http.NotFound(w, r)
+			return
+		}
+		var input struct {
+			Path string `json:"path"`
+		}
+		if err := decode(r, &input); err != nil {
+			fail(w, 400, err)
+			return
+		}
+		var path string
+		if err := a.Store.DB.QueryRow(`SELECT path FROM conversion_jobs WHERE path=?`, input.Path).Scan(&path); err != nil {
+			fail(w, 404, err)
+			return
+		}
+		// Opening the parent also works for a damaged record, but never follows a task symlink.
+		info, err := os.Lstat(path)
+		if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+			fail(w, 409, errors.New("任务目录不存在或已被替换"))
+			return
+		}
+		if err := openRecoveryFolder(filepath.Dir(path)); err != nil {
+			fail(w, 500, err)
+			return
+		}
+		respond(w, 200, map[string]bool{"ok": true})
+	})
 	mux.HandleFunc("GET /api/capabilities", func(w http.ResponseWriter, r *http.Request) {
+		// Persist the disabled preference when a previously installed module disappears.
+		_, _ = a.Store.Settings()
 		respond(w, 200, map[string]any{
 			"application":   "LunaNahida",
+			"version":       buildinfo.Version(),
+			"conversion":    a.Store.ConversionAvailable(),
 			"nativeFiles":   a.Dialogs.Files != nil,
 			"nativeFolders": a.Dialogs.Folder != nil,
 			"nativeCover":   a.Dialogs.Cover != nil,
@@ -253,6 +334,7 @@ func (a *API) Handler() http.Handler {
 			fail(w, 400, err)
 			return
 		}
+		settings.AutoConvert = settings.AutoConvert && a.Store.ConversionAvailable()
 		if err := a.Store.SaveSettings(settings); err != nil {
 			fail(w, 400, err)
 			return
@@ -471,11 +553,7 @@ func (a *API) Handler() http.Handler {
 		}
 		var tracks []Track
 		var err error
-		if input.SkipConversion {
-			tracks, err = a.Store.ImportWithoutConversion(input.Paths, input.Mode)
-		} else {
-			tracks, err = a.Store.Import(input.Paths, input.Mode)
-		}
+		tracks, err = a.Store.ImportContext(r.Context(), input.Paths, input.Mode, input.SkipConversion)
 		if err != nil {
 			fail(w, 400, err)
 			return
@@ -559,7 +637,7 @@ func (a *API) Handler() http.Handler {
 					return nil
 				}
 				if entry.IsDir() {
-					if entry.Name() == backupFolder {
+					if entry.Name() == backupFolder || entry.Name() == organizerRecoveryFolder || restoreformats.JobDirectory(entry.Name()) {
 						return filepath.SkipDir
 					}
 					return nil
@@ -573,12 +651,17 @@ func (a *API) Handler() http.Handler {
 				return nil
 			})
 		}
-		respond(w, 200, map[string]any{"paths": found})
+		respond(w, 200, map[string]any{"paths": found, "available": a.Store.ConversionAvailable()})
 	})
 	mux.HandleFunc("POST /api/conversion", func(w http.ResponseWriter, r *http.Request) {
+		if !a.Store.ConversionAvailable() {
+			respond(w, http.StatusServiceUnavailable, map[string]string{"code": "CONVERTER_UNAVAILABLE", "error": errConverterUnavailable.Error()})
+			return
+		}
 		var input struct {
 			Path         string `json:"path"`
 			AddToLibrary bool   `json:"addToLibrary"`
+			RequestID    string `json:"requestId"`
 		}
 		if err := decode(r, &input); err != nil || input.Path == "" {
 			fail(w, 400, errors.New("invalid path"))
@@ -589,7 +672,18 @@ func (a *API) Handler() http.Handler {
 			fail(w, 500, err)
 			return
 		}
-		respond(w, 200, a.Store.Convert(r.Context(), input.Path, settings.BackupOriginal, input.AddToLibrary))
+		ctx, done, err := a.conversionRequests.start(r.Context(), input.RequestID)
+		if err != nil {
+			fail(w, 409, err)
+			return
+		}
+		defer done()
+		result := a.Store.Convert(ctx, input.Path, settings.BackupOriginal, input.AddToLibrary)
+		if result.Status == "failed" && !a.Store.ConversionAvailable() {
+			respond(w, http.StatusServiceUnavailable, map[string]string{"code": "CONVERTER_UNAVAILABLE", "error": errConverterUnavailable.Error()})
+			return
+		}
+		respond(w, 200, result)
 	})
 	mux.HandleFunc("PUT /api/tracks/{id}/playback", func(w http.ResponseWriter, r *http.Request) {
 		id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)

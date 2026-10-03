@@ -50,15 +50,17 @@ export type NetworkSource = { id: number; kind: 'webdav' | 'ftp' | 'ftps' | 'pla
 export type PlaybackState = { trackId: number; position: number };
 export type LibraryState = { playback?: PlaybackState; tracks: Track[]; tags: string[]; playlists: Playlist[]; liked: number[]; recent: number[]; queue: number[]; folders: string[]; networkSources: NetworkSource[]; settings: StoredSettings };
 export type ScanResult = { added: number; updated: number; missing: number; removed: number; folders: number; converted: number; errors: string[] };
-export type ConversionResult = { source: string; output?: string; backup?: string; status: 'converted' | 'failed'; error?: string; track?: Track };
+export type ConversionResult = { source: string; output?: string; backup?: string; status: 'converted' | 'failed' | 'cancelled' | 'restored'; error?: string; track?: Track };
+export type ConversionJob = { path: string; source: string; output: string; retired: string; stage: string; sourceExists: boolean; outputExists: boolean; canRestore: boolean; canImport: boolean; error?: string };
 export type CacheStats = { coverBytes: number; webviewBytes: number; metadataBytes: number; networkAudioBytes: number; totalBytes: number; webviewClearPending: boolean };
 export type BackupImportResult = { tracks: number; playlists: number; tags: number; covers: number };
 
-async function request<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
-  const response = await fetch(path, { method, headers: body === undefined ? undefined : { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
+async function request<T>(path: string, method = 'GET', body?: unknown, signal?: AbortSignal): Promise<T> {
+  const response = await fetch(path, { method, signal, headers: body === undefined ? undefined : { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
   if (!response.ok) {
-    const payload = await response.json().catch(() => ({})) as { error?: string };
-    throw new Error(payload.error || `请求失败 (${response.status})`);
+    const payload = await response.json().catch(() => ({})) as { error?: string; code?: string };
+    if (payload.code === 'CONVERTER_UNAVAILABLE') window.dispatchEvent(new Event('lunanahida-capabilities-changed'));
+    throw Object.assign(new Error(payload.error || `请求失败 (${response.status})`), { code: payload.code });
   }
   return response.json() as Promise<T>;
 }
@@ -100,8 +102,12 @@ export const backend = {
   importNetwork: (url: string) => request<Track>('/api/import/network', 'POST', { url }),
   addNetworkSource: (kind: NetworkSource['kind'], url: string, username: string, password: string) => request<{ source: NetworkSource; scan: ScanResult }>('/api/network/sources', 'POST', { kind, url, username, password }),
   removeNetworkSource: (id: number) => request<{ ok: boolean }>(`/api/network/sources/${id}`, 'DELETE'),
-  inspectConversion: (paths: string[]) => request<{ paths: string[] }>('/api/conversion/inspect', 'POST', { paths }),
-  convert: (path: string, addToLibrary: boolean) => request<ConversionResult>('/api/conversion', 'POST', { path, addToLibrary }),
+  inspectConversion: (paths: string[]) => request<{ paths: string[]; available?: boolean }>('/api/conversion/inspect', 'POST', { paths }),
+  conversionJobs: (folders: string[] = []) => request<ConversionJob[]>('/api/conversion/jobs', 'POST', { folders }),
+  recoverConversion: (path: string, action: 'restore' | 'import') => request<ConversionResult>('/api/conversion/recover', 'POST', { path, action }),
+  openConversionFolder: (path: string) => request<{ ok: boolean }>('/api/conversion/jobs/open', 'POST', { path }),
+  convert: (path: string, addToLibrary: boolean, requestId?: string, signal?: AbortSignal) => request<ConversionResult>('/api/conversion', 'POST', { path, addToLibrary, requestId }, signal),
+  cancelConversion: (requestId: string) => request<{ ok: boolean }>('/api/conversion/cancel', 'POST', { requestId }),
   playbackStatus: (id: number, status: 'unknown' | 'playable' | 'unplayable') => request<{ ok: boolean }>(`/api/tracks/${id}/playback`, 'PUT', { status }),
   scan: (backupOriginal: boolean) => request<ScanResult>('/api/scan', 'POST', { backupOriginal }),
   cacheStats: () => request<CacheStats>('/api/cache'),

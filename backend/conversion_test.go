@@ -128,7 +128,7 @@ func qmcFixture(t *testing.T, folder, name string) (string, []byte, []byte) {
 }
 
 func TestConvertQMCBackupAndLibrary(t *testing.T) {
-	store := testStore(t)
+	store := conversionStore(t)
 	folder := t.TempDir()
 	source, encrypted, want := qmcFixture(t, folder, "song")
 	result := store.Convert(context.Background(), source, true, true)
@@ -161,7 +161,7 @@ func TestConvertQMCBackupAndLibrary(t *testing.T) {
 }
 
 func TestConvertQMCWithoutBackupAndCollision(t *testing.T) {
-	store := testStore(t)
+	store := conversionStore(t)
 	folder := t.TempDir()
 	source, encrypted, _ := qmcFixture(t, folder, "song")
 	out := filepath.Join(folder, "song.mp3")
@@ -207,7 +207,7 @@ func TestUnsupportedPlaybackStatus(t *testing.T) {
 }
 
 func TestConvertedDFFStaysInLibraryAsUnplayable(t *testing.T) {
-	store := testStore(t)
+	store := conversionStore(t)
 	path := filepath.Join(t.TempDir(), "dsd.tm0")
 	data := append([]byte("FRM8"), make([]byte, 128)...)
 	if err := os.WriteFile(path, data, 0600); err != nil {
@@ -220,7 +220,7 @@ func TestConvertedDFFStaysInLibraryAsUnplayable(t *testing.T) {
 }
 
 func TestConvertNCMEmbeddedMetadata(t *testing.T) {
-	store := testStore(t)
+	store := conversionStore(t)
 	path := filepath.Join(t.TempDir(), "local.ncm")
 	makeNCMFixture(t, path)
 	result := store.Convert(context.Background(), path, true, true)
@@ -243,7 +243,7 @@ func TestConvertNCMEmbeddedMetadata(t *testing.T) {
 }
 
 func TestConvertNCMFLACEmbeddedMetadata(t *testing.T) {
-	store := testStore(t)
+	store := conversionStore(t)
 	path := filepath.Join(t.TempDir(), "local.ncm")
 	makeNCMFixtureWithAudio(t, path, "mflac_map_target.bin", "flac", "123456")
 	result := store.Convert(context.Background(), path, true, true)
@@ -262,7 +262,7 @@ func TestConvertNCMFLACEmbeddedMetadata(t *testing.T) {
 }
 
 func TestConvertNCMStringMusicID(t *testing.T) {
-	store := testStore(t)
+	store := conversionStore(t)
 	path := filepath.Join(t.TempDir(), "local.ncm")
 	makeNCMFixtureWithAudio(t, path, "qmc0_static_target.bin", "mp3", `"123456"`)
 	result := store.Convert(context.Background(), path, true, true)
@@ -286,7 +286,7 @@ func TestProvidedNCMSample(t *testing.T) {
 		t.Fatalf("sample decoder validation: %v", err)
 	}
 	file.Close()
-	store := testStore(t)
+	store := conversionStore(t)
 	path := filepath.Join(t.TempDir(), filepath.Base(sample))
 	data, err := os.ReadFile(sample)
 	if err != nil {
@@ -311,7 +311,7 @@ func TestProvidedNCMSample(t *testing.T) {
 }
 
 func TestSameExtensionConversionPreservesTrackID(t *testing.T) {
-	store := testStore(t)
+	store := conversionStore(t)
 	path := filepath.Join(t.TempDir(), "typed.mp3")
 	want, err := os.ReadFile(filepath.Join("..", "third_party", "unlock-music", "algo", "qmc", "testdata", "qmc0_static_target.bin"))
 	if err != nil {
@@ -340,7 +340,7 @@ func TestSameExtensionConversionPreservesTrackID(t *testing.T) {
 }
 
 func TestAutoConvertImportAndScan(t *testing.T) {
-	store := testStore(t)
+	store := conversionStore(t)
 	settings, err := store.Settings()
 	if err != nil {
 		t.Fatal(err)
@@ -376,7 +376,7 @@ func TestImportSkipsConversionUntilToolbox(t *testing.T) {
 			name = "folder"
 		}
 		t.Run(name, func(t *testing.T) {
-			store := testStore(t)
+			store := conversionStore(t)
 			settings, err := store.Settings()
 			if err != nil {
 				t.Fatal(err)
@@ -451,7 +451,7 @@ func TestManualScanConvertsWithOneTimeBackupChoice(t *testing.T) {
 			name = "with backup"
 		}
 		t.Run(name, func(t *testing.T) {
-			store := testStore(t)
+			store := conversionStore(t)
 			settings, err := store.Settings()
 			if err != nil {
 				t.Fatal(err)
@@ -500,7 +500,7 @@ func TestManualScanConvertsWithOneTimeBackupChoice(t *testing.T) {
 }
 
 func TestDirectIDEnrichmentUsesVerifiedCachedSong(t *testing.T) {
-	music := NewMusic(testStore(t))
+	music := NewMusic(conversionStore(t))
 	if _, err := music.cached("direct:v1:ncm:123456", time.Hour, false, func() (any, error) {
 		return song{ID: "123456", Title: "Local title", Artist: "Local artist, Guest"}, nil
 	}); err != nil {

@@ -11,7 +11,8 @@ LunaNahida supports three environments. Backend availability and native dialog s
 | Library, likes, playlists, tags, history | Stored by Go | Stored by Go for backend songs | Disabled |
 | File/folder native dialogs | Available when advertised | Disabled | Disabled |
 | Watched paths, scanning | Available | Backend-accessible paths | Disabled |
-| Format restoration, organizer | Available | Backend-accessible paths | Disabled |
+| Format restoration | Available with compatible module | Backend-accessible paths with compatible module | Hidden |
+| Organizer | Available | Backend-accessible paths | Disabled |
 | Network songs/sources, caches | Available | Available | Disabled |
 | Online artwork/lyrics/catalog | Available | Available | Disabled |
 | Save lyrics beside audio | For path-based songs | For backend path-based songs | Disabled |

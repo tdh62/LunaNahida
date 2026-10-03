@@ -1,6 +1,6 @@
 {
   "name": "lunanahida",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -13,7 +13,14 @@
     "test:frontend": "node --experimental-transform-types --test src/lib/*.test.mjs",
     "test:web": "vite build --mode web && node --experimental-transform-types scripts/verify-web.mjs",
     "build:desktop": "vite build && node scripts/build-desktop.mjs",
+    "build:converter": "node scripts/build-converter.mjs",
+    "build:desktop:full": "vite build && node scripts/build-desktop.mjs --with-converter",
+    "build:portable:full": "vite build && node scripts/build-portable.mjs --with-converter",
     "build:portable": "vite build && node scripts/build-portable.mjs",
+    "build:version": "node scripts/version.mjs",
+    "check:version": "node scripts/version.mjs --check",
+    "build:release": "node scripts/build-release.mjs",
+    "build:release:portable": "node scripts/build-release.mjs --portable",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview"

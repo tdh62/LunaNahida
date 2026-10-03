@@ -10,6 +10,7 @@ import (
 	"errors"
 	"io"
 	"io/fs"
+	"lunanahida/internal/restoreformats"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -312,14 +313,18 @@ func (s *Store) recheckLegacyTags() error {
 }
 
 func (s *Store) Import(paths []string, mode string) ([]Track, error) {
-	return s.importPaths(paths, mode, false)
+	return s.importPaths(context.Background(), paths, mode, false)
 }
 
 func (s *Store) ImportWithoutConversion(paths []string, mode string) ([]Track, error) {
-	return s.importPaths(paths, mode, true)
+	return s.importPaths(context.Background(), paths, mode, true)
 }
 
-func (s *Store) importPaths(paths []string, mode string, skipConversion bool) ([]Track, error) {
+func (s *Store) ImportContext(ctx context.Context, paths []string, mode string, skipConversion bool) ([]Track, error) {
+	return s.importPaths(ctx, paths, mode, skipConversion)
+}
+
+func (s *Store) importPaths(ctx context.Context, paths []string, mode string, skipConversion bool) ([]Track, error) {
 	if mode != "temporary" && mode != "library" && mode != "watch" {
 		return nil, errors.New("invalid import mode")
 	}
@@ -330,7 +335,11 @@ func (s *Store) importPaths(paths []string, mode string, skipConversion bool) ([
 	if err != nil {
 		return nil, err
 	}
+	moduleAvailable := s.ConversionAvailable()
 	for _, input := range paths {
+		if err := ctx.Err(); err != nil {
+			return result, err
+		}
 		path, err := canonical(input)
 		if err != nil {
 			return nil, err
@@ -346,11 +355,14 @@ func (s *Store) importPaths(paths []string, mode string, skipConversion bool) ([
 				}
 			}
 			err = filepath.WalkDir(path, func(item string, entry fs.DirEntry, walkErr error) error {
+				if err := ctx.Err(); err != nil {
+					return err
+				}
 				if walkErr != nil {
 					return nil
 				}
 				if entry.IsDir() {
-					if entry.Name() == backupFolder || entry.Name() == organizerRecoveryFolder {
+					if entry.Name() == backupFolder || entry.Name() == organizerRecoveryFolder || restoreformats.JobDirectory(entry.Name()) {
 						return filepath.SkipDir
 					}
 					return nil
@@ -358,10 +370,10 @@ func (s *Store) importPaths(paths []string, mode string, skipConversion bool) ([
 				if !audioTypes[strings.ToLower(filepath.Ext(item))] && !encryptedFile(item) {
 					return nil
 				}
-				if skipConversion && encryptedFile(item) {
+				if (skipConversion || !moduleAvailable) && encryptedFile(item) {
 					return nil
 				}
-				t, loadErr := s.importWithConversion(item, mode, settings)
+				t, loadErr := s.importWithConversion(ctx, item, mode, settings)
 				if loadErr == nil && mode == "library" {
 					_, loadErr = s.DB.Exec(`UPDATE tracks SET folder_imported=1 WHERE id=?`, t.ID)
 				}
@@ -381,7 +393,7 @@ func (s *Store) importPaths(paths []string, mode string, skipConversion bool) ([
 		if !audioTypes[strings.ToLower(filepath.Ext(path))] && !encryptedFile(path) {
 			continue
 		}
-		if skipConversion && encryptedFile(path) {
+		if (skipConversion || !moduleAvailable && len(paths) > 1) && encryptedFile(path) {
 			continue
 		}
 		if mode == "watch" {
@@ -389,7 +401,7 @@ func (s *Store) importPaths(paths []string, mode string, skipConversion bool) ([
 				return nil, err
 			}
 		}
-		t, err := s.importWithConversion(path, mode, settings)
+		t, err := s.importWithConversion(ctx, path, mode, settings)
 		if err != nil {
 			return nil, err
 		}
@@ -401,12 +413,15 @@ func (s *Store) importPaths(paths []string, mode string, skipConversion bool) ([
 	return result, errors.Join(failures...)
 }
 
-func (s *Store) importWithConversion(path, mode string, settings Settings) (Track, error) {
+func (s *Store) importWithConversion(ctx context.Context, path, mode string, settings Settings) (Track, error) {
 	if encryptedFile(path) {
+		if !s.ConversionAvailable() {
+			return Track{}, errConverterUnavailable
+		}
 		if !settings.AutoConvert {
 			return Track{}, errors.New("此文件需要先转换，请使用工具箱")
 		}
-		converted := s.Convert(context.Background(), path, settings.BackupOriginal, mode != "temporary")
+		converted := s.Convert(ctx, path, settings.BackupOriginal, mode != "temporary")
 		if converted.Status != "converted" {
 			return Track{}, errors.New(converted.Error)
 		}
@@ -570,7 +585,7 @@ func (s *Store) scan(ctx context.Context, manualBackup *bool) (ScanResult, error
 		return result, err
 	}
 	if manualBackup != nil {
-		settings.AutoConvert = true
+		settings.AutoConvert = s.ConversionAvailable()
 		settings.BackupOriginal = *manualBackup
 	}
 	rows, err := s.DB.Query(`SELECT path FROM folders`)
@@ -611,7 +626,7 @@ func (s *Store) scan(ctx context.Context, manualBackup *bool) (ScanResult, error
 				return nil
 			}
 			if entry.IsDir() {
-				if entry.Name() == backupFolder || entry.Name() == organizerRecoveryFolder {
+				if entry.Name() == backupFolder || entry.Name() == organizerRecoveryFolder || restoreformats.JobDirectory(entry.Name()) {
 					return filepath.SkipDir
 				}
 				return nil
@@ -705,6 +720,9 @@ func (s *Store) scan(ctx context.Context, manualBackup *bool) (ScanResult, error
 		} else if statErr != nil {
 			result.Errors = append(result.Errors, item.path+": "+statErr.Error())
 		} else if !item.available || !scanned[item.path] {
+			if encryptedFile(item.path) && !s.ConversionAvailable() {
+				continue
+			}
 			if _, err = s.upsert(item.path); err == nil {
 				result.Updated++
 			} else {

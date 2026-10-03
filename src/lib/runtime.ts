@@ -3,6 +3,7 @@ import type { LibraryState } from './backend';
 export type Runtime = {
   mode: 'desktop' | 'browser-backend' | 'web';
   backend: boolean;
+  conversion: boolean;
   nativeFiles: boolean;
   nativeFolders: boolean;
   nativeCover: boolean;
@@ -36,7 +37,7 @@ function validState(value: LibraryState): boolean {
 }
 
 export async function discoverRuntime(desktop: boolean, signal: AbortSignal, fetcher: typeof fetch = fetch): Promise<Runtime> {
-  const web: Runtime = { mode: 'web', backend: false, nativeFiles: false, nativeFolders: false, nativeCover: false, nativeBackup: false, nativeFonts: false, initialState: emptyLibrary() };
+  const web: Runtime = { mode: 'web', backend: false, conversion: false, nativeFiles: false, nativeFolders: false, nativeCover: false, nativeBackup: false, nativeFonts: false, initialState: emptyLibrary() };
   let response: Response;
   try { response = await fetcher('/api/capabilities', { signal }); }
   catch (error) { if (desktop) throw error; return web; }
@@ -52,7 +53,7 @@ export async function discoverRuntime(desktop: boolean, signal: AbortSignal, fet
   const initialState = await stateResponse.json() as LibraryState;
   if (!validState(initialState)) throw new Error('音乐库数据无法读取');
   return {
-    mode: desktop ? 'desktop' : 'browser-backend', backend: true, initialState,
+    mode: desktop ? 'desktop' : 'browser-backend', backend: true, conversion: capabilities.conversion === true, initialState,
     nativeFiles: desktop && capabilities.nativeFiles === true,
     nativeFolders: desktop && capabilities.nativeFolders === true,
     nativeCover: desktop && capabilities.nativeCover === true,
