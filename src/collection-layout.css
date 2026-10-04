@@ -1,5 +1,5 @@
 .collection-workspace { --collection-inset-x: 28px; --collection-inset-y: 26px; }
-.collection-workspace > .collection-page { min-height: 0; padding: var(--collection-inset-y) var(--collection-inset-x) 24px; }
+.collection-workspace > .collection-page, .collection-workspace > .retained-page > .collection-page { min-height: 0; padding: var(--collection-inset-y) var(--collection-inset-x) 24px; }
 .collection-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 20px; margin: 0 0 18px; }
 .collection-heading-title { display: flex; flex-wrap: wrap; align-items: baseline; min-width: 0; gap: 8px 12px; }
 .collection-heading h1 { margin: 0; color: var(--text-primary); font-size: 24px; line-height: 36px; font-weight: 600; overflow-wrap: anywhere; }
@@ -35,3 +35,4 @@
   .collection-hero > img, .collection-hero > .playlist-hero-cover { width: 88px; }
   .collection-hero h1 { font-size: 19px; }
 }
+.retained-page { display: contents; }

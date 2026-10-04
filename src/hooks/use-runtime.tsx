@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { discoverRuntime, isDesktopEnvironment, type Runtime } from '@/lib/runtime';
 import '@/runtime.css';
+import LoadingPlaceholder from '@/components/LoadingPlaceholder';
 
 const RuntimeContext = createContext<Runtime | null>(null);
 
@@ -45,7 +46,7 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
     window.addEventListener('lunanahida-capabilities-changed', refresh);
     return () => { active = false; controller.abort(); window.removeEventListener('focus', refresh); window.removeEventListener('lunanahida-capabilities-changed', refresh); };
   }, [runtime?.backend]);
-  if (!runtime) return <main className="runtime-status"><img src="/lunanahida-icon.png" alt="" /><h1>LunaNahida</h1><p role={error ? 'alert' : 'status'}>{error || '正在打开…'}</p>{error && <button type="button" onClick={() => { setError(''); setAttempt(value => value + 1); }}>重试</button>}</main>;
+  if (!runtime) return <main className="runtime-status"><img src="/lunanahida-icon.png" alt="" /><h1>LunaNahida</h1>{error ? <><p role="alert">{error}</p><button type="button" onClick={() => { setError(''); setAttempt(value => value + 1); }}>重试</button></> : <LoadingPlaceholder label="正在打开…" rows={3} />}</main>;
   return <RuntimeContext.Provider value={runtime}>{children}</RuntimeContext.Provider>;
 }
 

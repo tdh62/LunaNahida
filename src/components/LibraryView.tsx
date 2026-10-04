@@ -48,15 +48,27 @@ export default function LibraryView({ title, tracks, currentId, liked, onPlay, o
   const [descending, setDescending] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
-  const [scrollTop, setScrollTop] = useState(0);
+  const [scrollTop, setScrollTopState] = useState(0);
+  const rememberedScroll = useRef(0);
+  const restoringScroll = useRef(false);
+  const setScrollTop = (value: number) => { rememberedScroll.current = value; setScrollTopState(value); };
   const [viewport, setViewport] = useState(() => ({ height: window.innerHeight, rowHeight: window.matchMedia('(max-width: 760px)').matches ? 66 : 72 }));
   const anchor = useRef<number | null>(null);
   const rowsRef = useRef<HTMLDivElement>(null);
   const [locateRequest, setLocateRequest] = useState<{ id: number; scrollTop: number } | null>(null);
   const filtered = useMemo(() => queryTracks(tracks, {...conditions, keyword: search}, liked, sort, descending, searchMatch).filter(track => !selectedTag || trackTags(track).some(tag => tag.toLocaleLowerCase() === selectedTag.toLocaleLowerCase())), [tracks, conditions, search, liked, sort, descending, selectedTag, searchMatch]);
-  useEffect(() => { setSelectedIds([]); anchor.current = null; setScrollTop(0); if (rowsRef.current) rowsRef.current.scrollTop = 0; }, [conditions, sort, descending]);
-  const selected = selectedIds.filter(id => filtered.some(track => track.id === id));
-  const selectedDeletable = selected.length > 0 && selected.every(id => tracks.find(track => track.id === id)?.deletable);
+  const previousFilter = useRef({ conditions, sort, descending });
+  useEffect(() => {
+    const previous = previousFilter.current;
+    if (previous.conditions === conditions && previous.sort === sort && previous.descending === descending) return;
+    previousFilter.current = { conditions, sort, descending };
+    setSelectedIds([]); anchor.current = null; setScrollTop(0);
+    if (rowsRef.current) rowsRef.current.scrollTop = 0;
+  }, [conditions, sort, descending]);
+  const filteredIds = useMemo(() => new Set(filtered.map(track => track.id)), [filtered]);
+  const tracksById = useMemo(() => new Map(tracks.map(track => [track.id, track])), [tracks]);
+  const selected = selectedIds.filter(id => filteredIds.has(id));
+  const selectedDeletable = selected.length > 0 && selected.every(id => tracksById.get(id)?.deletable);
   const virtualized = filtered.length > VIRTUAL_THRESHOLD;
   const { rowHeight } = viewport;
   const range = getVirtualTrackRange(filtered.length, rowHeight, viewport.height, scrollTop, OVERSCAN);
@@ -81,7 +93,11 @@ export default function LibraryView({ title, tracks, currentId, liked, onPlay, o
   useLayoutEffect(() => {
     const list = rowsRef.current;
     if (!list) return;
+    restoringScroll.current = true;
+    list.scrollTop = rememberedScroll.current;
     const measure = () => {
+      if (!list.getClientRects().length) return;
+      if (restoringScroll.current) list.scrollTop = rememberedScroll.current;
       const height = list.clientHeight;
       const nextRowHeight = window.matchMedia('(max-width: 760px)').matches ? 66 : 72;
       setViewport(previous => previous.height === height && previous.rowHeight === nextRowHeight ? previous : { height, rowHeight: nextRowHeight });
@@ -90,11 +106,16 @@ export default function LibraryView({ title, tracks, currentId, liked, onPlay, o
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(list);
-    return () => observer.disconnect();
+    // Revealing an Activity can trigger browser focus/layout scroll adjustments.
+    // Keep the saved position through the first layout, then allow normal scrolling.
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => { list.scrollTop = rememberedScroll.current; restoringScroll.current = false; });
+    });
+    return () => { observer.disconnect(); cancelAnimationFrame(frame); restoringScroll.current = false; };
   }, []);
 
   useLayoutEffect(() => {
-    if (rowsRef.current) setScrollTop(rowsRef.current.scrollTop);
+    if (rowsRef.current && !restoringScroll.current) setScrollTop(rowsRef.current.scrollTop);
   }, [filtered.length, rowHeight]);
 
   useLayoutEffect(() => {
@@ -122,7 +143,7 @@ export default function LibraryView({ title, tracks, currentId, liked, onPlay, o
 
   const onRowsScroll = () => {
     const element = rowsRef.current;
-    if (!element) return;
+    if (!element || !element.getClientRects().length || restoringScroll.current) return;
     setScrollTop(element.scrollTop);
   };
 
@@ -174,9 +195,9 @@ export default function LibraryView({ title, tracks, currentId, liked, onPlay, o
       {virtualized && <div aria-hidden="true" style={{ height: range.topHeight }} />}
       {renderedTracks.map(track => {
         const menuIds = selected.includes(track.id) ? selected : [track.id];
-        const menuTracks = filtered.filter(item => menuIds.includes(item.id) && item.available !== false && item.playbackStatus !== 'unplayable');
+        const menuTracks = menuIds.map(id => tracksById.get(id)).filter((item): item is Track => Boolean(item) && item.available !== false && item.playbackStatus !== 'unplayable');
         const menuDeletable = menuIds.every(id => tracks.find(item => item.id === id)?.deletable);
-        const likeable = menuIds.filter(id => tracks.some(item => item.id === id && !item.temporary));
+        const likeable = menuIds.filter(id => tracksById.has(id) && !tracksById.get(id).temporary);
         const removableTags = [...new Set(menuIds.flatMap(id => tracks.find(item => item.id === id)?.customTags ?? []))];
         const allLiked = likeable.every(id => liked.includes(id));
         return <ContextMenu key={track.id}><ContextMenuTrigger asChild>

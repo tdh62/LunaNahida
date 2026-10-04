@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { backend } from '@/lib/backend';
 import { uiFontStack } from '@/lib/ui-fonts';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import LoadingPlaceholder from './LoadingPlaceholder';
 
 type Props = { hidden: boolean; families: string[]; onChange: (families: string[]) => void };
 
@@ -61,7 +62,7 @@ export default function SystemFontSettings({ hidden, families, onChange }: Props
         <label className="settings-floating-search"><Search size={16} /><input type="search" aria-label="搜索系统字体" placeholder="搜索字体" value={search} onChange={event => setSearch(event.target.value)} /></label>
         <div className="system-font-results">
           {error ? <div role="alert"><p>{error}</p><button type="button" className="playlist-primary" onClick={() => setAttempt(value => value + 1)}>重试</button></div>
-            : !fonts ? <p role="status">正在读取系统字体…</p>
+            : !fonts ? <LoadingPlaceholder label="正在读取系统字体…" kind="list" rows={5} />
             : !available?.length ? <p role="status">未找到字体</p>
             : available.map(font => <button type="button" key={font} disabled={families.some((family, i) => family === font && i !== picker)} onClick={() => select(font)} style={{ fontFamily: uiFontStack([font]) }}>{font}</button>)}
         </div>

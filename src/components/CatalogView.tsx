@@ -2,6 +2,7 @@ import { ArrowDownAZ, ArrowLeft, Disc3, Info, ListMusic, Mic2, Play, RefreshCw, 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import LibraryView from '@/components/LibraryView';
+import LoadingPlaceholder from './LoadingPlaceholder';
 import { backend } from '@/lib/backend';
 import type { AlbumEntry, ArtistEntry } from '@/lib/catalog';
 import { formatTime, type Track } from '@/lib/music';
@@ -224,7 +225,7 @@ export default function CatalogView({ kind, listState, artists, albums, artist, 
     : detail?.cover ?? '/covers/local.svg';
   const artistInfo = artist && <section className="artist-description" aria-label="歌手介绍">
     <div className="artist-description-heading"><h2>歌手介绍</h2><button type="button" className="artist-description-refresh" onClick={() => void refreshArtistDescription()} disabled={artistDescriptionLoading}><RefreshCw size={14} className={artistDescriptionLoading ? 'animate-spin' : ''} />刷新资料</button></div>
-    {artistDescriptionLoading && <p className="artist-description-status">正在加载歌手介绍…</p>}
+    {artistDescriptionLoading && (currentArtistDescription ? <p className="artist-description-status" role="status">正在更新歌手介绍…</p> : <LoadingPlaceholder label="正在加载歌手介绍…" />)}
     {artistDescriptionError && !artistDescriptionLoading && <p className="artist-description-status">{artistDescriptionError}</p>}
     {currentArtistDescription && <>
       {currentArtistDescription.briefDesc && <p className="artist-description-brief">{currentArtistDescription.briefDesc}</p>}
@@ -255,7 +256,7 @@ export default function CatalogView({ kind, listState, artists, albums, artist, 
         </div>
         {albumTab === 'songs' ? <div className="catalog-songs"><LibraryView key={`${album.artistKey}-${album.key}`} title="歌曲" tracks={albumTracks ?? album.tracks} currentId={currentId} liked={liked} playlists={playlists} onPlay={id => onPlayTracks(albumTracks ?? album.tracks, id)} onPlayMany={onPlayTracks} onToggleLike={onToggleLike} onViewInfo={onViewInfo} onRefreshInfo={onRefreshInfo} onSaveLyrics={onSaveLyrics} onAddToPlaylist={onAddToPlaylist} onArtist={onArtist} onAlbum={onAlbum} /></div> : <section className="album-info" aria-label="专辑信息">
           <div className="artist-description-heading"><h2>专辑信息</h2><button type="button" className="artist-description-refresh" onClick={() => void refreshAlbumDescription()} disabled={albumDescriptionLoading}><RefreshCw size={14} className={albumDescriptionLoading ? 'animate-spin' : ''} />刷新资料</button></div>
-          {albumDescriptionLoading && <p className="artist-description-status">正在加载专辑信息…</p>}
+          {albumDescriptionLoading && (currentAlbumDescription ? <p className="artist-description-status" role="status">正在更新专辑信息…</p> : <LoadingPlaceholder label="正在加载专辑信息…" rows={6} />)}
           {albumDescriptionError && !albumDescriptionLoading && <p className="artist-description-status">{albumDescriptionError}</p>}
           {currentAlbumDescription && <>
             <dl className="album-info-facts">

@@ -1,5 +1,5 @@
 import { ArrowLeft, ImagePlus, ListMusic, Play, Plus, Trash2, Upload, Disc3 } from 'lucide-react';
-import { useRef, useState, type DragEvent } from 'react';
+import { useMemo, useRef, useState, type DragEvent } from 'react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import { useRuntime } from '@/hooks/use-runtime';
@@ -46,7 +46,9 @@ export default function PlaylistView({ playlists, playlist, displayCover, tracks
   const [coverMode, setCoverMode] = useState<CoverMode>('upload');
   const [uploadedCover, setUploadedCover] = useState('');
   const [dropOverId, setDropOverId] = useState<string | null>(null);
-  const playlistTracks = playlist?.trackIds.map(id => tracks.find(track => track.id === id)).filter((track): track is Track => Boolean(track)) ?? [];
+  const tracksById = useMemo(() => new Map(tracks.map(track => [track.id, track])), [tracks]);
+  const playlistTracks = useMemo(() => playlist?.trackIds.map(id => tracksById.get(id)).filter((track): track is Track => Boolean(track)) ?? [], [playlist?.trackIds, tracksById]);
+  const resolvedPlaylists = useMemo(() => new Map(playlists.map(item => [item.id, item.trackIds.map(id => tracksById.get(id)).filter((track): track is Track => Boolean(track))])), [playlists, tracksById]);
   const firstTrackCover = playlistTracks[0]?.cover ?? '';
   const onDragOverPlaylist = (event: DragEvent, id: string) => {
     if (!hasTrackDrag(event.dataTransfer) || playlists.find(item=>item.id===id)?.rules) return;
@@ -94,7 +96,7 @@ export default function PlaylistView({ playlists, playlist, displayCover, tracks
   if (!playlist) return <section className="playlists-view collection-page">
     <header className="playlists-heading collection-heading"><div className="collection-heading-title"><h1>我的歌单</h1><p>{playlists.length} 个歌单</p></div><button type="button" className="playlist-primary" onClick={onCreate}><Plus size={16} /> 新建歌单</button></header>
     <div className="playlist-grid">{playlists.map(item => {
-      const playableTracks = item.trackIds.map(id => tracks.find(track => track.id === id)).filter((track): track is Track => Boolean(track));
+      const playableTracks = resolvedPlaylists.get(item.id) ?? [];
       return <div className={`playlist-card ${dropOverId === item.id ? 'track-drop-target' : ''}`} key={item.id} onDragOver={event => onDragOverPlaylist(event, item.id)} onDragLeave={event => { if (event.target === event.currentTarget) setDropOverId(null); }} onDrop={event => onDropPlaylist(event, item.id)}>
         <button type="button" className="playlist-cover" aria-label={`播放歌单 ${item.name}`} title={playableTracks.length ? `播放 ${item.name}` : '歌单为空'} disabled={!playableTracks.some(track => track.available !== false)} onClick={() => onPlayPlaylist(playableTracks)}><img src={item.cover} alt="" onError={event => { if (!event.currentTarget.src.endsWith('/covers/local.svg')) event.currentTarget.src = '/covers/local.svg'; }} /><span><Play size={23} fill="currentColor" /></span></button>
         <button type="button" className="playlist-card-info" onClick={() => navigate(`/playlists/${item.id}`)}><strong>{item.name}</strong><small>{item.rules ? '条件歌单 · ' : ''}{item.trackIds.length} 首歌曲</small><p>{item.description}</p></button>

@@ -7,7 +7,7 @@ export default async function verifyCatalogNavigation(setup, output) {
     album: `${index < 80 ? '保留' : '其他'}专辑 ${String(index + 1).padStart(2, '0')}`, year: String(1990 + index % 30),
     duration: 30, cover: '/covers/local.svg', genre: '', source: `/api/media/audio/${index + 1}`, path: `C:/music/${index + 1}.wav`,
   }));
-  const position = page => page.locator('.catalog-page').evaluate(element => matchMedia('(max-width: 760px)').matches ? document.scrollingElement.scrollTop : element.closest('.catalog-workspace').scrollTop);
+  const position = page => page.locator('.catalog-page:visible').evaluate(element => matchMedia('(max-width: 760px)').matches ? document.scrollingElement.scrollTop : element.closest('.catalog-workspace').scrollTop);
   for (const config of [
     { desktop: true, viewport: { width: 1280, height: 800 } },
     { textSize: 125, viewport: { width: 900, height: 850 } },
@@ -32,41 +32,41 @@ export default async function verifyCatalogNavigation(setup, output) {
       const query = label === '歌手' ? 'baoliugeshou' : '保留专辑';
       await search.fill(query);
       await page.getByRole('combobox', { name: `${label}排序`, exact: true }).selectOption(sort);
-      await page.waitForFunction(() => document.querySelectorAll('.catalog-card').length === 80);
-      const order = await page.locator('.catalog-card strong').allTextContents();
-      const card = page.locator('.catalog-card').nth(22);
+      await page.waitForFunction(() => [...document.querySelectorAll('.catalog-card')].filter(card => card.getClientRects().length).length === 80);
+      const order = await page.locator('.catalog-card:visible strong').allTextContents();
+      const card = page.locator('.catalog-card:visible').nth(22);
       await card.scrollIntoViewIfNeeded();
       const scrollTop = await position(page);
       assert.ok(scrollTop > 200);
       await card.click();
-      await page.locator('.catalog-hero').waitFor();
+      await page.locator('.catalog-hero:visible').waitFor();
       assert.ok(await position(page) < 1, 'details open at the top');
       await page.getByRole('link', { name: `返回${label}`, exact: true }).click();
       await page.waitForFunction(expected => {
-        const list = document.querySelector('.catalog-page');
+        const list = [...document.querySelectorAll('.catalog-page')].find(page => page.getClientRects().length);
         const container = matchMedia('(max-width: 760px)').matches ? document.scrollingElement : list.closest('.catalog-workspace');
         return Math.abs(container.scrollTop - expected) < 2;
       }, scrollTop);
       assert.equal(await search.inputValue(), query);
       assert.equal(await page.getByRole('combobox', { name: `${label}排序`, exact: true }).inputValue(), sort);
-      assert.deepEqual(await page.locator('.catalog-card strong').allTextContents(), order);
+      assert.deepEqual(await page.locator('.catalog-card:visible strong').allTextContents(), order);
       snapshots.set(label, { scrollTop, order, sort, query });
       // Browser back/forward follows the same list restoration as the page's return link.
       await card.click();
-      await page.locator('.catalog-hero').waitFor();
+      await page.locator('.catalog-hero:visible').waitFor();
       await page.goBack();
       await search.waitFor();
       assert.ok(Math.abs(await position(page) - scrollTop) < 2);
       await page.goForward();
-      await page.locator('.catalog-hero').waitFor();
+      await page.locator('.catalog-hero:visible').waitFor();
       await page.goBack();
       await search.waitFor();
     }
     // A related album causes the artist view to unmount; its list state must survive.
     await navigateList('歌手');
     assert.ok(Math.abs(await position(page) - snapshots.get('歌手').scrollTop) < 2);
-    await page.locator('.catalog-card').nth(22).click();
-    await page.locator('.catalog-related .catalog-card').first().click();
+    await page.locator('.catalog-card:visible').nth(22).click();
+    await page.locator('.catalog-related:visible .catalog-card').first().click();
     await page.getByRole('link', { name: '返回专辑', exact: true }).click();
     assert.equal(await page.getByRole('textbox', { name: '搜索专辑', exact: true }).inputValue(), snapshots.get('专辑').query);
     assert.equal(await page.getByRole('combobox', { name: '专辑排序', exact: true }).inputValue(), 'year');

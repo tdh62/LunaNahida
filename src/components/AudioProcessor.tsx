@@ -1,3 +1,5 @@
+import { usePlaybackTime } from '@/hooks/use-playback-time';
+import type { PlaybackClock } from '@/lib/playback-clock';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Pause, Play, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
@@ -22,7 +24,7 @@ type Props = {
   hasTrack: boolean;
   trackTitle: string;
   playing: boolean;
-  time: number;
+  clock: PlaybackClock;
   duration: number;
   onToggle: () => void;
   onSeek: (time: number) => void;
@@ -68,7 +70,8 @@ function TimeChart({ filter }: { filter: CustomFilter }) {
   return <canvas ref={canvas} className="processor-chart processor-time-chart" role="img" aria-label="时间响应与延迟点预览" />;
 }
 
-export default function AudioProcessor({ professionalAudio, preampDb, open, onOpenChange, effect, setEffect, customEffects, onSave, onDelete, onPreview, filterError, sampleRate, hasTrack, trackTitle, playing, time, duration, onToggle, onSeek }: Props) {
+export default function AudioProcessor({ professionalAudio, preampDb, open, onOpenChange, effect, setEffect, customEffects, onSave, onDelete, onPreview, filterError, sampleRate, hasTrack, trackTitle, playing, clock, duration, onToggle, onSeek }: Props) {
+  const time = usePlaybackTime(clock, open);
   const selected = useMemo(() => selectedEffect(effect, customEffects), [effect, customEffects]);
   const [draft, setDraft] = useState<CustomFilter>(selected.filter);
   const [name, setName] = useState('');

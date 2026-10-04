@@ -1,5 +1,5 @@
 import { Play, Check, Download, FolderOpen, HardDrive, Headphones, Leaf, ListMusic, Moon, Palette, Pencil, Plus, RefreshCw, SlidersHorizontal, Sparkles, Sun, Timer, Trash2, Upload, Users, Waves, Globe2 } from 'lucide-react';
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { useLocation } from 'react-router';
 import { normalizeName, type ArtistMapping } from '@/lib/catalog';
 import { formatTime } from '@/lib/music';
@@ -12,6 +12,8 @@ import SettingsNavigation from './SettingsNavigation';
 import SystemFontSettings from './SystemFontSettings';
 import { uiTextSizes, defaultUITextSize } from '@/lib/ui-text-scale';
 import type { SettingsCategory } from '@/lib/settings-categories';
+import LoadingPlaceholder from './LoadingPlaceholder';
+import { usePageTransition } from '@/hooks/use-page-transition';
 
 export const themes = [
   { id: 'dusk', name: '山间暮色', icon: Moon },
@@ -61,14 +63,17 @@ type SettingsProps = {
   lyricAppearance: { font: string; size: number; lineHeight: number; spacing: number };
   setLyricAppearance: (value: { font: string; size: number; lineHeight: number; spacing: number }) => void;
   artistNames: string[];
+  libraryRevision: unknown;
 };
 
-export default function PlayerSettings({ theme, setTheme, themeColor, setThemeColor, appearance, setAppearance, fontFamilies, setFontFamilies, textSize, setTextSize, visual, setVisual, lyricEffect, setLyricEffect, lyricScroll, setLyricScroll, showTranslation, setShowTranslation, sleep, setSleep, effectName, onEditEffects, professionalAudio, setProfessionalAudio, equalizer, setBand, resetEqualizer, mappings, setMappings, lyricAppearance, setLyricAppearance, artistNames }: SettingsProps) {
+export default function PlayerSettings({ theme, setTheme, themeColor, setThemeColor, appearance, setAppearance, fontFamilies, setFontFamilies, textSize, setTextSize, visual, setVisual, lyricEffect, setLyricEffect, lyricScroll, setLyricScroll, showTranslation, setShowTranslation, sleep, setSleep, effectName, onEditEffects, professionalAudio, setProfessionalAudio, equalizer, setBand, resetEqualizer, mappings, setMappings, lyricAppearance, setLyricAppearance, artistNames, libraryRevision }: SettingsProps) {
   const runtime = useRuntime();
   useEffect(() => { window.dispatchEvent(new Event('lunanahida-capabilities-changed')); }, []);
   const { hash } = useLocation();
   const pageRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const [category, setCategory] = useState<SettingsCategory>(hash === '#player-style' || hash === '#lyrics-layout' ? 'playback' : 'general');
+  usePageTransition(contentRef, category, false, false);
   const [library, setLibrary] = useState<LibraryState | null>(null);
   const [newFolder, setNewFolder] = useState('');
   const [sourceKind, setSourceKind] = useState<NetworkSource['kind']>('webdav');
@@ -85,8 +90,23 @@ export default function PlayerSettings({ theme, setTheme, themeColor, setThemeCo
   const [clearingNetwork, setClearingNetwork] = useState(false);
   const [backupBusy, setBackupBusy] = useState<'export' | 'import' | null>(null);
   const backupInput = useRef<HTMLInputElement>(null);
-  useEffect(() => { if (!runtime.backend) return; void backend.state().then(setLibrary).catch(error => toast.error(error.message)); }, [runtime.backend, runtime.conversion]);
-  useEffect(() => { if (!runtime.backend) return; void backend.cacheStats().then(setCache).catch(error => { setCacheError(true); toast.error(error.message); }); }, [runtime.backend]);
+  const lastLibrary = useRef<{ revision: unknown; conversion: boolean } | null>(null);
+  const lastCacheRead = useRef(0);
+  const readCacheStats = useCallback(async () => {
+    lastCacheRead.current = Date.now();
+    setCacheError(false);
+    try { setCache(await backend.cacheStats()); }
+    catch (error) { lastCacheRead.current = 0; setCacheError(true); toast.error(error instanceof Error ? error.message : '缓存统计失败'); }
+  }, []);
+  useEffect(() => {
+    if (!runtime.backend || lastLibrary.current?.revision === libraryRevision && lastLibrary.current?.conversion === runtime.conversion) return;
+    lastLibrary.current = { revision: libraryRevision, conversion: runtime.conversion };
+    void backend.state().then(setLibrary).catch(error => { lastLibrary.current = null; toast.error(error.message); });
+  }, [runtime.backend, runtime.conversion, libraryRevision]);
+  useEffect(() => {
+    if (!runtime.backend || Date.now() - lastCacheRead.current < 60000) return;
+    void readCacheStats();
+  }, [runtime.backend, readCacheStats]);
   const saveLibrarySettings = (change: Partial<StoredSettings>) => {
     if (!library) return;
     const settings = { ...library.settings, ...change, autoConvert: runtime.conversion && (change.autoConvert ?? library.settings.autoConvert) };
@@ -201,7 +221,7 @@ export default function PlayerSettings({ theme, setTheme, themeColor, setThemeCo
   return <div ref={pageRef} className="settings-page">
     <header className="settings-heading"><h1>设置</h1>{!runtime.backend && <span className="runtime-mode">仅本次有效</span>}</header>
     <SettingsNavigation page={pageRef} active={category} onChange={setCategory} hash={hash} />
-    <div id="settings-content" role="tabpanel" aria-labelledby={`settings-tab-${category}`}>
+    <div ref={contentRef} id="settings-content" role="tabpanel" aria-labelledby={`settings-tab-${category}`}>
     {runtime.mode === 'desktop' && <section className="settings-group" data-settings-category="general" hidden={category !== 'general'}><div className="settings-group-title"><Headphones size={19} /><div><h2>桌面窗口</h2></div></div><fieldset disabled={!library}>
       <div className="settings-row"><div><strong>最小化到系统托盘</strong></div><button type="button" role="switch" aria-checked={library?.settings.trayEnabled ?? false} aria-label="最小化到系统托盘" className={`settings-switch ${library?.settings.trayEnabled ? 'on' : ''}`} onClick={() => saveLibrarySettings({ trayEnabled: !library?.settings.trayEnabled })}><span /></button></div>
     </fieldset></section>}
@@ -231,8 +251,8 @@ export default function PlayerSettings({ theme, setTheme, themeColor, setThemeCo
     </fieldset></section>
     <section className="settings-group" data-settings-category="data" hidden={category !== 'data'}><div className="settings-group-title"><HardDrive size={19} /><div><h2>缓存空间</h2></div></div><fieldset disabled={!runtime.backend}>
       <div className="settings-row"><div><strong>最近播放的网络歌曲</strong><small>完整缓存最近播放的歌曲，单曲上限 512 MB</small></div><select className="lyric-font-select" aria-label="网络歌曲缓存数量" value={library?.settings.networkCacheCount ?? 10} onChange={event => saveLibrarySettings({ networkCacheCount: Number(event.target.value) })}>{[0, 5, 10, 20, 30, 50].map(count => <option key={count} value={count}>{count ? `${count} 首` : '关闭'}</option>)}</select></div>
-      <div className="settings-row"><div><strong>网络歌曲缓存</strong><small>{cache ? formatBytes(cache.networkAudioBytes) : runtime.backend ? '正在统计' : '未连接音乐库服务'}</small></div><button type="button" className="playlist-primary" disabled={clearingNetwork || !cache?.networkAudioBytes} onClick={() => void clearNetworkCache()}><Trash2 size={15} />{clearingNetwork ? '清理中' : '清理网络缓存'}</button></div>
-      <div className="settings-row"><div><strong>{cache ? formatBytes(cache.totalBytes) : !runtime.backend ? '未连接音乐库服务' : cacheError ? '统计失败' : '正在统计'}</strong>{cache && <small>图片 {formatBytes(cache.coverBytes)}{runtime.mode === 'desktop' && <> · 界面缓存 {formatBytes(cache.webviewBytes)}</>} · 在线资料 {formatBytes(cache.metadataBytes)} · 网络歌曲 {formatBytes(cache.networkAudioBytes)}</small>}{runtime.mode === 'desktop' && cache?.webviewClearPending && <small>界面缓存将在下次启动时清理</small>}</div><button type="button" className="playlist-primary" disabled={clearing || (!cache && !cacheError)} onClick={() => { if (cache) setClearConfirmOpen(true); else void backend.cacheStats().then(stats => { setCache(stats); setCacheError(false); }).catch(error => toast.error(error.message)); }}>{cache ? <Trash2 size={15} /> : <RefreshCw size={15} />}{cache ? '清理缓存' : '重试统计'}</button></div>
+      <div className="settings-row"><div><strong>网络歌曲缓存</strong><small>{cache ? formatBytes(cache.networkAudioBytes) : !runtime.backend ? '未连接音乐库服务' : cacheError ? '统计失败' : '正在统计'}</small></div><button type="button" className="playlist-primary" disabled={clearingNetwork || !cache?.networkAudioBytes} onClick={() => void clearNetworkCache()}><Trash2 size={15} />{clearingNetwork ? '清理中' : '清理网络缓存'}</button></div>
+      <div className="settings-row"><div>{!cache && runtime.backend && !cacheError ? <LoadingPlaceholder label="正在统计缓存空间…" kind="stat" /> : <strong>{cache ? formatBytes(cache.totalBytes) : !runtime.backend ? '未连接音乐库服务' : '统计失败'}</strong>}{cache && <small>图片 {formatBytes(cache.coverBytes)}{runtime.mode === 'desktop' && <> · 界面缓存 {formatBytes(cache.webviewBytes)}</>} · 在线资料 {formatBytes(cache.metadataBytes)} · 网络歌曲 {formatBytes(cache.networkAudioBytes)}</small>}{runtime.mode === 'desktop' && cache?.webviewClearPending && <small>界面缓存将在下次启动时清理</small>}</div><button type="button" className="playlist-primary" disabled={clearing || (!cache && !cacheError)} onClick={() => { if (cache) setClearConfirmOpen(true); else void readCacheStats(); }}>{cache ? <Trash2 size={15} /> : <RefreshCw size={15} />}{cache ? '清理缓存' : cacheError ? '重试统计' : '正在统计…'}</button></div>
     </fieldset></section>
     <section className="settings-group" data-settings-category="data" hidden={category !== 'data'}><div className="settings-group-title"><HardDrive size={19} /><div><h2>数据备份</h2></div></div><fieldset disabled={!runtime.backend}>
       <div className="settings-row backup-row"><div><strong>导出压缩包</strong><small>音乐库数据库、歌词及在线资料、封面缓存；不包含音频文件</small></div><button type="button" className="playlist-primary" disabled={backupBusy !== null} onClick={() => void exportBackup()}><Download size={15} />{backupBusy === 'export' ? '导出中' : '导出备份'}</button></div>

@@ -1,3 +1,5 @@
+import { usePlaybackTime } from '@/hooks/use-playback-time';
+import type { PlaybackClock } from '@/lib/playback-clock';
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Heart, Maximize2, Minus, Pause, Pin, PinOff, Play, SkipBack, SkipForward, Square, Volume2, VolumeX, X } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -9,7 +11,7 @@ export function MiniModeButton({ label, children, onClick, disabled = false, pre
 
 type MiniPlayerProps = {
   title: string; artist: string; cover: string; playing: boolean; available: boolean;
-  noise: boolean; time: number; duration: number; volume: number; busy: boolean; pinned: boolean;
+  noise: boolean; clock: PlaybackClock; duration: number; volume: number; busy: boolean; pinned: boolean;
   favorite: boolean; canLike: boolean; onToggleLike: () => void;
   onRestore: () => void; onPin: () => void; onMinimise: () => void; onClose: () => void;
   onToggle: () => void; onPrevious: () => void; onNext: () => void; onSeek: (time: number) => void;
@@ -17,6 +19,7 @@ type MiniPlayerProps = {
 };
 
 export default function MiniPlayer(p: MiniPlayerProps) {
+  const time = usePlaybackTime(p.clock, !p.noise);
   const titleViewport = useRef<HTMLElement>(null);
   const titleText = useRef<HTMLSpanElement>(null);
   const [titleOverflow, setTitleOverflow] = useState(0);
@@ -43,7 +46,7 @@ export default function MiniPlayer(p: MiniPlayerProps) {
       <MiniModeButton label="关闭窗口" className="mini-close" disabled={p.busy} onClick={p.onClose}><X size={15} /></MiniModeButton>
     </div>
     <div className="mini-now-playing"><div className="mini-title-row"><strong ref={titleViewport} title={p.title} className={titleOverflow > 0 ? 'mini-title is-scrolling' : 'mini-title'} style={{ '--title-travel': `${-titleOverflow}px`, '--title-duration': `${Math.max(6, titleOverflow / 24 + 3)}s` } as CSSProperties}><span key={p.title} ref={titleText}>{p.title}</span></strong>{p.canLike && <MiniModeButton label={p.favorite ? '取消喜欢' : '喜欢这首歌'} pressed={p.favorite} onClick={p.onToggleLike}><Heart size={17} fill={p.favorite ? 'currentColor' : 'none'} /></MiniModeButton>}</div><small title={p.artist}>{p.artist}</small></div>
-    <div className="mini-progress"><span>{p.noise ? '--:--' : formatTime(p.time)}</span><input type="range" aria-label="播放进度" min="0" max={Math.max(1, p.duration)} step="0.1" value={p.noise ? 0 : p.time} disabled={!p.available || p.noise} onChange={event => p.onSeek(Number(event.target.value))} style={{ '--fill': `${p.noise ? 0 : p.time / Math.max(1, p.duration) * 100}%` } as CSSProperties} /><span>{p.noise ? '--:--' : formatTime(p.duration)}</span></div>
+    <div className="mini-progress"><span>{p.noise ? '--:--' : formatTime(time)}</span><input type="range" aria-label="播放进度" min="0" max={Math.max(1, p.duration)} step="0.1" value={p.noise ? 0 : time} disabled={!p.available || p.noise} onChange={event => p.onSeek(Number(event.target.value))} style={{ '--fill': `${p.noise ? 0 : time / Math.max(1, p.duration) * 100}%` } as CSSProperties} /><span>{p.noise ? '--:--' : formatTime(p.duration)}</span></div>
     <div className="mini-controls"><div className="mini-transport">
       <MiniModeButton label="上一首" disabled={!p.available || p.noise} onClick={p.onPrevious}><SkipBack size={17} fill="currentColor" /></MiniModeButton>
       <MiniModeButton label={p.playing ? '暂停' : '播放'} className="mini-play" disabled={!p.available} onClick={p.onToggle}>{p.playing ? <Pause size={17} fill="currentColor" /> : <Play size={17} fill="currentColor" />}</MiniModeButton>

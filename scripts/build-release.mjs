@@ -50,7 +50,7 @@ if (process.argv.includes('--portable')) {
   }
 }
 
-const introduction = `LunaNahida ${version}\n\n精简版：不包含加密音乐还原模块。\n完整版：包含还原模块；不提供音频转码。\n独立模块：把 modules 文件夹解压到播放器 EXE 旁边，重启启用。\n桌面版运行需要 WebView2；便携版已附带运行环境，首次运行会创建 userdata。\n更新便携版时保留已有 userdata；分发包中不包含用户数据。\nsearch-dict 目录用于日文读音搜索，建议与播放器一起保留。\nMANIFEST.json 列出包内文件及 SHA-256 校验值；压缩包校验值见 SHA256SUMS.txt。\n\n还原中断：工具箱 → 文件恢复。批量还原可取消、继续剩余任务或仅重试失败项。\n安装说明：MUSIC-RESTORE.md。\n`;
+const introduction = `LunaNahida ${version}\n\n精简版：不包含加密音乐还原模块。\n完整版：包含还原模块；不提供音频转码。\n独立模块：把 modules 文件夹解压到播放器 EXE 旁边，重启启用。\n桌面版运行需要 WebView2；便携版已附带运行环境，首次运行会创建 userdata。\n更新便携版时保留已有 userdata；分发包中不包含用户数据。\nsearch-dict 目录用于日文读音搜索，建议与播放器一起保留。\nMANIFEST.json 列出包内文件及 SHA-256 校验值；压缩包校验值见 SHA256SUMS.txt。\n\n还原中断：工具箱 → 格式还原 → 文件恢复。批量还原可取消、继续剩余任务或仅重试失败项。\n安装说明：MUSIC-RESTORE.md。\n`;
 const artifacts = [];
 for (const variant of variants) {
   if (variant.flavor !== 'converter') writeFileSync(join(variant.path, 'README.txt'), introduction);

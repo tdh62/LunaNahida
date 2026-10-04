@@ -1,4 +1,16 @@
 .toolbox-dialog { --toolbox-accent: #a5b5ff; --toolbox-accent-text: #191b21; width: min(520px, calc(100vw - 28px)); max-width: 520px; gap: 14px; }
+.toolbox-dialog.conversion-dialog { top: calc((100dvh - 120px) / 2); max-height: calc(100dvh - 160px); overflow-y: auto; }
+.conversion-task { display: flex; flex-direction: column; gap: 14px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.conversion-task:disabled .toolbox-drop { opacity: .6; cursor: not-allowed; }
+.conversion-unavailable { margin: 0; color: var(--text-muted); font-size: 12px; line-height: 1.7; }
+.conversion-recovery-section { min-width: 0; border-top: 1px solid var(--line); padding-top: 12px; }
+.conversion-recovery-toggle { display: flex; align-items: center; gap: 8px; width: 100%; padding: 4px 0; border: 0; background: transparent; color: var(--text-secondary); font-size: 12px; text-align: left; }
+.conversion-recovery-toggle span { flex: 1; }
+.conversion-recovery-toggle[aria-expanded=true] > svg:last-child { transform: rotate(180deg); }
+.conversion-recovery-toggle:focus-visible { outline: 2px solid var(--toolbox-accent); outline-offset: 3px; }
+.conversion-recovery-toggle:disabled { opacity: .55; cursor: not-allowed; }
+.conversion-recovery-panel { min-width: 0; margin: 0; padding: 0; border: 0; }
+.conversion-recovery-section .conversion-recovery { margin-top: 12px; }
 .conversion-recovery { display: flex; flex-direction: column; gap: 12px; min-width: 0; max-height: 65dvh; overflow-y: auto; font-size: 12px; }
 .conversion-recovery p { color: var(--text-muted); line-height: 1.7; }
 .recovery-jobs { display: grid; gap: 12px; }

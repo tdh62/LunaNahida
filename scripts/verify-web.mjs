@@ -9,6 +9,8 @@ import { defaultTimerReminders } from '../src/lib/timer-reminders.ts';
 import verifyTextSize from './verify-text-size.mjs';
 import verifyCatalogNavigation from './verify-catalog-navigation.mjs';
 import verifyConversionWorkflow from './verify-conversion-workflow.mjs';
+import verifyResponsiveNavigation from './verify-responsive-navigation.mjs';
+import verifyLoadingFeedback from './verify-loading-feedback.mjs';
 
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : 'playwright');
 const root = resolve('dist');
@@ -44,13 +46,14 @@ function wav() {
 const audio = wav();
 const file = { name: 'browser-sample.wav', mimeType: 'audio/wav', buffer: audio };
 
-async function setup({ backend = false, desktop = false, conversion = backend, autoConvert = false, lateDesktop = false, fontFamilies = [], textSize = 100, nativeFonts = desktop, trackTitle = 'Native Song', tracks = [], queue = [], dictionary = 'available', viewport = { width: 1280, height: 800 } } = {}) {
+async function setup({ backend = false, desktop = false, conversion = backend, autoConvert = false, lateDesktop = false, fontFamilies = [], textSize = 100, nativeFonts = desktop, trackTitle = 'Native Song', tracks = [], playlists = [], queue = [], dictionary = 'available', viewport = { width: 1280, height: 800 } } = {}) {
   const page = await browser.newPage({ viewport });
   const errors = [];
   const requests = [];
   const dictionaryRequests = [];
   const state = emptyLibrary();
   state.tracks = tracks;
+  state.playlists = playlists;
   state.queue = queue;
   state.settings.uiFontFamilies = fontFamilies;
   state.settings.uiTextSize = textSize;
@@ -140,10 +143,21 @@ async function setup({ backend = false, desktop = false, conversion = backend, a
   return { page, errors, requests, dictionaryRequests, nativeWindow, state, disconnect: () => { disconnected = true; } };
 }
 
+const miniDropTrack = (id, title) => ({ id, title, english: '', artist: 'Drop Artist', album: 'Drop Album', duration: 30, cover: '/covers/local.svg', genre: '', year: '', color: '#8daab0', source: `/api/media/audio/${id}`, path: `C:/music/${title}.wav` });
+
 try {
   browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}) });
+  if (process.argv.includes('--conversion-only')) {
+    await verifyConversionWorkflow(setup, output, miniDropTrack);
+  } else if (process.argv.includes('--feedback-only')) {
+    await verifyLoadingFeedback(setup, output);
+  } else if (process.argv.includes('--responsive-only')) {
+    await verifyResponsiveNavigation(setup, output);
+  } else {
   await verifyTextSize(setup, output);
   await verifyCatalogNavigation(setup, output);
+  await verifyResponsiveNavigation(setup, output);
+  await verifyLoadingFeedback(setup, output);
   const web = await setup();
   const { page, requests } = web;
   assert.equal(await page.getByRole('button', { name: '迷你模式', exact: true }).count(), 0);
@@ -301,11 +315,11 @@ try {
   await searchPage.getByRole('button', { name: '歌手', exact: true }).click();
   await searchPage.getByRole('textbox', { name: '搜索歌手', exact: true }).fill('shiinaringo');
   await searchPage.locator('.catalog-grid strong').filter({ hasText: '椎名林檎' }).waitFor();
-  assert.equal(await searchPage.locator('.catalog-grid > button').count(), 1);
+  assert.equal(await searchPage.locator('.catalog-grid:visible > button').count(), 1);
   await searchPage.getByRole('button', { name: '专辑', exact: true }).click();
   await searchPage.getByRole('textbox', { name: '搜索专辑', exact: true }).fill('kimi no na wa');
   await searchPage.locator('.catalog-grid strong').filter({ hasText: '君の名は。' }).waitFor();
-  assert.equal(await searchPage.locator('.catalog-grid > button').count(), 1);
+  assert.equal(await searchPage.locator('.catalog-grid:visible > button').count(), 1);
   assert.deepEqual(phonetic.errors, []);
   await searchPage.close();
   console.log('PASS phonetic search: pinyin, initials, traditional Chinese, kana/kanji romaji, asynchronous index updates, combined filters, artists and albums');
@@ -444,7 +458,6 @@ try {
   await themePage.close();
   console.log('PASS theme palettes: all presets and custom colors update main pages, list hover, playback, search popovers, dialogs and mini mode; saved custom colors survive reload');
 
-  const miniDropTrack = (id, title) => ({ id, title, english: '', artist: 'Drop Artist', album: 'Drop Album', duration: 30, cover: '/covers/local.svg', genre: '', year: '', color: '#8daab0', source: `/api/media/audio/${id}`, path: `C:/music/${title}.wav` });
   const droppedMini = await setup({ backend: true, desktop: true, tracks: [miniDropTrack(1, 'Previous Song')], queue: [1] });
   const { page: dropPage, state: dropState } = droppedMini;
   const normalDrop = miniDropTrack(2, 'Dropped Song');
@@ -504,7 +517,8 @@ try {
   const absentPage = missingModule.page;
   await absentPage.getByRole('button', { name: '音频工具箱', exact: true }).click();
   await absentPage.getByRole('button', { name: '曲库整理', exact: true }).waitFor();
-  assert.equal(await absentPage.getByRole('button', { name: '格式还原', exact: true }).count(), 0);
+  assert.equal(await absentPage.getByRole('button', { name: '格式还原', exact: true }).isEnabled(), true);
+  assert.equal(await absentPage.getByRole('button', { name: '文件恢复', exact: true }).count(), 0);
   await absentPage.keyboard.press('Escape');
   await absentPage.getByRole('link', { name: '播放器设置', exact: true }).click();
   await absentPage.getByRole('tab', { name: '音乐库', exact: true }).click();
@@ -539,7 +553,7 @@ try {
   assert.deepEqual(missingModule.errors, []);
   await absentPage.screenshot({ path: resolve(output, 'converter-unavailable-mini.png') });
   await absentPage.close();
-  console.log('PASS absent converter: hidden toolbox and settings/search, scan retained, mixed main/mini drops import ordinary audio without conversion');
+  console.log('PASS absent converter: restore task entry retained for recovery, settings/search hidden, scan retained, mixed main/mini drops import ordinary audio without conversion');
 
   await verifyConversionWorkflow(setup, output, miniDropTrack);
 
@@ -549,12 +563,12 @@ try {
   await changingModule.page.getByText('拖入或选择加密音频', { exact: true }).waitFor();
   await changingModule.page.route('**/api/capabilities', route => route.fulfill({ json: { application: 'LunaNahida', conversion: false, nativeFiles: true, nativeFolders: true } }));
   await changingModule.page.evaluate(() => window.dispatchEvent(new Event('lunanahida-capabilities-changed')));
-  await changingModule.page.getByRole('button', { name: '曲库整理', exact: true }).waitFor();
-  assert.equal(await changingModule.page.getByRole('button', { name: '格式还原', exact: true }).count(), 0);
+  await changingModule.page.getByText('未安装或无法使用加密音乐还原模块。安装后可开始还原；已有任务仍可在下方恢复文件。', { exact: true }).waitFor();
+  assert.equal(await changingModule.page.getByRole('button', { name: '文件恢复', exact: true }).isEnabled(), true);
   assert.equal(await changingModule.page.getByText('拖入或选择加密音频', { exact: true }).count(), 0);
   await changingModule.page.route('**/api/capabilities', route => route.fulfill({ json: { application: 'LunaNahida', conversion: true, nativeFiles: true, nativeFolders: true } }));
   await changingModule.page.evaluate(() => window.dispatchEvent(new Event('lunanahida-capabilities-changed')));
-  await changingModule.page.getByRole('button', { name: '格式还原', exact: true }).waitFor();
+  await changingModule.page.getByText('拖入或选择加密音频', { exact: true }).waitFor();
   await changingModule.page.keyboard.press('Escape');
   await changingModule.page.route('**/api/dialog/files', route => route.fulfill({ json: { paths: ['C:/music/reinstalled.qmc0'] } }));
   await changingModule.page.route('**/api/conversion/inspect', route => route.fulfill({ json: { paths: ['C:/music/reinstalled.qmc0'], available: true } }));
@@ -563,7 +577,7 @@ try {
   assert.ok(!changingModule.requests.some(request => request.path === '/api/import' || request.path === '/api/conversion'));
   assert.deepEqual(changingModule.errors, []);
   await changingModule.page.close();
-  console.log('PASS converter capability refresh: unavailable module closes idle restore panel, hides its card, and reinstallation restores the entry');
+  console.log('PASS converter capability refresh: task window retains recovery when module is unavailable, and reinstallation restores conversion controls');
 
   const native = await setup({ backend: true, desktop: true, lateDesktop: true });
   assert.equal(await native.page.getByRole('button', { name: '迷你模式', exact: true }).count(), 0);
@@ -698,6 +712,7 @@ try {
   assert.deepEqual(mobile.errors, []);
   await mobile.page.close();
   console.log('PASS mobile Web render');
+  }
 } catch (error) {
   for (const context of browser?.contexts() ?? []) {
     for (const page of context.pages()) await page.screenshot({ path: resolve(output, 'failure.png'), fullPage: true }).catch(() => {});

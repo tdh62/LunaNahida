@@ -1,0 +1,19 @@
+.loading-placeholder { min-width: 0; color: var(--text-secondary, inherit); padding: 12px 0; }
+.loading-placeholder-label { display: block; margin-bottom: 14px; font-size: .8125rem; line-height: 1.5; }
+.loading-placeholder-shapes { display: grid; gap: 12px; animation: loading-breathe 1.6s ease-in-out infinite; }
+.loading-placeholder-bar, .loading-placeholder-action { display: block; height: 1em; border-radius: 5px; background: currentColor; opacity: .14; }
+.loading-placeholder-text .loading-placeholder-bar:nth-child(2) { width: 92%; }
+.loading-placeholder-text .loading-placeholder-bar:nth-child(3) { width: 96%; }
+.loading-placeholder-text .loading-placeholder-bar:last-child { width: 64%; }
+.loading-placeholder-row { display: flex; align-items: center; justify-content: space-between; gap: 24px; min-height: 44px; }
+.loading-placeholder-row > div { display: grid; flex: 1; gap: 8px; }
+.loading-placeholder-row .loading-placeholder-bar:first-child { width: 68%; }
+.loading-placeholder-row .loading-placeholder-bar:last-child { width: 38%; height: .65em; }
+.loading-placeholder-action { flex: 0 0 64px; height: 28px; }
+.loading-placeholder-stat { width: min(260px, 100%); padding: 4px 0; }
+.loading-placeholder-stat .loading-placeholder-shapes { gap: 8px; }
+.loading-placeholder-stat .loading-placeholder-bar:first-child { width: 88px; }
+.loading-placeholder-stat .loading-placeholder-bar:last-child { height: .65em; }
+.runtime-status .loading-placeholder { width: min(280px, 100%); color: inherit; }
+@keyframes loading-breathe { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .loading-placeholder-shapes { animation: none; } }

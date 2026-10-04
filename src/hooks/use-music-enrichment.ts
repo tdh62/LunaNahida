@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Track } from '@/lib/music';
 import { backend } from '@/lib/backend';
 import { useRuntime } from '@/hooks/use-runtime';
@@ -18,7 +18,7 @@ export async function refreshMusicInfo(track: Track) {
   if (!response.ok) throw new Error('音乐源暂时不可用，请稍后重试');
   const value = await response.json() as Enrichment;
   if (!value.cover && !value.lyric) throw new Error('未找到与曲名和歌手匹配的资料');
-  if (track.id > 0) { await backend.enrichment(track.id, value.cover ?? '', value.lyric ?? '', value.translation ?? ''); window.dispatchEvent(new Event('lunanahida-library-changed')); }
+  if (track.id > 0) await backend.enrichment(track.id, value.cover ?? '', value.lyric ?? '', value.translation ?? '');
   const key = keyOf(track); current.set(key, value);
   window.dispatchEvent(new CustomEvent('lunanahidatune-music-refreshed', { detail: { id: track.id, key, value } }));
   return value;
@@ -59,13 +59,22 @@ export function useMusicEnrichment(track: Track, playing: boolean) {
     if (track.provider && track.providerId) { params.set('source', track.provider); params.set('id', track.providerId); }
     fetch(`/api/music/enrich?${params}`, { signal: controller.signal })
       .then(response => { if (!response.ok) throw new Error('补全失败'); return response.json() as Promise<Enrichment>; })
-      .then(async value => { if (!controller.signal.aborted) { if (track.id > 0 && (value.cover || value.lyric || value.translation)) { await backend.enrichment(track.id, value.cover ?? '', value.lyric ?? '', value.translation ?? ''); window.dispatchEvent(new Event('lunanahida-library-changed')); } current.set(key, value); setResult({ key, value }); window.dispatchEvent(new CustomEvent('lunanahidatune-music-refreshed', { detail: { id: track.id, key, value } })); } })
+      .then(async value => { if (!controller.signal.aborted) { if (track.id > 0 && (value.cover || value.lyric || value.translation)) await backend.enrichment(track.id, value.cover ?? '', value.lyric ?? '', value.translation ?? ''); current.set(key, value); setResult({ key, value }); window.dispatchEvent(new CustomEvent('lunanahidatune-music-refreshed', { detail: { id: track.id, key, value } })); } })
       .catch(() => {});
     return () => controller.abort();
   }, [key, playing, needCover, needLyrics, track.id, track.title, track.artist, track.album, runtime.backend]);
   const value = result?.key === key ? result.value : current.get(key);
-  const lines = parseLrc(track.lyrics || (track.embeddedLyrics || track.localLyrics ? '' : value?.lyric) || '');
-  const translations = parseLrc(track.embeddedLyrics || track.localLyrics ? '' : track.translation || value?.translation || '');
-  for (const line of lines) { const translated = translations.find(item => Math.abs(item.time - line.time) < 0.5); if (translated) line.translation = translated.text; }
+  const lyric = track.lyrics || (track.embeddedLyrics || track.localLyrics ? '' : value?.lyric) || '';
+  const translation = track.embeddedLyrics || track.localLyrics ? '' : track.translation || value?.translation || '';
+  const lines = useMemo(() => {
+    const parsed = parseLrc(lyric);
+    const translated = parseLrc(translation);
+    let cursor = 0;
+    for (const line of parsed) {
+      while (cursor < translated.length && translated[cursor].time <= line.time - 0.5) cursor++;
+      if (translated[cursor] && Math.abs(translated[cursor].time - line.time) < 0.5) line.translation = translated[cursor].text;
+    }
+    return parsed;
+  }, [lyric, translation]);
   return { cover: track.embeddedCover ? track.cover : value?.cover || track.cover, lines };
 }

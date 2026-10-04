@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPlaybackClock } from '@/lib/playback-clock';
 import { backend, type PlaybackState } from '@/lib/backend';
 import { useRuntime } from '@/hooks/use-runtime';
 import { BrowserTrackPool, isBrowserTrack } from '@/lib/browser-tracks';
@@ -47,7 +48,9 @@ export function usePlayer() {
   const musicOwner = useRef<PlaybackOwner | null>(null);
   const [queue, setQueue] = useState<Track[]>([]), [trackId, setTrackId] = useState<number | null>(null);
   const [recent, setRecent] = useState<number[]>([]);
-  const [playing, setPlaying] = useState(false), [time, setTime] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [clock] = useState(createPlaybackClock);
+  const setTime = clock.set;
   const [volume, setVolume] = useState(65), [mode, setMode] = useState<'list' | 'repeat' | 'shuffle' | 'stop-track' | 'stop-list'>('list');
   const [effect, setEffect] = useState('原声'), [equalizer, setEqualizer] = useState<number[]>(emptyBands), [analyser, setAnalyser] = useState<AnalyserNode | null>(null), [scopeAnalyser, setScopeAnalyser] = useState<AnalyserNode | null>(null);
   const [customEffects, setCustomEffects] = useState<SavedEffect[]>([]), [previewFilter, setPreviewFilter] = useState<CustomFilter | null>(null), [filterError, setFilterError] = useState<string | null>(null);
@@ -88,7 +91,8 @@ export function usePlayer() {
     }
     setProfessionalAudio(settings.professionalAudio ?? false);
     catalogRef.current = items;
-    updateQueue(ids.map(id => items.find(item => item.id === id)).filter((item): item is Track => Boolean(item)));
+    const byId = new Map(items.map(item => [item.id, item]));
+    updateQueue(ids.map(id => byId.get(id)).filter((item): item is Track => Boolean(item)));
     const saved = (settings.customEffects ?? []).filter(item => Array.isArray(item.filter?.frequencyBands) && item.filter.frequencyBands.length > 0);
     setRecent(history); setVolume(settings.volume); setMode(settings.mode);
     const requested = settings.effect;
@@ -108,7 +112,7 @@ export function usePlayer() {
         element.currentTime = position; setTime(position); pendingResume.current = null;
       }
       const id = currentId.current; if (id !== null && Number.isFinite(element.duration)) { const updated = queueRef.current.map(item => item.id === id ? { ...item, duration: element.duration } : item); updateQueue(updated); if (id > 0 && runtime.backend) void backend.duration(id, element.duration).catch(() => {}); } };
-    element.oncanplay = () => { const id = currentId.current; if (id === null) return; const item = queueRef.current.find(track => track.id === id); if (item?.playbackStatus === 'playable') return; updateQueue(queueRef.current.map(track => track.id === id ? { ...track, playbackStatus: 'playable' } : track)); if (id > 0 && runtime.backend) void backend.playbackStatus(id, 'playable').then(() => window.dispatchEvent(new Event('lunanahida-library-changed'))).catch(() => {}); };
+    element.oncanplay = () => { const id = currentId.current; if (id === null) return; const item = queueRef.current.find(track => track.id === id); if (item?.playbackStatus === 'playable') return; updateQueue(queueRef.current.map(track => track.id === id ? { ...track, playbackStatus: 'playable' } : track)); if (id > 0 && runtime.backend) void backend.playbackStatus(id, 'playable').then(() => window.dispatchEvent(new CustomEvent('lunanahida-library-changed', { detail: [{ id, changes: { playbackStatus: 'playable' } }] }))).catch(() => {}); };
     element.onerror = () => {
       const id = currentId.current;
       if (id === null) return;
@@ -136,7 +140,7 @@ export function usePlayer() {
       void fetch(source, { method: 'HEAD' }).then(response => {
         if (currentId.current !== id || !response.ok) { window.dispatchEvent(new Event('lunanahida-library-changed')); return; }
         updateQueue(queueRef.current.map(track => track.id === id ? { ...track, playbackStatus: 'unplayable' } : track));
-        if (id > 0 && runtime.backend) void backend.playbackStatus(id, 'unplayable').then(() => window.dispatchEvent(new Event('lunanahida-library-changed'))).catch(() => {});
+        if (id > 0 && runtime.backend) void backend.playbackStatus(id, 'unplayable').then(() => window.dispatchEvent(new CustomEvent('lunanahida-library-changed', { detail: [{ id, changes: { playbackStatus: 'unplayable' } }] }))).catch(() => {});
       }).catch(() => {});
     };
     element.onended = () => { if (shouldPlay.current) nextRef.current(); };
@@ -331,5 +335,5 @@ export function usePlayer() {
     addTracks(result.tracks);
     return result;
   };
-  return { professionalAudio, setProfessionalAudio, preampDb, track: track ?? emptyTrack, hasTrack: Boolean(track), trackId, queue, recent, playing, time, volume, setVolume, mode, setMode, effect, effectName: selectedEffect(effect, customEffects).name, setEffect, setPreviewFilter, customEffects, saveEffect, deleteEffect, filterError, frequencyResponse, equalizer, setBand, resetEqualizer, analyser, scopeAnalyser, select, playTracks, next, previous, toggle, seek, clearQueue, removeTracks, move, addTracks, addFiles, markLyricsSaved, setCatalog, updateTrack, hydrate, noise };
+  return { professionalAudio, setProfessionalAudio, preampDb, track: track ?? emptyTrack, hasTrack: Boolean(track), trackId, queue, recent, playing, clock, volume, setVolume, mode, setMode, effect, effectName: selectedEffect(effect, customEffects).name, setEffect, setPreviewFilter, customEffects, saveEffect, deleteEffect, filterError, frequencyResponse, equalizer, setBand, resetEqualizer, analyser, scopeAnalyser, select, playTracks, next, previous, toggle, seek, clearQueue, removeTracks, move, addTracks, addFiles, markLyricsSaved, setCatalog, updateTrack, hydrate, noise };
 }

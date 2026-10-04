@@ -39,6 +39,7 @@ LunaNahida 是一款面向 Windows 的桌面音乐播放器，提供本地曲库
 | [计时器](docs/work-timer.md) | 正计时、倒计时、暂停与结束提醒 |
 | [Web 模式](docs/web-mode.md) | 浏览器支持范围与静态部署 |
 | [格式还原模块](docs/music-restore.md) | 可选模块安装、使用与中断恢复 |
+| [页面切换与交互性能](docs/responsive-navigation.md) | 页面状态保留、加载反馈与队列性能 |
 | [开发与构建](docs/development.md) | 环境准备、运行、测试与打包 |
 
 ## 从源码运行
