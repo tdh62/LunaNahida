@@ -1,19 +1,13 @@
-# Desktop Mini Mode
+# 迷你播放器
 
-The **迷你模式** icon in the playback bar opens a 400 x 168 Wails window without a native title bar. The entry is available only in Wails, including when the window is on Settings or a library page. Neither standalone Web nor a browser connected to Go offers this mode.
+点击底部播放栏的「迷你模式」图标，切换到无标题栏的 400 × 168 小窗口。该功能仅在桌面版提供。
 
-The compact player uses a large cover on the left, with title, artist and playback/volume controls on the right, plus a full-width progress bar below. Window controls sit above the track information without a separate title or application name. It provides previous/next, play/pause, seeking, mute and volume. Titles wider than the available space scroll back and forth with a pause at either end; short titles remain still. Reduced-motion preferences disable scrolling and use an ellipsis. Artists truncate and full text remains available on hover. With an empty queue, playback controls are disabled; restoring the full window remains available.
+迷你播放器显示封面、歌名、歌手、进度和音量，可切歌、暂停、拖动进度、静音或调整音量。长歌名会滚动显示，启用减少动态效果后改为省略显示；悬浮可查看完整信息。
 
-Drag the cover, track information or unused background to move the window. Window controls toggle pinning above other windows, restore the full player, minimise or close the application. **退出迷你模式** and Escape restore the full player. The mini window has a fixed size; the full window regains its original resize capability and minimum size.
+拖动封面、歌曲信息或空白背景移动窗口。窗口按钮可置顶、返回完整播放器、最小化或退出应用。点击「退出迷你模式」或按 Escape 返回，恢复完整窗口原来的位置、尺寸及最大化／全屏状态。
 
-Switching uses the same Wails window, React player and audio element. It does not reload the page, reset the queue, restart a song or change playback settings. Returning restores the full window's previous dimensions and position, plus its maximised or fullscreen state. Moving the mini window does not move the saved full window. Pinning applies only while mini mode is active and is cleared when returning. Mini mode and pinning are not persisted across application restarts.
+切换过程中播放和队列继续保留。移动迷你窗口不会改变完整窗口的位置，置顶仅在迷你模式有效；重新启动应用时不会自动进入迷你模式。
 
-Noise playback uses the same compact play/pause and volume controls, with a stop button. Seeking and previous/next are disabled for noise. Timers keep running. Dropping native files into the mini window first restores the full player, where the normal import preference or conversion workflow applies.
+噪音使用相同的播放和音量控件，并提供停止按钮；噪音没有进度或上一首／下一首。计时器在窗口切换时继续运行。拖入文件时按应用的导入提示完成操作；格式还原需要安装兼容的可选模块。
 
-Wails may inject its environment after React has started. The runtime provider listens for `wails:runtime-config-ready` and rediscovers desktop capabilities without remounting an already running player.
-
-## Verification
-
-`corepack pnpm test:frontend` covers normal, maximised and fullscreen restoration, repeated transitions, movement/pinning, failed entry rollback and failed exit retry. `corepack pnpm test:web` covers absent browser entries, late Wails environment injection, empty queues, compact playback/volume/seek controls, noise, repeated restoration, unchanged audio streams and bounds without overflow. Its desktop transport is simulated.
-
-Actual Windows Wails verification also passed with an isolated data directory and a temporary test build exposing WebView2 debugging. It checked the real 400 x 168 client area without a title bar, empty mode, playing audio, pinning, ordinary/maximised restoration and screenshot bounds. The production executable does not include that debugging configuration. macOS and Linux native GUI behavior has not been exercised.
+开启「最小化到系统托盘」后，最小化会隐藏窗口并继续播放；关闭窗口仍会退出应用。

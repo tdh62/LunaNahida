@@ -1,69 +1,67 @@
 # LunaNahida
 
-Windows desktop music player built with React, Go, SQLite, and Wails v3 beta.26.
+LunaNahida 是一款面向 Windows 的桌面音乐播放器，提供本地曲库、歌词、音效和音乐文件整理工具，也支持在浏览器中临时播放本地音频。
 
-设置提供分类导航和搜索；支持恢复上次曲库歌曲与播放位置、组合筛选及排序、每首歌的歌词时间校准、自动备份和恢复记录。新建或编辑歌单时可选择条件歌单，符合用户设置条件的歌曲会自动收录。详见 [产品改进与使用说明](docs/product-improvements.md)。
+## 功能
 
-**设置 → 桌面窗口 → 最小化到系统托盘** is disabled by default. Enabling it immediately adds a tray icon; minimising either the main or mini player hides the window while music/noise continues. Click the tray icon to restore the window, or right-click for playback controls and **退出**. Closing the window still exits the app. The preference is saved across restarts. Media Session metadata follows the current title, artist, album and displayed cover, with play/pause, track changes and seeking available to the system. On Windows WebView2, the system reads the title, artist (the secondary display line) and thumbnail; its separate Subtitle and AlbumTitle fields may remain empty.
+- **曲库与歌单**：文件导入、文件夹监听、收藏、标签、播放历史，以及按条件自动收录歌曲的歌单。
+- **搜索与筛选**：歌曲、歌手、专辑搜索，中文拼音与日文罗马音检索，组合筛选和排序。
+- **播放与歌词**：播放队列、播放位置恢复、内嵌与外置歌词、逐曲歌词时间校准。
+- **声音与外观**：均衡器、自定义频率公式与增益曲线、实时频谱、主题和迷你播放器。
+- **网络音乐**：HTTP(S) 音频链接、WebDAV、FTP/FTPS 音乐目录、HTTP(S) M3U/M3U8 播放列表和本地播放缓存。
+- **工具箱**：曲库整理、白／粉红／褐噪音、计时器与睡眠定时。
+- **数据备份**：手动或定期备份曲库数据、合并恢复及操作记录。
 
-## Requirements
+加密音乐格式还原由可选模块提供，普通播放和曲库管理不需要安装该模块。
 
-- Go 1.26.8 (or Go 1.23+ with toolchain auto-download)
-- Node.js and pnpm 10.14.0 via Corepack
-- WebView2 on Windows
+## 开始使用
 
-## Development
+桌面版需要 Windows 和 WebView2 运行环境；便携版附带运行环境，目前面向 Windows x64。
 
-The toolbox includes **计时器** with a stopwatch, countdown, focus/break presets, pause, resume and reset. Its start time and state are saved in the existing SQLite database; reopening the app counts time spent closed unless paused, and elapsed countdowns restore as completed. An active timer adds a button beside the toolbox entry with a hover preview and direct access to the non-modal timer window. Timing and completion never change music/noise playback or the queue. See `docs/work-timer.md` for persistence and behavior details.
+1. 解压播放器包，保留 `search-dict` 等随包目录，运行 `LunaNahida.exe`。
+2. 首次启动曲库为空。通过文件选择或拖放添加音乐，选择临时播放、加入曲库或监听所在文件夹。
+3. 在设置中调整扫描方式、声音、外观与备份选项。
 
-The expanded spectrum view has its own **显示标准音阶** switch and **标记数量** slider (4–128, default 24), without visiting Settings. Markers follow the visible frequency range using equal temperament with A4 = 440 Hz; A4 stays highlighted whenever it is in range. The requested count is a maximum, labels use two collision-free rows on narrow charts, and pointer readouts still identify any frequency's nearest note. Visibility and count are remembered in local storage across view changes and restarts, separately from backend playback settings.
+便携版请将整个目录放在可写位置。数据保存在 EXE 旁的 `userdata` 中，升级时保留该目录。标准桌面版的数据默认保存在 `%LOCALAPPDATA%/LunaNahida`；音乐文件仍保留在原位置。曲库备份不包含音频文件。
 
-Song lists provide **定位当前播放** to bring the current track into view without changing playback, the queue, or multi-selection. This is available in the library, favorites, recent tracks, playlist/artist/album song lists, and both queue panels. The button is disabled when the current track is absent from the displayed search/tag results. Large song lists reserve the full filtered list height immediately and only render the viewport with overscan, so scrolling or jumping to a distant track does not grow the scrollbar in batches. Returning to the playback page immediately centers the current lyric before the page is painted, clears any previous manual-browsing delay, and then resumes the selected lyric scrolling style.
+详细操作见 [使用指南](docs/user-guide.md)。
 
-The toolbox entry opens an application menu. Choose a tool card to open its dedicated panel, and use **返回工具箱** to return to the menu. New tools are listed through the toolbox application registry rather than adding tabs. With the optional restoration module installed, the menu shows pending conversion files and imported encrypted audio opens format restoration directly. Without it, restoration and its settings are hidden while ordinary music remains usable.
+## 使用文档
 
-The toolbox includes **曲库整理** with independent template renaming, artist-folder filing, duplicate cleanup, and multi-folder consolidation. Every operation requires a preview and confirmation. Matching lyrics and images follow the audio; destination conflicts never overwrite files. Duplicate versions require a retention choice and are moved to a recovery folder instead of being permanently deleted. See `docs/music-organizer.md` for behavior, safety, and recovery details.
+| 文档 | 内容 |
+| --- | --- |
+| [使用指南](docs/user-guide.md) | 导入、搜索、歌单、歌词、网络音乐与备份 |
+| [自定义音效](docs/custom-effects/README.md) | 频率公式、时间响应、延迟与配置示例 |
+| [增益曲线](docs/gain-curve.md) | 绘制、撤销、试听与专业调音 |
+| [迷你播放器](docs/mini-mode.md) | 窗口切换、置顶与播放控制 |
+| [曲库整理](docs/music-organizer.md) | 重命名、归档、去重、合并与文件恢复 |
+| [噪音发生器](docs/noise-generator.md) | 噪音类型、后台播放与音乐切换 |
+| [计时器](docs/work-timer.md) | 正计时、倒计时、暂停与结束提醒 |
+| [Web 模式](docs/web-mode.md) | 浏览器支持范围与静态部署 |
+| [格式还原模块](docs/music-restore.md) | 可选模块安装、使用与中断恢复 |
+| [开发与构建](docs/development.md) | 环境准备、运行、测试与打包 |
 
-Organizer previews stream scan progress (discovered/processed tracks, current file, bytes and percentage) and can be canceled without modifying files. Deduplication offers optional **快速匹配** using fresh library metadata, or matching filenames and sizes when no usable metadata is cached, without opening audio or sidecar contents. All quick matches remain unverified candidates and require a retention choice. Full content checks remain the default; execution still verifies copied files, and directory sidecar indexes are reused for large collections.
+## 从源码运行
 
-The toolbox also includes **噪音发生器** for continuous white, pink, and brown noise. Its panel does not block the page, and closing it keeps noise playing in the background. Noise and music never play together; the original music queue, selection, and position are retained. The main playback button, volume controls, media shortcuts, and sleep timer also control noise. Stop noise to manually resume music, or select a song to switch back to music. See `docs/noise-generator.md`.
+项目使用 React、TypeScript、Go、SQLite 和 Wails v3。准备 Go 1.26.8、Node.js 22.15+ 和 pnpm 10.14.0，具体环境要求见 [开发与构建](docs/development.md)，依赖版本以 `go.mod` 和 `package.json` 为准。
 
-`corepack pnpm install --frozen-lockfile` installs the frontend dependencies.
-`corepack pnpm dev` starts the local Go API on `127.0.0.1:8787` and Vite on `127.0.0.1:8080`.
-The browser preview uses the same Go API as the desktop app. Browser-selected or dropped songs play only in the current session and never enter the backend library. Native dialogs and true file paths require Wails; to manage watched folders in the browser preview, enter a folder path accessible to the Go backend in Settings.
+```powershell
+git clone https://cnb.cool/tdh6/LunaNahida
+cd LunaNahida
+corepack pnpm install --frozen-lockfile
+corepack pnpm dev
+```
 
-## Standalone Web
+打开 `http://127.0.0.1:8080` 预览界面，本地 Go 服务使用 `127.0.0.1:8787`。浏览器选择或拖入的文件仅用于当前会话；管理后端曲库时，请使用 Go 服务可访问的文件夹路径。
 
-`corepack pnpm dev:web` runs the frontend without a Go API proxy. `corepack pnpm build:web` writes the static frontend to `dist`; `corepack pnpm preview` serves it at `http://127.0.0.1:8082` without proxying to Go.
+**主播放器可独立开发、测试和构建，无需初始化子模块。** 完整版的格式还原源码需要额外仓库访问权限；公开检出可使用 `build:desktop` 或 `build:release:lean`。
 
-Standalone Web supports temporary local file playback, queue ordering, audio effects, spectrum, appearance settings, noise (where supported), sleep timing, and a session-only work timer. Library management, native paths, scanning, conversion, organization, online music services, backend caches and backups are disabled. Refreshing clears temporary files and the session timer; no browser music database is created. Static hosting needs an `index.html` fallback for application routes. See `docs/web-mode.md` for the capability matrix and verification commands.
+仅运行浏览器播放器：
 
-## Desktop build
+```powershell
+corepack pnpm dev:web
+```
 
-`corepack pnpm build:release` automatically packages the lean player, full player and standalone restoration module as three versioned ZIP files in `bin/releases/<version>`, with installation notes, file inventories and SHA-256 checksums. `build:release:portable` also packages both portable variants. Versions come from `internal/buildinfo/VERSION`; Windows builds require the matching Wails v3 CLI to regenerate executable resources. See [restoration and release instructions](docs/music-restore.md). Interrupted restoration tasks can be reviewed in **工具箱 → 文件恢复**, even without the optional module. Batch restoration supports progress, cancellation, continuation and retrying failed files.
+## 反馈
 
-The playback bar's **迷你模式** icon switches the Wails window to a 400 x 168 player without a title bar, showing the cover, track information and essential controls. Drag the header to move it, optionally pin it above other windows, and use **退出迷你模式** or Escape to restore the previous full window. Playback continues through both transitions. The entry is absent in browsers. See `docs/mini-mode.md`.
-
-`corepack pnpm build:desktop` writes `bin/LunaNahida.exe` and copies the Japanese reading dictionary to `bin/search-dict` (including its license). The executable embeds the interface without the dictionary and serves the Go API inside the Wails asset handler. It does not open a network API port. Keep `search-dict` beside the executable to enable Japanese pronunciation search; if missing or incomplete, Japanese reading indexing is skipped while literal and Chinese pinyin searches remain available. Static Web builds include the dictionary as separate files in `dist/search-dict`.
-
-加密音乐还原是可选模块。`corepack pnpm build:converter` 单独生成 `bin/converter/modules/music-restore`，复制 `modules` 到主 EXE 旁边并重启即可启用。`build:desktop:full` 和 `build:portable:full` 自动包含模块；默认桌面/便携构建不包含它。缺模块或模块不兼容时，还原入口与设置自动隐藏，自动转换关闭，普通歌曲继续正常使用。详见 [模块安装、独立使用与构建说明](docs/music-restore.md)。
-
-Packaged Windows desktop and portable builds use the GUI subsystem and do not show a command window. Application and Wails logs are written to `logs` inside the application data directory (`%LOCALAPPDATA%/LunaNahida` by default, `userdata` beside the portable executable, or `LUNANAHIDA_DATA_DIR` for a custom desktop path). The active `app.log` rotates daily or at 1 MiB and is gzip-compressed on rotation and normal exit. Archives are cleaned at startup, rotation, and hourly: files older than 30 days are deleted, then the oldest files are deleted until their combined compressed size is at most 10 MiB. The current uncompressed log is limited to 1 MiB in addition to that archive budget.
-
-To build a portable package, first place the Microsoft WebView2 Fixed Version Runtime for Windows x64 in `resources/WebView2`. This locally supplied runtime is not tracked in Git. `corepack pnpm build:portable` writes `bin/portable/LunaNahida.exe` and copies the runtime into `bin/portable/WebView2` and the reading dictionary into `bin/portable/search-dict`. Move the whole `bin/portable` folder together. Any `.cab` source archive in `resources` is not included in the package. This build requires Windows x64.
-
-The portable build stores its SQLite database, artwork cache, and WebView profile in `bin/portable/userdata` beside the executable. Run it from a writable folder; `userdata` is created on first launch. Keep `userdata` when updating the executable and runtime. Music files remain at their original paths, so moving the package separately from the music may require adding the new folders again. The portable build ignores `LUNANAHIDA_DATA_DIR` to keep its data beside the executable.
-
-The standard desktop build stores data in the local user cache directory under `LunaNahida/data/library.db` and `LunaNahida/cache/covers`. `LUNANAHIDA_DATA_DIR` overrides the root for development. SQLite contains library metadata, playlists, favorites, playback history, queue, settings, watched folders, and music information cache. New libraries start with the light forest theme.
-
-On first launch the library is empty. Add files through the desktop dialog or drop them into the window. The default action asks whether to play only this time, add to the library, or watch the containing folder. Settings include startup scans, manual scans, and optional scheduled scans. Missing files remain in the library and can be rediscovered when they return.
-
-Use **网络歌曲** in the sidebar to open a single HTTP(S) audio file URL. In **设置 → 网络音乐库**, add WebDAV, FTP, or explicit FTPS folders, or an HTTP(S) M3U/M3U8 playlist. Network folders are scanned recursively (up to 5,000 audio files); HTTP playlists support up to 1,000 HTTP(S) audio URLs and relative paths. Existing songs remain in the library when a scan cannot reach a source. FTP passwords are protected with Windows DPAPI in the local database. FTP is unencrypted; use FTPS or HTTPS WebDAV for private accounts. Network audio is played through the local API with seeking, and the latest N played songs can be cached in **设置 → 缓存空间**. Direct URL query strings are saved locally with the song, so expiring links may need to be reopened.
-
-Settings can retain complete copies of the most recently played 0, 5, 10, 20, 30, or 50 network songs (10 by default; 512 MB maximum per song). The network audio cache can be cleared separately, and the general cache action clears it too. Cached songs remain playable when the network is unavailable. The source is checked periodically when online; a changed source invalidates its cached copy.
-
-Embedded artwork and lyrics are read from supported audio tags during import and scanning, and take priority over online metadata. Existing library entries are checked once after this upgrade. A sidecar `.lrc` file is used when the audio file has no embedded lyrics.
-
-Cover files use their MD5 digest as the cache key, so identical downloads reuse one file. Settings shows image, WebView, and online metadata cache sizes. Clearing cache removes downloadable artwork and metadata, retains embedded and custom playlist artwork, and clears the WebView profile on the next launch.
-
-Playlist covers can follow the first track's current artwork or use a fixed uploaded image. Existing playlists are upgraded to the first-track mode so refreshed artwork appears immediately; their previously saved cover path remains available in the playlist editor for selection as a fixed image.
+欢迎通过仓库的 Issue 提交问题或功能建议。报告问题时请附上应用版本、Windows 版本和复现步骤；需要提供日志时，请先移除个人文件路径、账户和链接中的访问凭据。
