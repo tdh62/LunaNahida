@@ -423,13 +423,16 @@ func (s *Store) migrate() error {
 		}
 	}
 	if version < 8 {
-		for _, column := range []string{"provider", "provider_id"} {
+		for _, column := range []struct{ name, statement string }{
+			{"provider", `ALTER TABLE tracks ADD COLUMN provider TEXT NOT NULL DEFAULT ''`},
+			{"provider_id", `ALTER TABLE tracks ADD COLUMN provider_id TEXT NOT NULL DEFAULT ''`},
+		} {
 			var hasColumn int
-			if err = s.DB.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('tracks') WHERE name=?`, column).Scan(&hasColumn); err != nil {
+			if err = s.DB.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('tracks') WHERE name=?`, column.name).Scan(&hasColumn); err != nil {
 				return err
 			}
 			if hasColumn == 0 {
-				if _, err = s.DB.Exec(`ALTER TABLE tracks ADD COLUMN ` + column + ` TEXT NOT NULL DEFAULT ''`); err != nil {
+				if _, err = s.DB.Exec(column.statement); err != nil {
 					return err
 				}
 			}
@@ -504,13 +507,16 @@ func (s *Store) migrate() error {
 		if _, err = s.DB.Exec(`CREATE TABLE IF NOT EXISTS network_sources(id INTEGER PRIMARY KEY,kind TEXT NOT NULL,url TEXT NOT NULL,username TEXT NOT NULL DEFAULT '',secret BLOB NOT NULL DEFAULT X'',UNIQUE(kind,url))`); err != nil {
 			return err
 		}
-		for _, column := range []struct{ name, definition string }{{"source_id", "INTEGER REFERENCES network_sources(id) ON DELETE CASCADE"}, {"remote_key", "TEXT NOT NULL DEFAULT ''"}} {
+		for _, column := range []struct{ name, statement string }{
+			{"source_id", `ALTER TABLE network_tracks ADD COLUMN source_id INTEGER REFERENCES network_sources(id) ON DELETE CASCADE`},
+			{"remote_key", `ALTER TABLE network_tracks ADD COLUMN remote_key TEXT NOT NULL DEFAULT ''`},
+		} {
 			var found int
 			if err = s.DB.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('network_tracks') WHERE name=?`, column.name).Scan(&found); err != nil {
 				return err
 			}
 			if found == 0 {
-				if _, err = s.DB.Exec(`ALTER TABLE network_tracks ADD COLUMN ` + column.name + ` ` + column.definition); err != nil {
+				if _, err = s.DB.Exec(column.statement); err != nil {
 					return err
 				}
 			}
@@ -819,7 +825,15 @@ func (s *Store) State() (State, error) {
 }
 
 func (s *Store) SaveIDs(table string, ids []int64) error {
-	if table != "liked" && table != "queue" {
+	var deleteQuery, insertQuery string
+	switch table {
+	case "liked":
+		deleteQuery = `DELETE FROM liked`
+		insertQuery = `INSERT OR IGNORE INTO liked(track_id) VALUES(?)`
+	case "queue":
+		deleteQuery = `DELETE FROM queue`
+		insertQuery = `INSERT OR IGNORE INTO queue(track_id,position) VALUES(?,?)`
+	default:
 		return errors.New("invalid list")
 	}
 	tx, err := s.DB.Begin()
@@ -827,7 +841,7 @@ func (s *Store) SaveIDs(table string, ids []int64) error {
 		return err
 	}
 	defer tx.Rollback()
-	if _, err = tx.Exec(`DELETE FROM ` + table); err != nil {
+	if _, err = tx.Exec(deleteQuery); err != nil {
 		return err
 	}
 	for index, id := range ids {
@@ -835,9 +849,9 @@ func (s *Store) SaveIDs(table string, ids []int64) error {
 			continue
 		}
 		if table == "queue" {
-			_, err = tx.Exec(`INSERT OR IGNORE INTO queue(track_id,position) VALUES(?,?)`, id, index)
+			_, err = tx.Exec(insertQuery, id, index)
 		} else {
-			_, err = tx.Exec(`INSERT OR IGNORE INTO liked(track_id) VALUES(?)`, id)
+			_, err = tx.Exec(insertQuery, id)
 		}
 		if err != nil {
 			return err
