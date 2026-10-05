@@ -1,0 +1,226 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing release tag matching internal/buildinfo/VERSION (for example v1.0.0)'
+        type: string
+        required: true
+      include_converter:
+        description: 'Require unlock-music packages (requires MUSIC_RESTORE_TOKEN)'
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Package Windows x64
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: pwsh
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - name: Validate release tag
+        id: tag
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          if ($env:RELEASE_TAG -cnotmatch '^v\d+\.\d+\.\d+$') {
+            throw 'Release tag must use vMAJOR.MINOR.PATCH, for example v1.0.0.'
+          }
+          "tag=$env:RELEASE_TAG" >> $env:GITHUB_OUTPUT
+
+      - name: Check out release tag
+        uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ steps.tag.outputs.tag }}
+          persist-credentials: false
+
+      - name: Check release version
+        id: release
+        env:
+          RELEASE_TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          $version = (Get-Content internal/buildinfo/VERSION -Raw).Trim()
+          if ($env:RELEASE_TAG -cne "v$version") {
+            throw "Release tag $env:RELEASE_TAG does not match project version v$version."
+          }
+          "tag=$env:RELEASE_TAG" >> $env:GITHUB_OUTPUT
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Select unlock-music packages
+        id: variants
+        env:
+          MUSIC_RESTORE_TOKEN: ${{ secrets.MUSIC_RESTORE_TOKEN }}
+          REQUEST_CONVERTER: ${{ inputs.include_converter }}
+        run: |
+          $includeConverter = -not [string]::IsNullOrWhiteSpace($env:MUSIC_RESTORE_TOKEN)
+          if ($env:REQUEST_CONVERTER -eq 'true' -and -not $includeConverter) {
+            throw 'Set MUSIC_RESTORE_TOKEN with read access to tdh62/lunanahida_unlock_music to release unlock-music packages.'
+          }
+          "include_converter=$($includeConverter.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          if ($includeConverter) {
+            $moduleEntry = git ls-tree HEAD -- extensions/music-restore
+            if ($LASTEXITCODE -ne 0 -or $moduleEntry -notmatch '^160000 commit ([0-9a-f]{40})\s') {
+              throw 'Cannot read the pinned unlock-music submodule commit.'
+            }
+            "converter_commit=$($Matches[1])" >> $env:GITHUB_OUTPUT
+          } else {
+            Write-Output '::warning::Releasing lean desktop and portable packages only. Unlock-music packages require MUSIC_RESTORE_TOKEN.'
+          }
+
+      - name: Check out pinned unlock-music source
+        if: steps.variants.outputs.include_converter == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: tdh62/lunanahida_unlock_music
+          ref: ${{ steps.variants.outputs.converter_commit }}
+          token: ${{ secrets.MUSIC_RESTORE_TOKEN }}
+          path: extensions/music-restore
+          persist-credentials: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+            extensions/music-restore/go.sum
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check version fields
+        run: pnpm check:version
+
+      - name: Check TypeScript
+        run: pnpm exec tsc --noEmit -p tsconfig.app.json
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test frontend
+        run: pnpm test:frontend
+
+      - name: Build frontend assets for Go tests
+        run: pnpm build
+
+      - name: Test player
+        run: go test ./...
+
+      - name: Test unlock-music
+        if: steps.variants.outputs.include_converter == 'true'
+        working-directory: extensions/music-restore
+        run: go test ./...
+
+      - name: Install matching Wails CLI
+        run: |
+          $wailsVersion = go list -m -f '{{.Version}}' github.com/wailsapp/wails/v3
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve the Wails version from go.mod.' }
+          go install "github.com/wailsapp/wails/v3/cmd/wails3@$wailsVersion"
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot install the Wails CLI.' }
+          $goPath = go env GOPATH
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve GOPATH.' }
+          Join-Path $goPath 'bin' >> $env:GITHUB_PATH
+
+      - name: Verify unlock-music integration
+        if: steps.variants.outputs.include_converter == 'true'
+        run: pnpm test:converter:integration
+
+      - name: Prepare portable WebView2 runtime
+        run: ./scripts/prepare-webview2.ps1
+
+      - name: Build release packages
+        id: packages
+        env:
+          INCLUDE_CONVERTER: ${{ steps.variants.outputs.include_converter }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          $arguments = @('scripts/build-release.mjs', '--portable')
+          $output = "bin/releases/$env:RELEASE_VERSION"
+          if ($env:INCLUDE_CONVERTER -ne 'true') {
+            $arguments += '--lean-only'
+            $output += '/lean-only'
+          }
+          node @arguments
+          if ($LASTEXITCODE -ne 0) { throw 'Release packaging failed.' }
+          "path=$output" >> $env:GITHUB_OUTPUT
+
+      - name: Verify release packages
+        env:
+          RELEASE_PATH: ${{ steps.packages.outputs.path }}
+          INCLUDE_CONVERTER: ${{ steps.variants.outputs.include_converter }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          $manifest = Get-Content "$env:RELEASE_PATH/release.json" -Raw | ConvertFrom-Json
+          $expected = @('lean', 'portable-lean')
+          if ($env:INCLUDE_CONVERTER -eq 'true') { $expected += @('full', 'converter', 'portable-full') }
+          if ($manifest.version -cne $env:RELEASE_VERSION -or $manifest.platform -ne 'windows-x64') {
+            throw 'Release manifest version or platform mismatch.'
+          }
+          $difference = Compare-Object $expected @($manifest.artifacts.flavor)
+          if ($difference) { throw 'Release package variants mismatch.' }
+          foreach ($artifact in $manifest.artifacts) {
+            $path = Join-Path $env:RELEASE_PATH $artifact.file
+            if ((Get-Item $path).Length -ne $artifact.size -or (Get-FileHash $path -Algorithm SHA256).Hash.ToLowerInvariant() -cne $artifact.sha256) {
+              throw "Release package integrity check failed: $($artifact.file)"
+            }
+          }
+
+      - name: Upload release packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-windows-x64
+          path: ${{ steps.packages.outputs.path }}/
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+  publish:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download release packages
+        uses: actions/download-artifact@v4
+        with:
+          name: release-windows-x64
+          path: release
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.build.outputs.tag }}
+          RELEASE_VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          gh release create "$RELEASE_TAG" release/* \
+            --verify-tag \
+            --title "LunaNahida $RELEASE_VERSION" \
+            --generate-notes

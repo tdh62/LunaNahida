@@ -99,6 +99,25 @@ GitHub Actions 工作流位于 [windows-build.yml](../.github/workflows/windows-
 
 GitHub 为每个产物生成单层下载 ZIP，内部没有再次打包的 ZIP，也不附加 README、安装说明、发布清单或校验文件。字典 manifest、字典及插件的许可证、WebView2 原始运行文件保留。包内不包含 `userdata`。工作流不自动创建 GitHub Release。本地 `build:release*` 命令仍使用上文所述的发布打包方式。
 
+## Release CI
+
+发布工作流位于 [release.yml](../.github/workflows/release.yml)。推送 `v*` 标签时自动运行；也可通过 **Actions → Release → Run workflow** 手动运行，在 `tag` 中填写已推送的标签，例如 `v1.0.0`。手动运行会检出指定标签的代码。标签必须为 `v主版本.次版本.修订版本`，且与该标签下的 `internal/buildinfo/VERSION` 完全一致，否则工作流失败。
+
+发布前先更新版本、同步资源并提交，再创建标签：
+
+```powershell
+# 修改 internal/buildinfo/VERSION 后
+corepack pnpm build:version
+git add internal/buildinfo/VERSION package.json build/windows/info.json build/windows/app.manifest
+git commit -m "chore: release 1.0.0"
+git tag v1.0.0
+git push origin main v1.0.0
+```
+
+工作流使用与 Windows 构建 CI 相同的工具版本与检查，下载并验证 WebView2 运行环境，然后调用 `build-release.mjs --portable` 打包。未配置 `MUSIC_RESTORE_TOKEN` 时使用 `--lean-only`，生成精简桌面版和精简便携版；配置该 Secret 后，按标签固定的子模块提交额外构建完整版、完整便携版和独立还原模块，并运行模块及集成测试。手动勾选 `include_converter` 时，缺少 Token 会直接失败。
+
+发布前检查包的版本、平台、版本种类、大小和 SHA-256。构建结果先保存到 Actions 的 `release-windows-x64` 产物中（保留 14 天），全部检查通过后由独立任务创建 GitHub Release，附带 ZIP、`SHA256SUMS.txt`、`release.json` 和 `README.txt`，并自动生成发布说明。仅发布任务拥有 `contents: write` 权限，使用 GitHub 自动提供的 Token，无需额外发布 Secret。若该标签已有 Release，创建任务会失败，不覆盖已有发布；需要重新构建时仍可从 Actions 产物下载。
+
 ## 数据目录
 
 标准桌面版默认使用 `%LOCALAPPDATA%/LunaNahida`。开发时可设置 `LUNANAHIDA_DATA_DIR` 指向独立目录，避免使用日常曲库。便携版固定使用 EXE 旁的 `userdata`，忽略该覆盖变量。
