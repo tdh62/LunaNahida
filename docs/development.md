@@ -84,7 +84,7 @@ GitHub Actions 工作流位于 [windows-build.yml](../.github/workflows/windows-
 
 工作流使用 Windows x64、Node.js 24、`package.json` 指定的 pnpm，以及 `go.mod` 指定的 Go 和 Wails CLI。依次执行版本检查、TypeScript 检查、Lint、前端测试、Go 测试和 Windows 构建，并校验各版本的产物内容。便携版所需的 WebView2 Fixed Version Runtime x64 会从微软官方页面下载，展开后验证运行程序的微软数字签名。
 
-默认构建桌面版和便携版，不需要子模块仓库权限。若在主仓库的 **Settings → Secrets and variables → Actions** 中配置 `MUSIC_RESTORE_TOKEN`，推送和手动构建会额外生成两个带 unlock-music 插件的版本，并运行模块测试和真实转换器集成测试。该 Secret 应是拥有 `tdh62/lumanahida_unlock_music` 仓库 **Contents: Read-only** 权限的 GitHub Token；工作流按主仓库记录的子模块提交检出，不跟随子模块最新分支。Pull Request 仅构建不带插件的桌面版和便携版。
+默认构建桌面版和便携版，不需要子模块仓库权限。若在主仓库的 **Settings → Secrets and variables → Actions** 中配置 `MUSIC_RESTORE_TOKEN`，推送和手动构建会额外生成两个带 unlock-music 插件的版本，并运行模块测试和真实转换器集成测试。该 Secret 应是拥有 `tdh62/lunanahida_unlock_music` 仓库 **Contents: Read-only** 权限的 GitHub Token；工作流按主仓库记录的子模块提交检出，不跟随子模块最新分支。Pull Request 仅构建不带插件的桌面版和便携版。
 
 手动运行时，勾选 `include_converter` 会要求必须能构建带插件版本；缺少 Token 时会明确失败。未勾选时仍会在 Token 已配置的情况下构建带插件版本。无法构建插件时，工作流会输出警告。
 

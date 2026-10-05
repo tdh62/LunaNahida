@@ -42,7 +42,7 @@ jobs:
         run: |
           $includeConverter = $env:EVENT_NAME -ne 'pull_request' -and -not [string]::IsNullOrWhiteSpace($env:MUSIC_RESTORE_TOKEN)
           if ($env:REQUEST_CONVERTER -eq 'true' -and -not $includeConverter) {
-            throw 'Set MUSIC_RESTORE_TOKEN with read access to tdh62/lumanahida_unlock_music to build unlock-music variants.'
+            throw 'Set MUSIC_RESTORE_TOKEN with read access to tdh62/lunanahida_unlock_music to build unlock-music variants.'
           }
           "include_converter=$($includeConverter.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
           if ($includeConverter) {
@@ -59,7 +59,7 @@ jobs:
         if: steps.variants.outputs.include_converter == 'true'
         uses: actions/checkout@v4
         with:
-          repository: tdh62/lumanahida_unlock_music
+          repository: tdh62/lunanahida_unlock_music
           ref: ${{ steps.variants.outputs.converter_commit }}
           token: ${{ secrets.MUSIC_RESTORE_TOKEN }}
           path: extensions/music-restore
@@ -150,7 +150,7 @@ jobs:
           path: bin/ci-windows/portable/
           if-no-files-found: error
           retention-days: 14
-          compression-level: 0
+          compression-level: 9
 
       - name: Upload desktop with unlock-music
         if: steps.variants.outputs.include_converter == 'true'
@@ -170,4 +170,4 @@ jobs:
           path: bin/ci-windows/portable-unlock-music/
           if-no-files-found: error
           retention-days: 14
-          compression-level: 0
+          compression-level: 9
