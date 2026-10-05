@@ -1,0 +1,161 @@
+name: Windows build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      include_converter:
+        description: 'Build full player and converter packages (requires MUSIC_RESTORE_TOKEN)'
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Windows x64
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Check out player
+        uses: actions/checkout@v4
+
+      - name: Select package variants
+        id: variants
+        env:
+          MUSIC_RESTORE_TOKEN: ${{ secrets.MUSIC_RESTORE_TOKEN }}
+          REQUEST_CONVERTER: ${{ inputs.include_converter }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          $includeConverter = $env:EVENT_NAME -ne 'pull_request' -and -not [string]::IsNullOrWhiteSpace($env:MUSIC_RESTORE_TOKEN)
+          if ($env:REQUEST_CONVERTER -eq 'true' -and -not $includeConverter) {
+            throw 'Set the MUSIC_RESTORE_TOKEN repository secret with read access to tdh62/lumanahida_unlock_music before requesting a full build.'
+          }
+          "include_converter=$($includeConverter.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          $moduleEntry = git ls-tree HEAD -- extensions/music-restore
+          if ($LASTEXITCODE -ne 0 -or $moduleEntry -notmatch '^160000 commit ([0-9a-f]{40})\s') {
+            throw 'Cannot read the pinned music-restore submodule commit.'
+          }
+          "converter_commit=$($Matches[1])" >> $env:GITHUB_OUTPUT
+
+      - name: Check out pinned music-restore source
+        if: steps.variants.outputs.include_converter == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: tdh62/lumanahida_unlock_music
+          ref: ${{ steps.variants.outputs.converter_commit }}
+          token: ${{ secrets.MUSIC_RESTORE_TOKEN }}
+          path: extensions/music-restore
+          persist-credentials: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+            extensions/music-restore/go.sum
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check version fields
+        run: pnpm check:version
+
+      - name: Check TypeScript
+        run: pnpm exec tsc --noEmit -p tsconfig.app.json
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test frontend
+        run: pnpm test:frontend
+
+      - name: Build frontend assets for Go tests
+        run: pnpm build
+
+      - name: Test player
+        run: go test ./...
+
+      - name: Test music-restore
+        if: steps.variants.outputs.include_converter == 'true'
+        working-directory: extensions/music-restore
+        run: go test ./...
+
+      - name: Install matching Wails CLI
+        run: |
+          $wailsVersion = go list -m -f '{{.Version}}' github.com/wailsapp/wails/v3
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve the Wails version from go.mod.' }
+          go install "github.com/wailsapp/wails/v3/cmd/wails3@$wailsVersion"
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot install the Wails CLI.' }
+          $goPath = go env GOPATH
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve GOPATH.' }
+          Join-Path $goPath 'bin' >> $env:GITHUB_PATH
+
+      - name: Verify converter integration
+        if: steps.variants.outputs.include_converter == 'true'
+        run: pnpm test:converter:integration
+
+      - name: Build Windows release packages
+        env:
+          INCLUDE_CONVERTER: ${{ steps.variants.outputs.include_converter }}
+        run: |
+          if ($env:INCLUDE_CONVERTER -eq 'true') {
+            pnpm build:release
+          } else {
+            pnpm build:release:lean
+          }
+          if ($LASTEXITCODE -ne 0) { throw 'Windows release build failed.' }
+
+      - name: Verify release checksums
+        run: |
+          $checksumFiles = @(Get-ChildItem bin/releases -Recurse -Filter SHA256SUMS.txt)
+          if ($checksumFiles.Count -ne 1) { throw 'Expected exactly one release checksum file.' }
+          foreach ($line in Get-Content $checksumFiles[0].FullName) {
+            if ($line -notmatch '^([0-9a-f]{64})  (.+)$') { throw "Invalid checksum entry: $line" }
+            $expected = $Matches[1]
+            $archive = Join-Path $checksumFiles[0].DirectoryName $Matches[2]
+            $actual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actual -ne $expected) { throw "Checksum mismatch: $archive" }
+          }
+
+      - name: Upload Windows packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: LunaNahida-windows-x64-${{ github.sha }}
+          path: bin/releases/**
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+      - name: Summarize build
+        env:
+          INCLUDE_CONVERTER: ${{ steps.variants.outputs.include_converter }}
+        run: |
+          $variant = if ($env:INCLUDE_CONVERTER -eq 'true') { 'lean, full, converter' } else { 'lean' }
+          "Windows x64 packages: $variant. Download them from this run's Artifacts section." >> $env:GITHUB_STEP_SUMMARY
+          if ($env:INCLUDE_CONVERTER -ne 'true') {
+            'Full builds require the MUSIC_RESTORE_TOKEN repository secret with read access to tdh62/lumanahida_unlock_music.' >> $env:GITHUB_STEP_SUMMARY
+          }

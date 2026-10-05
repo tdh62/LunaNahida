@@ -78,6 +78,18 @@ corepack pnpm test:web
 
 可通过 `PLAYWRIGHT_CHANNEL=msedge` 使用本机 Edge。`test:web` 验证浏览器行为并模拟桌面接口，不能代替 Windows 原生窗口验证。真实模块集成检查使用 `corepack pnpm test:converter:integration`，需先初始化模块源码。
 
+## Windows 构建 CI
+
+GitHub Actions 工作流位于 [windows-build.yml](../.github/workflows/windows-build.yml)，在推送 `main`、推送 `v*` 标签、向 `main` 提交 Pull Request 时运行，也可在 GitHub 的 **Actions → Windows build → Run workflow** 中手动启动。
+
+工作流使用 Windows x64、Node.js 24、`package.json` 指定的 pnpm，以及 `go.mod` 指定的 Go 和 Wails CLI。依次执行版本检查、TypeScript 检查、Lint、前端测试、Go 测试和 Windows 发布打包，并重新核验 ZIP 的 SHA-256 校验值。
+
+默认构建精简桌面版，不需要子模块仓库权限。若在主仓库的 **Settings → Secrets and variables → Actions** 中配置 `MUSIC_RESTORE_TOKEN`，推送和手动构建会自动生成精简版、完整版及独立还原模块，并运行模块测试和真实转换器集成测试。该 Secret 应是拥有 `tdh62/lumanahida_unlock_music` 仓库 **Contents: Read-only** 权限的 GitHub Token；工作流按主仓库记录的子模块提交检出，不跟随子模块最新分支。Pull Request 始终仅构建精简版。
+
+手动运行时，勾选 `include_converter` 会要求必须能构建还原模块；缺少 Token 时会明确失败。未勾选时仍会在 Token 已配置的情况下构建完整版。
+
+成功后，在该次运行的 **Artifacts** 中下载 `LunaNahida-windows-x64-<提交 SHA>`，其中包含发布 ZIP、`SHA256SUMS.txt`、`release.json` 和说明文件，保存 14 天。工作流不自动创建 GitHub Release。CI 不构建便携版；便携版依赖上文所述的 WebView2 Fixed Version Runtime。
+
 ## 数据目录
 
 标准桌面版默认使用 `%LOCALAPPDATA%/LunaNahida`。开发时可设置 `LUNANAHIDA_DATA_DIR` 指向独立目录，避免使用日常曲库。便携版固定使用 EXE 旁的 `userdata`，忽略该覆盖变量。
