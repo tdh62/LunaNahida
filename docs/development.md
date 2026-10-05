@@ -82,13 +82,22 @@ corepack pnpm test:web
 
 GitHub Actions 工作流位于 [windows-build.yml](../.github/workflows/windows-build.yml)，在推送 `main`、推送 `v*` 标签、向 `main` 提交 Pull Request 时运行，也可在 GitHub 的 **Actions → Windows build → Run workflow** 中手动启动。
 
-工作流使用 Windows x64、Node.js 24、`package.json` 指定的 pnpm，以及 `go.mod` 指定的 Go 和 Wails CLI。依次执行版本检查、TypeScript 检查、Lint、前端测试、Go 测试和 Windows 发布打包，并重新核验 ZIP 的 SHA-256 校验值。
+工作流使用 Windows x64、Node.js 24、`package.json` 指定的 pnpm，以及 `go.mod` 指定的 Go 和 Wails CLI。依次执行版本检查、TypeScript 检查、Lint、前端测试、Go 测试和 Windows 构建，并校验各版本的产物内容。便携版所需的 WebView2 Fixed Version Runtime x64 会从微软官方页面下载，展开后验证运行程序的微软数字签名。
 
-默认构建精简桌面版，不需要子模块仓库权限。若在主仓库的 **Settings → Secrets and variables → Actions** 中配置 `MUSIC_RESTORE_TOKEN`，推送和手动构建会自动生成精简版、完整版及独立还原模块，并运行模块测试和真实转换器集成测试。该 Secret 应是拥有 `tdh62/lumanahida_unlock_music` 仓库 **Contents: Read-only** 权限的 GitHub Token；工作流按主仓库记录的子模块提交检出，不跟随子模块最新分支。Pull Request 始终仅构建精简版。
+默认构建桌面版和便携版，不需要子模块仓库权限。若在主仓库的 **Settings → Secrets and variables → Actions** 中配置 `MUSIC_RESTORE_TOKEN`，推送和手动构建会额外生成两个带 unlock-music 插件的版本，并运行模块测试和真实转换器集成测试。该 Secret 应是拥有 `tdh62/lumanahida_unlock_music` 仓库 **Contents: Read-only** 权限的 GitHub Token；工作流按主仓库记录的子模块提交检出，不跟随子模块最新分支。Pull Request 仅构建不带插件的桌面版和便携版。
 
-手动运行时，勾选 `include_converter` 会要求必须能构建还原模块；缺少 Token 时会明确失败。未勾选时仍会在 Token 已配置的情况下构建完整版。
+手动运行时，勾选 `include_converter` 会要求必须能构建带插件版本；缺少 Token 时会明确失败。未勾选时仍会在 Token 已配置的情况下构建带插件版本。无法构建插件时，工作流会输出警告。
 
-成功后，在该次运行的 **Artifacts** 中下载 `LunaNahida-windows-x64-<提交 SHA>`，其中包含发布 ZIP、`SHA256SUMS.txt`、`release.json` 和说明文件，保存 14 天。工作流不自动创建 GitHub Release。CI 不构建便携版；便携版依赖上文所述的 WebView2 Fixed Version Runtime。
+成功后，在该次运行的 **Artifacts** 中分别下载以下产物，保存 14 天：
+
+| 产物名称（均以 `-<提交 SHA>` 结尾） | 内容 |
+| --- | --- |
+| `LunaNahida-windows-x64` | `LunaNahida.exe`、`search-dict/` |
+| `LunaNahida-windows-x64-portable` | 上述文件及 `WebView2/` |
+| `LunaNahida-windows-x64-unlock-music` | 桌面版及 `modules/music-restore/` |
+| `LunaNahida-windows-x64-portable-unlock-music` | 便携版及 `modules/music-restore/` |
+
+GitHub 为每个产物生成单层下载 ZIP，内部没有再次打包的 ZIP，也不附加 README、安装说明、发布清单或校验文件。字典 manifest、字典及插件的许可证、WebView2 原始运行文件保留。包内不包含 `userdata`。工作流不自动创建 GitHub Release。本地 `build:release*` 命令仍使用上文所述的发布打包方式。
 
 ## 数据目录
 

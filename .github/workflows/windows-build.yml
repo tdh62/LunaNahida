@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       include_converter:
-        description: 'Build full player and converter packages (requires MUSIC_RESTORE_TOKEN)'
+        description: 'Require unlock-music variants (requires MUSIC_RESTORE_TOKEN)'
         type: boolean
         required: false
         default: false
@@ -25,7 +25,7 @@ jobs:
   build:
     name: Windows x64
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     defaults:
       run:
         shell: pwsh
@@ -33,7 +33,7 @@ jobs:
       - name: Check out player
         uses: actions/checkout@v4
 
-      - name: Select package variants
+      - name: Select unlock-music variants
         id: variants
         env:
           MUSIC_RESTORE_TOKEN: ${{ secrets.MUSIC_RESTORE_TOKEN }}
@@ -42,16 +42,20 @@ jobs:
         run: |
           $includeConverter = $env:EVENT_NAME -ne 'pull_request' -and -not [string]::IsNullOrWhiteSpace($env:MUSIC_RESTORE_TOKEN)
           if ($env:REQUEST_CONVERTER -eq 'true' -and -not $includeConverter) {
-            throw 'Set the MUSIC_RESTORE_TOKEN repository secret with read access to tdh62/lumanahida_unlock_music before requesting a full build.'
+            throw 'Set MUSIC_RESTORE_TOKEN with read access to tdh62/lumanahida_unlock_music to build unlock-music variants.'
           }
           "include_converter=$($includeConverter.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
-          $moduleEntry = git ls-tree HEAD -- extensions/music-restore
-          if ($LASTEXITCODE -ne 0 -or $moduleEntry -notmatch '^160000 commit ([0-9a-f]{40})\s') {
-            throw 'Cannot read the pinned music-restore submodule commit.'
+          if ($includeConverter) {
+            $moduleEntry = git ls-tree HEAD -- extensions/music-restore
+            if ($LASTEXITCODE -ne 0 -or $moduleEntry -notmatch '^160000 commit ([0-9a-f]{40})\s') {
+              throw 'Cannot read the pinned unlock-music submodule commit.'
+            }
+            "converter_commit=$($Matches[1])" >> $env:GITHUB_OUTPUT
+          } else {
+            Write-Output '::warning::Building desktop and portable only. Unlock-music variants require MUSIC_RESTORE_TOKEN and a push or workflow_dispatch event.'
           }
-          "converter_commit=$($Matches[1])" >> $env:GITHUB_OUTPUT
 
-      - name: Check out pinned music-restore source
+      - name: Check out pinned unlock-music source
         if: steps.variants.outputs.include_converter == 'true'
         uses: actions/checkout@v4
         with:
@@ -99,7 +103,7 @@ jobs:
       - name: Test player
         run: go test ./...
 
-      - name: Test music-restore
+      - name: Test unlock-music
         if: steps.variants.outputs.include_converter == 'true'
         working-directory: extensions/music-restore
         run: go test ./...
@@ -114,48 +118,56 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve GOPATH.' }
           Join-Path $goPath 'bin' >> $env:GITHUB_PATH
 
-      - name: Verify converter integration
+      - name: Verify unlock-music integration
         if: steps.variants.outputs.include_converter == 'true'
         run: pnpm test:converter:integration
 
-      - name: Build Windows release packages
+      - name: Prepare portable WebView2 runtime
+        run: ./scripts/prepare-webview2.ps1
+
+      - name: Build and verify Windows artifacts
         env:
           INCLUDE_CONVERTER: ${{ steps.variants.outputs.include_converter }}
         run: |
-          if ($env:INCLUDE_CONVERTER -eq 'true') {
-            pnpm build:release
-          } else {
-            pnpm build:release:lean
-          }
-          if ($LASTEXITCODE -ne 0) { throw 'Windows release build failed.' }
+          $arguments = @('scripts/build-ci-windows.mjs')
+          if ($env:INCLUDE_CONVERTER -eq 'true') { $arguments += '--with-converter' }
+          node @arguments
+          if ($LASTEXITCODE -ne 0) { throw 'Windows artifact build or verification failed.' }
 
-      - name: Verify release checksums
-        run: |
-          $checksumFiles = @(Get-ChildItem bin/releases -Recurse -Filter SHA256SUMS.txt)
-          if ($checksumFiles.Count -ne 1) { throw 'Expected exactly one release checksum file.' }
-          foreach ($line in Get-Content $checksumFiles[0].FullName) {
-            if ($line -notmatch '^([0-9a-f]{64})  (.+)$') { throw "Invalid checksum entry: $line" }
-            $expected = $Matches[1]
-            $archive = Join-Path $checksumFiles[0].DirectoryName $Matches[2]
-            $actual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
-            if ($actual -ne $expected) { throw "Checksum mismatch: $archive" }
-          }
-
-      - name: Upload Windows packages
+      - name: Upload desktop
         uses: actions/upload-artifact@v4
         with:
           name: LunaNahida-windows-x64-${{ github.sha }}
-          path: bin/releases/**
+          path: bin/ci-windows/desktop/
           if-no-files-found: error
           retention-days: 14
           compression-level: 0
 
-      - name: Summarize build
-        env:
-          INCLUDE_CONVERTER: ${{ steps.variants.outputs.include_converter }}
-        run: |
-          $variant = if ($env:INCLUDE_CONVERTER -eq 'true') { 'lean, full, converter' } else { 'lean' }
-          "Windows x64 packages: $variant. Download them from this run's Artifacts section." >> $env:GITHUB_STEP_SUMMARY
-          if ($env:INCLUDE_CONVERTER -ne 'true') {
-            'Full builds require the MUSIC_RESTORE_TOKEN repository secret with read access to tdh62/lumanahida_unlock_music.' >> $env:GITHUB_STEP_SUMMARY
-          }
+      - name: Upload portable
+        uses: actions/upload-artifact@v4
+        with:
+          name: LunaNahida-windows-x64-portable-${{ github.sha }}
+          path: bin/ci-windows/portable/
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+      - name: Upload desktop with unlock-music
+        if: steps.variants.outputs.include_converter == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: LunaNahida-windows-x64-unlock-music-${{ github.sha }}
+          path: bin/ci-windows/desktop-unlock-music/
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+      - name: Upload portable with unlock-music
+        if: steps.variants.outputs.include_converter == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: LunaNahida-windows-x64-portable-unlock-music-${{ github.sha }}
+          path: bin/ci-windows/portable-unlock-music/
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
