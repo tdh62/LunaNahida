@@ -106,12 +106,27 @@ export function usePlayer() {
     const owner = { stop: () => { shouldPlay.current = false; element.pause(); setPlaying(false); } };
     musicOwner.current = owner;
     element.ontimeupdate = () => setTime(element.currentTime);
+    const updateDuration = () => {
+      const id = audioTrackId.current;
+      const duration = element.duration;
+      if (id === null || id !== currentId.current || !Number.isFinite(duration) || duration <= 0) return;
+      const item = queueRef.current.find(track => track.id === id);
+      if (!item || item.duration === duration) return;
+      updateQueue(queueRef.current.map(track => track.id === id ? { ...track, duration } : track));
+      catalogRef.current = catalogRef.current.map(track => track.id === id ? { ...track, duration } : track);
+      if (id > 0 && runtime.backend) {
+        window.dispatchEvent(new CustomEvent('lunanahida-library-changed', { detail: [{ id, changes: { duration } }] }));
+        void backend.duration(id, duration).catch(() => {});
+      }
+    };
+    element.ondurationchange = updateDuration;
     element.onloadedmetadata = () => {
       if (pendingResume.current?.trackId === currentId.current) {
         const position = Math.max(0, Math.min(pendingResume.current.position, Number.isFinite(element.duration) ? element.duration : pendingResume.current.position));
         element.currentTime = position; setTime(position); pendingResume.current = null;
       }
-      const id = currentId.current; if (id !== null && Number.isFinite(element.duration)) { const updated = queueRef.current.map(item => item.id === id ? { ...item, duration: element.duration } : item); updateQueue(updated); if (id > 0 && runtime.backend) void backend.duration(id, element.duration).catch(() => {}); } };
+      updateDuration();
+    };
     element.oncanplay = () => { const id = currentId.current; if (id === null) return; const item = queueRef.current.find(track => track.id === id); if (item?.playbackStatus === 'playable') return; updateQueue(queueRef.current.map(track => track.id === id ? { ...track, playbackStatus: 'playable' } : track)); if (id > 0 && runtime.backend) void backend.playbackStatus(id, 'playable').then(() => window.dispatchEvent(new CustomEvent('lunanahida-library-changed', { detail: [{ id, changes: { playbackStatus: 'playable' } }] }))).catch(() => {}); };
     element.onerror = () => {
       const id = currentId.current;

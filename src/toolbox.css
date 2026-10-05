@@ -1,5 +1,4 @@
-.toolbox-dialog { --toolbox-accent: #a5b5ff; --toolbox-accent-text: #191b21; width: min(520px, calc(100vw - 28px)); max-width: 520px; gap: 14px; }
-.toolbox-dialog.conversion-dialog { top: calc((100dvh - 120px) / 2); max-height: calc(100dvh - 160px); overflow-y: auto; }
+.dialog-frame.toolbox-dialog { --toolbox-accent: #a5b5ff; --toolbox-accent-text: #191b21; width: min(520px, calc(100vw - 28px)); max-width: 520px; gap: 14px; top: calc((100dvh - var(--playback-bar-height)) / 2); max-height: calc(100dvh - var(--playback-bar-height) - 32px); overflow-y: auto; overscroll-behavior: contain; }
 .conversion-task { display: flex; flex-direction: column; gap: 14px; min-width: 0; margin: 0; padding: 0; border: 0; }
 .conversion-task:disabled .toolbox-drop { opacity: .6; cursor: not-allowed; }
 .conversion-unavailable { margin: 0; color: var(--text-muted); font-size: 12px; line-height: 1.7; }
@@ -55,7 +54,7 @@ html.mode-light .toolbox-actions .toolbox-convert:disabled { border-color: #c6d0
 .toolbox-item small { margin-top: 4px; color: #a5a7a9; font-size: 10px; }
 .toolbox-item button { display: grid; place-items: center; flex: none; width: 28px; height: 28px; border: 0; background: none; color: var(--text-secondary); }
 .toolbox-item .toolbox-success { flex: none; color: #73c69d; }
-.toolbox-dialog.toolbox-menu-dialog { top: calc((100dvh - 120px) / 2); width: min(520px, calc(100vw - 28px)); max-width: 520px; max-height: calc(100dvh - 160px); overflow-y: auto; }
+.toolbox-dialog.toolbox-menu-dialog { width: min(520px, calc(100vw - 28px)); max-width: 520px; }
 .toolbox-app-nav { display: flex; align-items: center; gap: 12px; padding-right: 26px; }
 .toolbox-app-nav button { display: inline-flex; align-items: center; gap: 5px; border: 0; padding: 3px 0; background: transparent; color: var(--toolbox-accent); font-size: 11px; }
 .toolbox-app-nav button:disabled { opacity: .55; cursor: not-allowed; }
@@ -76,7 +75,7 @@ html.mode-light .toolbox-app-card > svg { color: #586968; }
 .organizer button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 31px; padding: 5px 10px; border: 1px solid var(--line); border-radius: 5px; background: transparent; color: inherit; font-size: 11px; }
 .organizer-modes button.active { border-color: var(--toolbox-accent); color: var(--toolbox-accent); background: color-mix(in srgb, var(--toolbox-accent) 10%, transparent); }
 .organizer button:disabled { opacity: .55; cursor: not-allowed; }
-.toolbox-dialog.organizer-dialog { width: min(760px, calc(100vw - 28px)); max-width: 760px; max-height: calc(100dvh - 32px); overflow-y: auto; }
+.toolbox-dialog.organizer-dialog { width: min(760px, calc(100vw - 28px)); max-width: 760px; }
 .organizer { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .organizer-modes { flex-wrap: wrap; }
 .organizer-modes button { flex: 1; min-width: 110px; }
@@ -125,7 +124,7 @@ html.mode-light .toolbox-app-card > svg { color: #586968; }
 html.mode-light .organizer-hint, html.mode-light .organizer-safety, html.mode-light .organizer-inputs label span, html.mode-light .organizer-preview details, html.mode-light .organizer-move span, html.mode-light .organizer-move small, html.mode-light .organizer-duplicate small, html.mode-light .organizer-duplicate p { color: #586968; }
 html.mode-light .organizer-warning { color: #98521c; }
 @media (max-width: 540px) { .organizer-path-entry { flex-wrap: wrap; } .organizer-path-entry input { flex-basis: 65%; } .organizer-inputs label span { display: block; margin: 4px 0 0; } }
-.toolbox-dialog.noise-dialog { left: auto; top: auto; right: 16px; bottom: 132px; transform: none; max-height: calc(100dvh - 156px); overflow-y: auto; }
+.toolbox-dialog.noise-dialog { left: auto; top: auto; right: 16px; bottom: calc(var(--playback-bar-height) + 18px); transform: none; }
 .noise-generator { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
 .noise-safety { margin: 0; font-size: 11px; line-height: 1.8; color: var(--text-muted, #929ba3); }
 .noise-types { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }

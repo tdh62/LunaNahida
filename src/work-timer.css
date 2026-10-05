@@ -1,4 +1,4 @@
-.toolbox-dialog.timer-dialog { top: calc((100dvh - 120px) / 2); width: min(480px, calc(100vw - 28px)); max-width: 480px; max-height: calc(100dvh - 152px); overflow-y: auto; }
+.toolbox-dialog.timer-dialog { width: min(480px, calc(100vw - 28px)); max-width: 480px; }
 .work-timer { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .work-timer button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 6px; color: inherit; background: transparent; font-size: 12px; }
 .work-timer button:disabled { opacity: .5; cursor: not-allowed; }

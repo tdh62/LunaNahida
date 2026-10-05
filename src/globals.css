@@ -4,6 +4,9 @@
 @tailwind components;
 @tailwind utilities;
 
+:root { --playback-bar-height: 88px; }
+@media (max-width: 760px) { :root { --playback-bar-height: 114px; } }
+
 @layer base {
   :root { --background: 222 14% 9%; --foreground: 30 13% 94%; --card: 222 12% 12%; --card-foreground: 30 13% 94%; --popover: 222 12% 12%; --popover-foreground: 30 13% 94%; --primary: 230 100% 82%; --primary-foreground: 230 18% 10%; --secondary: 222 10% 16%; --secondary-foreground: 30 13% 94%; --muted: 222 10% 16%; --muted-foreground: 220 5% 55%; --accent: 230 100% 82%; --accent-foreground: 230 18% 10%; --border: 222 8% 19%; --input: 222 8% 19%; --ring: 230 100% 82%; --radius: .3rem; }
   * { @apply border-border; }

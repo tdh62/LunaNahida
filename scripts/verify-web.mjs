@@ -11,6 +11,7 @@ import verifyCatalogNavigation from './verify-catalog-navigation.mjs';
 import verifyConversionWorkflow from './verify-conversion-workflow.mjs';
 import verifyResponsiveNavigation from './verify-responsive-navigation.mjs';
 import verifyLoadingFeedback from './verify-loading-feedback.mjs';
+import verifyPlayerMetadata from './verify-player-metadata.mjs';
 
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : 'playwright');
 const root = resolve('dist');
@@ -135,6 +136,15 @@ async function setup({ backend = false, desktop = false, conversion = backend, a
       state.tracks = [{ id: 1, title: trackTitle, english: '', artist: '本地文件', album: 'Native Album', duration: 30, cover: '/covers/local.svg', genre: '', year: '', color: '#8daab0', source: '/api/media/audio/1', path: 'C:/music/native.wav' }];
       await route.fulfill({ json: state.tracks });
     } else if (path === '/api/media/audio/1') await route.fulfill({ contentType: 'audio/wav', body: audio });
+    else if (/^\/api\/tracks\/\d+\/(duration|playback)$/.test(path)) {
+      const track = state.tracks.find(track => track.id === Number(path.split('/')[3]));
+      if (track) {
+        const input = route.request().postDataJSON();
+        if (path.endsWith('/duration')) track.duration = input.duration;
+        else track.playbackStatus = input.status;
+      }
+      await route.fulfill({ json: { ok: true } });
+    }
     else if (path === '/api/settings') { state.settings = route.request().postDataJSON(); await route.fulfill({ json: state.settings }); }
     else await route.fulfill({ json: { ok: true } });
   });
@@ -147,13 +157,16 @@ const miniDropTrack = (id, title) => ({ id, title, english: '', artist: 'Drop Ar
 
 try {
   browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}) });
-  if (process.argv.includes('--conversion-only')) {
+  if (process.argv.includes('--player-metadata-only')) {
+    await verifyPlayerMetadata(setup, output, miniDropTrack);
+  } else if (process.argv.includes('--conversion-only')) {
     await verifyConversionWorkflow(setup, output, miniDropTrack);
   } else if (process.argv.includes('--feedback-only')) {
     await verifyLoadingFeedback(setup, output);
   } else if (process.argv.includes('--responsive-only')) {
     await verifyResponsiveNavigation(setup, output);
   } else {
+  await verifyPlayerMetadata(setup, output, miniDropTrack);
   await verifyTextSize(setup, output);
   await verifyCatalogNavigation(setup, output);
   await verifyResponsiveNavigation(setup, output);
